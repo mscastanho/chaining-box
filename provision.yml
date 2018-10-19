@@ -1,0 +1,57 @@
+---
+- name: Provision environment for dSFC
+  hosts: all
+  gather_facts: no
+  become: yes
+  become_user: root
+  remote_user: vagrant
+  tasks:
+    - name: Create dir for kernel files
+      file:
+        path: /usr/src/kernel-v4.18
+        state: directory
+    - name: Download kernel v4.18
+      get_url:
+        url: "{{ item }}"
+        dest: /usr/src/kernel-v4.18/
+      loop:
+        - "http://kernel.ubuntu.com/~kernel-ppa/mainline/v4.18/linux-headers-4.18.0-041800_4.18.0-041800.201808122131_all.deb"
+        - "http://kernel.ubuntu.com/~kernel-ppa/mainline/v4.18/linux-headers-4.18.0-041800-generic_4.18.0-041800.201808122131_amd64.deb"
+        - "http://kernel.ubuntu.com/~kernel-ppa/mainline/v4.18/linux-image-unsigned-4.18.0-041800-generic_4.18.0-041800.201808122131_amd64.deb"
+        - "http://kernel.ubuntu.com/~kernel-ppa/mainline/v4.18/linux-modules-4.18.0-041800-generic_4.18.0-041800.201808122131_amd64.deb"
+    - name: Install kernel v4.18
+      shell: dpkg -i *.deb
+      args:
+        chdir: /usr/src/kernel-v4.18/
+      register: install_result
+    - name: Reboot and wait
+      reboot:
+      when: install_result is changed
+    - name: Get kernel version
+      shell: uname -r
+      register: result
+    - name: Fail if kernel 4.18 not loaded
+      fail:
+        msg: "Wrong kernel loaded ({{ result.stdout }}). Expected 4.18.0"
+      vars:
+        kernel_version: "{{ result.stdout }}"
+      when: kernel_version is not match(".*4\.18\.0.*")
+    - name: Install dependencies
+      apt:
+        name: "{{ item }}"
+      loop:
+        - llvm-6.0
+        - elfutils
+        - libelf-dev
+        - libmnl-dev
+        - bison
+        - flex
+        - pkg-config
+    - name: Clone newest iproute2 repo
+      git:
+        repo: https://git.kernel.org/pub/scm/network/iproute2/iproute2-next.git
+        dest: /usr/src/iproute2/
+    - name: Install iproute2
+      shell: ./configure && make && make install
+      args:
+        chdir: /usr/src/iproute2
