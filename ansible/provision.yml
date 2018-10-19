@@ -1,0 +1,47 @@
+---
+- name: Provision environment for dSFC
+  hosts: all
+  gather_facst: no
+  tasks:
+    - name: Create dir for kernel files
+      file:
+        path: /usr/src/kernel-v4.18
+        state: directory
+    - name: Download kernel v4.18
+      get_url:
+        url: "{{ item }}"
+        dest: /usr/src/kernel-v4.18/
+      loop:
+        - "wget http://kernel.ubuntu.com/~kernel-ppa/mainline/v4.18/linux-headers-4.18.0-041800_4.18.0-041800.201808122131_all.deb"
+        - "wget http://kernel.ubuntu.com/~kernel-ppa/mainline/v4.18/linux-headers-4.18.0-041800-generic_4.18.0-041800.201808122131_amd64.deb"
+        - "wget http://kernel.ubuntu.com/~kernel-ppa/mainline/v4.18/linux-image-4.18.0-041800-generic_4.18.0-041800.201808122131_arm64.deb"
+        - "wget http://kernel.ubuntu.com/~kernel-ppa/mainline/v4.18/linux-modules-4.18.0-041800-generic_4.18.0-041800.201808122131_amd64.deb"
+    - name: Install kernel v4.18
+      shell: dpkg -i *.deb
+      args:
+        chdir: /usr/src/kernel-v4.18/
+      register: install_result
+    - name: Reboot and wait
+      wait_for_connection:
+        delay: 30
+        timeout: 300
+      when: install_result is changed
+    - name: Install dependencies
+      apt:
+        name: "{{ pkg }}"
+      loop:
+        - llvm-6.0
+        - elfutils
+        - libelf-dev
+        - libmnl-dev
+        - bison
+        - flex
+        - pkg-config
+    - name: Clone newest iproute2 repo
+      git:
+        repo: https://git.kernel.org/pub/scm/network/iproute2/iproute2-next.git
+        dest: /usr/src/
+    - name: Install iproute2
+      shell: ./configure && make && make install
+      args:
+        chdir: /usr/src/iproute2-next
