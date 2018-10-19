@@ -41,6 +41,7 @@
         name: "{{ item }}"
       loop:
         - llvm-6.0
+        - clang # clang-6.0
         - elfutils
         - libelf-dev
         - libmnl-dev

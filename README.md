@@ -20,3 +20,15 @@ The VMs are automatically provisioned during initialization. If something goes w
 To access the vm run
 
     vagrant ssh
+
+Command to compile bpf code:
+
+    clang -O2 -emit-llvm -c <filename>.c -o - | llc -march=bpf -filetype=obj -o <filename>.o
+
+Load eBPF code to iface:
+
+    sudo ip -force link set dev <interface> xdp obj <filename>.o sec .text
+
+Unload eBPF code:
+
+    sudo ip link set dev <interface> xdp off
