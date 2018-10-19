@@ -39,8 +39,9 @@
     - name: Install dependencies
       apt:
         name: "{{ item }}"
+        update_cache: yes # Run 'apt update' before install
       loop:
-        - llvm-6.0
+        - llvm
         - clang # clang-6.0
         - elfutils
         - libelf-dev
@@ -48,6 +49,7 @@
         - bison
         - flex
         - pkg-config
+        - ifupdown
     - name: Clone newest iproute2 repo
       git:
         repo: https://git.kernel.org/pub/scm/network/iproute2/iproute2-next.git
@@ -56,3 +58,5 @@
       shell: ./configure && make && make install
       args:
         chdir: /usr/src/iproute2
+    - name: Install BCC
+      script: install-bcc.sh 

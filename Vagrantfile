@@ -12,6 +12,7 @@ Vagrant.configure("2") do |config|
   config.ssh.insert_key = false
 
   config.vm.synced_folder "src/", "/home/vagrant/dsfc-src", type: "rsync"
+  config.vm.synced_folder ".", "/vagrant", disabled: true
 
   config.vm.provider "virtualbox" do |vb|
     vb.name = "dsfc1"
@@ -20,7 +21,7 @@ Vagrant.configure("2") do |config|
   end
 
   config.vm.provision "ansible" do |ansible|
-    ansible.playbook = "provision.yml"
+    ansible.playbook = "./ansible/provision.yml"
     ansible.extra_vars = { ansible_python_interpreter:"/usr/bin/python3" }
   end
 
