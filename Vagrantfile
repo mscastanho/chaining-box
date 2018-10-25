@@ -11,7 +11,8 @@ Vagrant.configure("2") do |config|
 
   config.ssh.insert_key = false
 
-  config.vm.synced_folder "src/", "/home/vagrant/dsfc-src", type: "rsync"
+  config.vm.synced_folder "src/", "/home/vagrant/dsfc/src", type: "rsync", rsync__chown: true
+  config.vm.synced_folder "test/", "/home/vagrant/dsfc/test", type: "rsync", rsync__chown: true
   config.vm.synced_folder ".", "/vagrant", disabled: true
 
   config.vm.provider "virtualbox" do |vb|
