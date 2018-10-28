@@ -1,5 +1,5 @@
 ---
-- name: Provision environment for dSFC
+- name: Provision environment to play with BPF
   hosts: all
   gather_facts: no
   become: yes
@@ -10,6 +10,11 @@
       file:
         path: /usr/src/kernel-v4.18
         state: directory
+    # TODO:
+    # - Enable gather facts
+    # - Get kernel version from facts (hostvars[item]['ansible_kernel'])
+    # - Check if kernel 4.18 is already being used before downloading
+    # - Check if files are already present locally before downloading
     - name: Download kernel v4.18
       get_url:
         url: "{{ item }}"
@@ -50,13 +55,33 @@
         - flex
         - pkg-config
         - ifupdown
+        - libpcap-dev
+        - python-scapy
+        - python-netifaces
+        - binutils-dev
     - name: Clone newest iproute2 repo
       git:
         repo: https://git.kernel.org/pub/scm/network/iproute2/iproute2-next.git
-        dest: /usr/src/iproute2/
+        dest: /home/vagrant/iproute2/
     - name: Install iproute2
       shell: ./configure && make && make install
       args:
-        chdir: /usr/src/iproute2
-    - name: Install BCC
-      script: install-bcc.sh 
+        chdir: /home/vagrant/iproute2
+    # TODO: Fix BCC installation
+    # - name: Install BCC
+    #   script: install-bcc.sh 
+    - name: Clone prototype-kernel project
+      git:
+        repo: https://github.com/netoptimizer/prototype-kernel.git
+        dest: /home/vagrant/prototype-kernel
+    - name: Clone linux source code
+      git:
+        repo: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux-stable.git 
+        dest: /home/vagrant/linux
+        version: v4.18
+        #depth: 1 # Reduce commit history to download faster
+    # TODO: Add bpftool installation
+    # From kernel tree: 
+        # cd /tools/bpf/bpftool
+        # make
+        # make install
