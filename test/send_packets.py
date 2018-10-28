@@ -40,14 +40,14 @@ i_tcp = TCP(sport=1000,dport=2000)
 o_eth = Ether(src=out_src_mac,dst="00:00:00:00:00:02")
 
 if with_nsh:
-    in_pkt = o_eth/NSH(SPI=0x1,SI=0xFF)/i_eth/i_ip/i_tcp/http_resp
+    in_pkt = o_eth/NSH(NSP=0x1,NSI=0xFF)/i_eth/i_ip/i_tcp/http_resp
 else:
     in_pkt = i_ip/i_tcp/http_resp
 
-# print "Beautiful packet!\n"
-# in_pkt.show()
-# print "Ugly packet!\n"
-# hexdump(in_pkt)
+print "Beautiful packet!\n"
+in_pkt.show()
+print "Ugly packet!\n"
+hexdump(in_pkt)
 
 print out_iface
 sendp(in_pkt,iface=out_iface)

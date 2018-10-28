@@ -11,28 +11,22 @@
 #include <uapi/linux/pkt_cls.h>
 
 #include "nsh.h"
-// #include "bpf_endian.h"
+#include "common.h"
 
 #ifndef _BCC
 #include "bpf_helpers.h"
+// #include "bpf_endian.h"
 #endif
 
 #define FWD_TABLE_SZ 1024
 
-struct fwd_entry {
-    // Flags:
-    // Bit 0 : is end of chain
-    // Bits 1-7 : reserved
-    uint8_t flags;
-    unsigned char address[ETH_ALEN];
-};
-
 #ifndef _BCC
-struct bpf_map_def SEC("maps") fwd_table = {
+struct bpf_elf_map SEC("maps") fwd_table = {
     .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(__u32), // Key is SPH (SPI + SI) -> 4 Bytes
-    .value_size = sizeof(struct fwd_entry), // Value is MAC address + end byte
-    .max_entries = FWD_TABLE_SZ,
+    .size_key = sizeof(__u32), // Key is SPH (SPI + SI) -> 4 Bytes
+    .size_value = sizeof(struct fwd_entry), // Value is MAC address + end byte
+    .max_elem = FWD_TABLE_SZ,
+    .pinning = PIN_GLOBAL_NS,
 };
 #else
 BPF_HASH(fwd_table, __u32, struct fwd_entry, FWD_TABLE_SZ);
@@ -79,7 +73,8 @@ int sfc_forwarding(struct __sk_buff *skb)
     if ((void*) nsh + sizeof(*nsh) > data_end)
         return TC_ACT_SHOT;
     
-    sph = nsh->serv_path;
+    // TODO: Check if endianness is correct!
+    sph = ntohl(nsh->serv_path);
     spi = (sph & 0xFFFF00)>>8;
     si = (sph & 0xFF);
 
@@ -87,6 +82,9 @@ int sfc_forwarding(struct __sk_buff *skb)
     // Outputs to /sys/kernel/debug/tracing/trace_pipe
     char fmt[] = "SPH from packet: %x\n";
     bpf_trace_printk(fmt, sizeof(fmt), sph);
+
+    // BCC-style
+    // bpf_trace_printk("SPH from packet: %x\n" , sph);
 
 #ifndef _BCC
     next_hop = bpf_map_lookup_elem(&fwd_table,&sph);
@@ -97,22 +95,31 @@ int sfc_forwarding(struct __sk_buff *skb)
     if(next_hop){ // Use likely() here?
         // bpf_debug("Found it!\n");
         if(next_hop->flags & 0x1){
+            char fmt2[] = "It's a match!! SPH: %x\n";
+            bpf_trace_printk(fmt2, sizeof(fmt2), sph);        
             // Remove external encapsulation
             // bpf_pop_header(pkt,0,ETH_HLEN + NSH_HLEN_NO_META);
         }else{
-            // Update MAC daddr
-            // OBS: Source MAC should be updated
-            memmove(eth->h_dest,next_hop->address,ETH_ALEN);
-            sph = ntohl(sph);
-            sph--;
-            // bpf_notify(2,next_hop->address,ETH_ALEN);
-            // bpf_notify(2,eth->h_dest,ETH_ALEN);
-            nsh->serv_path = htonl(sph);
-            // dump("=== NSH after ===",pkt->eth,pkt->metadata->length);
-            // bpf_notify(1,&nsh->serv_path,4);
+            // // Update MAC daddr
+            // // OBS: Source MAC should be updated
+            // memmove(eth->h_dest,next_hop->address,ETH_ALEN);
+            // sph = ntohl(sph);
+            // sph--;
+            // // bpf_notify(2,next_hop->address,ETH_ALEN);
+            // // bpf_notify(2,eth->h_dest,ETH_ALEN);
+            // nsh->serv_path = htonl(sph);
+            // // dump("=== NSH after ===",pkt->eth,pkt->metadata->length);
+            // // bpf_notify(1,&nsh->serv_path,4);
         }
     }else{
-        // No corresponding rule. Drop the packet
+        // No corresponding rule. Drop the packet.
+        // This command will cause the processing pipeline
+        // to be stop, thus dropping the packet. 
+        // As a consequence, if using some tool like 
+        // scapy to generate packets for testing,
+        // one might see an error like:
+        //      "socket.error: No buffer space available"
+        // That's the expected behavior.
         return TC_ACT_SHOT;
     }
 
