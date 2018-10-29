@@ -218,4 +218,4 @@ $(KERN_OBJECTS): %.o: %.c bpf_helpers.h Makefile
 	$(LLC) -march=bpf -filetype=obj -o $@ ${@:.o=.ll}
 
 $(USER_OBJECTS): %.o: %.c $(OBJECTS) $(LIBBPF) Makefile $(BPF_PATH)/bpf_util.h
-	$(CC) $(CFLAGS) $(OBJECTS) $(LDFLAGS) -o $@ $< $(LIBBPF)
+	$(CC) $(CFLAGS) $(OBJECTS) $(LDFLAGS) -o ${@:.o=} $< $(LIBBPF)
