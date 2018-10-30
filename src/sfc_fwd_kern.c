@@ -56,7 +56,7 @@ int sfc_forwarding(struct __sk_buff *skb)
     void *data_end = (void *)(long)skb->data_end;
 
     struct ethhdr *eth = data;
-    struct nsh_hdr *nsh;
+    struct nshhdr *nsh;
     struct fwd_entry *next_hop;
     __u32 sph;
     __u32 si, spi;

@@ -49,7 +49,7 @@ struct bpf_elf_map __section_maps sfc_classification = {
 // }
 
 /* Initializes the NSH header with default values */
-static inline int nsh_init_header(struct nsh_hdr *nsh_header){
+static inline int nsh_init_header(struct nshhdr *nsh_header){
    
     if(nsh_header == NULL)
         return -1;
@@ -70,7 +70,7 @@ static inline int nsh_init_header(struct nsh_hdr *nsh_header){
 __section_cls_entry
 int cls_entry(struct __sk_buff *skb)
 {
-    struct nsh_hdr *nsh;
+    struct nshhdr *nsh;
     char out_encap[ETH_HLEN + NSH_HLEN_NO_META];
     struct class_res *class;
     struct ethhdr *eth_encap;
@@ -82,7 +82,7 @@ int cls_entry(struct __sk_buff *skb)
 
         // sph = 0x000027FF;
         eth_encap = (struct ethhdr *) out_encap;
-        nsh = (struct nsh_hdr *) ( ((char*) out_encap) + ETH_HLEN);
+        nsh = (struct nshhdr *) ( ((char*) out_encap) + ETH_HLEN);
         get_tuple(pkt->eth,&t);
 
         // bpf_notify(1,&t,sizeof(struct ip_5tuple));

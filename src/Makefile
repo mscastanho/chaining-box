@@ -11,9 +11,8 @@
 # Still depend on a kernel source tree.
 #
 TARGETS := sfc_fwd_kern
-TARGETS += sfc_decap_kern
-TARGETS += lwt_test_kern
-# TARGETS += sfc_encap_kern
+TARGETS += sfc_proxy_kern
+# TARGETS += lwt_test_kern
 TARGETS += sfc_agent_user
 
 # TC bpf targets uses bpf-elf-loader included in tc/iproute2.  Thus,
