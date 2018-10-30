@@ -1,4 +1,4 @@
-#ifndef NSH_H_
+﻿#ifndef NSH_H_
 #define NSH_H_
 
 // #include <stdint.h>
@@ -35,7 +35,7 @@
 #define NSH_NEXT_PROTO_EXP1  0xFE
 #define NSH_NEXT_PROTO_EXP2  0xFF
 
-struct nsh_hdr {
+struct nshhdr {
     __u16 basic_info; /* Ver, OAM bit, Unused and TTL */
     __u8 md_type;
     __u8 next_proto;

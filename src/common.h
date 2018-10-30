@@ -18,6 +18,14 @@ struct fwd_entry {
 // the BPF_OBJ_GET bpf command.
 #define PIN_GLOBAL_NS 2
 
+// Nicer way to call bpf_trace_printk()
+#define printk(fmt, ...)						\
+		({							\
+			char ____fmt[] = fmt;				\
+			bpf_trace_printk(____fmt, sizeof(____fmt),	\
+				     ##__VA_ARGS__);			\
+		})
+
 // Specific map structure used by tc and iproute2
 // Extracted from iproute2 source code:
 //      iproute2/include/bpf_elf.h
