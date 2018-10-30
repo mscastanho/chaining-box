@@ -37,10 +37,10 @@ i_eth = Ether(src="AA:BB:CC:DD:EE:FF",dst="AA:AA:AA:AA:AA:AA")
 i_ip = IP(src="10.1.0.1",dst="10.1.0.2")
 i_tcp = TCP(sport=1000,dport=2000)
 
-o_eth = Ether(src=out_src_mac,dst="00:00:00:00:00:02")
+o_eth = Ether(src=out_src_mac,dst="08:00:27:aa:0b:44")
 
 if with_nsh:
-    in_pkt = o_eth/NSH(NSP=0x1,NSI=0xFF)/i_eth/i_ip/i_tcp/http_resp
+    in_pkt = o_eth/NSH(NSP=0x1,NSI=0xFF,MDType=0x2)/i_eth/i_ip/i_tcp/http_resp
 else:
     in_pkt = i_ip/i_tcp/http_resp
 
