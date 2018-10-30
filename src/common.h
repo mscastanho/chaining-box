@@ -31,4 +31,12 @@ struct bpf_elf_map {
 	__u32 pinning;
 };
 
+struct ip_5tuple {
+    __u32 ip_src;
+    __u32 ip_dst;
+    __u16 sport;
+    __u16 dport;
+    __u8 proto;
+}__attribute__((packed));
+
 #endif /* COMMON_H_ */

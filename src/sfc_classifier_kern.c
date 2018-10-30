@@ -8,14 +8,7 @@
 #include <linux/in.h>
 #include "nsh.h"
 #include "bpf_api.h"
-
-struct ip_5tuple {
-    uint32_t ip_src;
-    uint32_t ip_dst;
-    uint16_t sport;
-    uint16_t dport;
-    uint8_t proto;
-}__attribute__((packed));
+#include "common.h"
 
 struct class_res {
     uint32_t sph;
@@ -29,31 +22,31 @@ struct bpf_elf_map __section_maps sfc_classification = {
     .max_elem = 1024,
 };
 
-static inline void get_tuple(struct ethhdr *eth, struct ip_5tuple *t){
-    struct iphdr *ip = (struct iphdr *) (((char*) eth) + sizeof(struct ethhdr));
-    struct udphdr *udp;
-    struct tcphdr *tcp;
+// static inline void get_tuple(struct ethhdr *eth, struct ip_5tuple *t){
+//     struct iphdr *ip = (struct iphdr *) (((char*) eth) + sizeof(struct ethhdr));
+//     struct udphdr *udp;
+//     struct tcphdr *tcp;
 
-    t->ip_src = ip->saddr;
-    t->ip_dst = ip->daddr;
-    t->proto = ip->protocol;
+//     t->ip_src = ip->saddr;
+//     t->ip_dst = ip->daddr;
+//     t->proto = ip->protocol;
 
-    switch(t->proto){
-        case IPPROTO_UDP:
-            udp = (struct udphdr *) (((char*) ip) + sizeof(struct iphdr));
-            t->dport = udp->source;
-            t->sport = udp->dest;
-            break;
-        case IPPROTO_TCP:
-            tcp = (struct tcphdr *) (((char*) ip) + sizeof(struct iphdr));
-            t->dport = tcp->source;
-            t->sport = tcp->dest;
-            break;
-        default:
-            t->dport = 0;
-            t->sport = 0;
-    }
-}
+//     switch(t->proto){
+//         case IPPROTO_UDP:
+//             udp = (struct udphdr *) (((char*) ip) + sizeof(struct iphdr));
+//             t->dport = udp->source;
+//             t->sport = udp->dest;
+//             break;
+//         case IPPROTO_TCP:
+//             tcp = (struct tcphdr *) (((char*) ip) + sizeof(struct iphdr));
+//             t->dport = tcp->source;
+//             t->sport = tcp->dest;
+//             break;
+//         default:
+//             t->dport = 0;
+//             t->sport = 0;
+//     }
+// }
 
 /* Initializes the NSH header with default values */
 static inline int nsh_init_header(struct nsh_hdr *nsh_header){
