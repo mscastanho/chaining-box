@@ -12,6 +12,7 @@
 #
 TARGETS := sfc_fwd_kern
 TARGETS += sfc_decap_kern
+TARGETS += lwt_test_kern
 # TARGETS += sfc_encap_kern
 TARGETS += sfc_agent_user
 
@@ -180,9 +181,8 @@ verify_llvm_target_bpf: verify_cmds
 # Create symbolic links to files needed to compile BPF progs
 # TODO: Switch to symlinks to kernel source
 create_symlinks:
-	ln -ns $(BPF_PATH)/bpf_helpers.h
-	ln -ns $(BPF_PATH)/libbpf.h
-
+	test ! -f bpf_helpers.h && ln -ns $(BPF_PATH)/bpf_helpers.h
+	test ! -f libbpf.h && ln -ns $(BPF_PATH)/libbpf.h
 
 # Most xxx_user program still depend on old bpf_load.c
 $(OBJECT_LOADBPF): $(BPF_PATH)/bpf_load.c $(BPF_PATH)/bpf_load.h
