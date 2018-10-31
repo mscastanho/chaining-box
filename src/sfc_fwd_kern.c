@@ -64,10 +64,10 @@ int sfc_forwarding(struct __sk_buff *skb)
     if (data + sizeof(*eth) > data_end)
         return TC_ACT_SHOT;
 
-    // Keep regular traffic working
-    if (eth->h_proto != htons(ETH_P_NSH))
-		return TC_ACT_OK;
-
+    if (eth->h_proto != htons(ETH_P_NSH)){
+        eth->h_proto = ETH_P_NSH; // Breaks regular traffic
+		// return TC_ACT_OK;
+    }
     nsh = (void*) eth + sizeof(*eth);
 
     if ((void*) nsh + sizeof(*nsh) > data_end)

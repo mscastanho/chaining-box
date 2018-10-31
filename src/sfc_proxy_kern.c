@@ -30,12 +30,19 @@
 
 // BPF_HASH(nsh_info,u16,struct nshhdr,);
 
-struct bpf_map_def SEC("maps") nsh_data = {
-	.type = BPF_MAP_TYPE_HASH,
-	.key_size = sizeof(struct ip_5tuple),
-	.value_size = sizeof(struct nshhdr),
-	.max_entries = 2048,
+struct bpf_elf_map SEC("maps") nsh_data = {
+    .type = BPF_MAP_TYPE_HASH,
+    .size_key = sizeof(struct ip_5tuple),
+    .size_value = sizeof(struct nshhdr),
+    .max_elem = 2048,
+    .pinning = PIN_GLOBAL_NS,
 };
+// struct bpf_map_def SEC("maps") nsh_data = {
+// 	.type = BPF_MAP_TYPE_HASH,
+// 	.key_size = sizeof(struct ip_5tuple),
+// 	.value_size = sizeof(struct nshhdr),
+// 	.max_entries = 2048,
+// };
 
 static inline int get_tuple(void* ip_data, void* data_end, struct ip_5tuple *t){
     struct iphdr *ip;
@@ -132,71 +139,48 @@ int decap_nsh(struct xdp_md *ctx)
 SEC("encap")
 int encap_nsh(struct __sk_buff *skb)
 {
-    void *data;
-    void *data_end;
-	int ret;
-	struct ethhdr eth;
-	struct ip_5tuple key = { }; // Verifier does not allow uninitialized keys
-	// struct nshhdr *nsh;
-
-    // Add NSH + Ethernet before IP header
-    // The result will be that the old Ethernet will be at the beginning
-    // of the packet, but we need it to be the after the NSH.
-    // So we need to switch the two Ethernet headers.
-	ret = bpf_skb_change_head(skb, sizeof(struct nshhdr) + sizeof(struct ethhdr), 0);
-	if (ret < 0) {
-		printk("Failed to add extra room: %d\n", ret);
-        return BPF_DROP;
-	}
-
-	// TODO: Switch these next two calls into
-	// 		 a bounds check + memmove()
-
-	// Copy outer Ethernet
-    ret = bpf_skb_load_bytes(skb, 0, &eth, sizeof(eth));
-    if (ret < 0) {
-		printk("Failed to copy Ethernet header: %d\n", ret);
-		return BPF_DROP;
-	}
-
-	// Store as inner Ethernet
-	ret = bpf_skb_store_bytes(skb, sizeof(struct nshhdr) + sizeof(struct ethhdr), &eth, sizeof(eth), 0);
-	if (ret < 0) {
-		printk("Failed to load Ethernet header: %d\n", ret);
-		return BPF_DROP;
-	}
-
 	// This program will be loaded in LWT, whose 
 	// context is an L3 packet. So data corresponds
 	// to the start of IP header.
 	// After calling bpf_skb_change_head() the refs
-	// to skb->data and skb->data_end will have changed.
-	// So we need to get them after that's done
-	data = (void *)(long)skb->data;
-    data_end = (void *)(long)skb->data_end;
+	// to skb->data and skb->data_end will change.
+	// Be careful.
+	void *data = (void *)(long)skb->data;
+    void* data_end = (void *)(long)skb->data_end;
+	int ret;
+	struct ip_5tuple key = { }; // Verifier does not allow uninitialized keys
+	struct nshhdr *nsh;
+	// struct nshhdr nsh0 = {0xabab,0xcd,0xde,0xefefefef};
+
+	// Get IP 5-tuple before changing the packet
 	ret = get_tuple(data,data_end,&key);
 	if(ret){
 		printk("get_tuple() failed: %d\n", ret);
 		return BPF_DROP;
 	}
 
-	// // Re-add corresponding NSH
-    // nsh = bpf_map_lookup_elem(&nsh_data,&key);
-	// if(nsh == NULL){
-	// 	printk("NSH header not found in table.\n");
-	// 	return BPF_DROP;
-	// }else{
-	// 	ret = bpf_skb_store_bytes(skb, sizeof(struct ethhdr), nsh, sizeof(*nsh), 0);
-	// 	if (ret < 0) {
-	// 		printk("Failed to load NSH to packet: %d\n", ret);
-	// 		return BPF_DROP;
-	// 	}
-	// }
+    // Add NSH before IP header
+	ret = bpf_skb_change_head(skb, sizeof(struct nshhdr), 0);
+	if (ret < 0) {
+		printk("Failed to add extra room: %d\n", ret);
+        return BPF_DROP;
+	}
 
-    // if(ret < 0)
-    //     return BPF_DROP;
+	// Re-add corresponding NSH
+    nsh = bpf_map_lookup_elem(&nsh_data,&key);
+	if(nsh == NULL){
+		printk("NSH header not found in table.\n");
+		// bpf_map_update_elem(&nsh_data, &key, &nsh0, BPF_ANY);
+		return BPF_DROP;
+	}else{
+		ret = bpf_skb_store_bytes(skb, 0, nsh, sizeof(*nsh), 0);
+		if (ret < 0) {
+			printk("Failed to load NSH to packet: %d\n", ret);
+			return BPF_DROP;
+		}
+	}
 
-	// printk("Successfully encapsulated packet! %d\n", ret);
+	printk("Successfully encapsulated packet! %d\n", ret);
 
 	return BPF_OK;
 }
