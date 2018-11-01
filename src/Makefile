@@ -11,7 +11,7 @@
 # Still depend on a kernel source tree.
 #
 TARGETS := sfc_fwd_kern
-TARGETS += sfc_proxy_kern
+TARGETS += sfc_stages_kern
 # TARGETS += lwt_test_kern
 TARGETS += sfc_agent_user
 
