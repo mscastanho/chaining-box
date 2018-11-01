@@ -29,22 +29,21 @@ struct bpf_elf_map SEC("maps") fwd_table = {
     .pinning = PIN_GLOBAL_NS,
 };
 
-struct bpf_map_def SEC("maps") jmp_table = {
-	.type = BPF_MAP_TYPE_PROG_ARRAY,
-	.key_size = sizeof(u32),
-	.value_size = sizeof(u32),
-	.max_entries = 2,
-};
+// struct bpf_map_def SEC("maps") jmp_table = {
+// 	.type = BPF_MAP_TYPE_PROG_ARRAY,
+// 	.key_size = sizeof(u32),
+// 	.value_size = sizeof(u32),
+// 	.max_entries = 2,
+// };
 
 static inline int get_tuple(void* ip_data, void* data_end, struct ip_5tuple *t){
     struct iphdr *ip;
     struct udphdr *udp;
     struct tcphdr *tcp;
-	char fmt[] = "sfc_decap_kern: ERROR! step %d\n";
 
 	ip = ip_data;
     if((void*) ip + sizeof(*ip) > data_end){
-		bpf_trace_printk(fmt,sizeof(fmt),2);
+		printk("get_tuple(): Error accessing IP hdr\n");
 		return -1;
 	}
 
@@ -56,7 +55,7 @@ static inline int get_tuple(void* ip_data, void* data_end, struct ip_5tuple *t){
         case IPPROTO_UDP:
             udp = ip_data + sizeof(*ip);
             if((void*) udp + sizeof(*udp) > data_end){
-				bpf_trace_printk(fmt,sizeof(fmt),3);
+				printk("get_tuple(): Error accessing UDP hdr\n");
 				return -1;
 			}
 
@@ -66,7 +65,7 @@ static inline int get_tuple(void* ip_data, void* data_end, struct ip_5tuple *t){
         case IPPROTO_TCP:
             tcp = ip_data + sizeof(*ip);
             if((void*) tcp + sizeof(*tcp) > data_end){
-				bpf_trace_printk(fmt,sizeof(fmt),4);
+				printk("get_tuple(): Error accessing TCP hdr\n");
 				return -1;
 			}
 
@@ -142,21 +141,36 @@ SEC("encap")
 int encap_nsh(struct __sk_buff *skb)
 {
 	int ret;
+	// void *data;
+    // void* data_end;
+	// struct iphdr ip;
 
     // Add space for NSH before IP header
 	// This space will be filled by the next stage
-	ret = bpf_skb_change_head(skb, sizeof(struct nshhdr), 0);
+	ret = bpf_skb_change_head(skb, sizeof(struct nshhdr) + sizeof(struct ethhdr), 0);
 	if (ret < 0) {
-		printk("Failed to add extra room: %d\n", ret);
+		printk("[ENCAP]: Failed to add extra room: %d\n", ret);
         return BPF_DROP;
 	}
 
-	printk("Successfully resized packet!\n");
+	// data = (void *)(long)skb->data;
+    // data_end = (void *)(long)skb->data_end;
+
+	// ip = data + 2*sizeof(struct ethhdr) + sizeof(nshhdr);
+
+	// if(ip + sizeof(*ip) > data_end)
+	// 	return BPF_DROP;
+
+	// // This is a hack to help the adjust_nsh stage to know
+	// // which packets to encapsulate
+	// ip->version = IP_VERSION_UNASSIGNED;
+
+	printk("[ENCAP]: Successfully resized packet!\n");
 
 	return BPF_OK;
 }
 
-SEC("adjust")
+// SEC("adjust")
 int adjust_nsh(struct __sk_buff *skb)
 {
 	void *data = (void *)(long)skb->data;
@@ -165,6 +179,9 @@ int adjust_nsh(struct __sk_buff *skb)
 	struct ip_5tuple key = { }; // Verifier does not allow uninitialized keys
 	struct nshhdr *nsh, *prev_nsh;
 	struct ethhdr *ieth, *oeth;
+	struct iphdr *ip;
+
+	// struct nshhdr nop2 = {0,0,0,0};
 	
 	// Bounds check to please the verifier
 	if(data + 2*sizeof(struct ethhdr) + sizeof(struct nshhdr) > data_end)
@@ -173,37 +190,40 @@ int adjust_nsh(struct __sk_buff *skb)
 	oeth = data;
 	nsh = (void*) oeth + sizeof(struct ethhdr);
 	ieth = (void*) nsh + sizeof(struct nshhdr);
+	ip = (void*) ieth + sizeof(struct ethhdr);
 
-	// Move outer Ethernet inside to become the inner one
-	// and clear outer Ethernet
-	memmove(oeth,ieth,sizeof(struct ethhdr));
-	__builtin_memset(oeth,0,sizeof(struct ethhdr)); // Is this needed?
-	oeth->h_proto = ETH_P_NSH;
+	// Original Ethernet is outside, we have to move it inside
+	// and clean the outer space
+	__builtin_memmove(ieth,oeth,sizeof(struct ethhdr));
+	__builtin_memset(oeth,0,sizeof(struct ethhdr));
+	oeth->h_proto = ntohs(ETH_P_NSH);
 	// oeth->h_dest and oeth->h_src will be set by fwd stage
 
 	// Get IP 5-tuple
-	ret = get_tuple(data,data_end,&key);
+	ret = get_tuple(ip,data_end,&key);
 	if(ret){
-		printk("get_tuple() failed: %d\n", ret);
+		printk("[ADJUST]: get_tuple() failed: %d\n", ret);
 		return BPF_DROP;
 	}
 
 	// Re-add corresponding NSH
     prev_nsh = bpf_map_lookup_elem(&nsh_data,&key);
 	if(prev_nsh == NULL){
-		printk("NSH header not found in table.\n");
+		printk("[ADJUST] NSH header not found in table.\n");
+		// bpf_map_update_elem(&nsh_data, &key, &nop2, BPF_ANY);
 		return BPF_DROP;
 	}else{
 		memcpy(nsh,prev_nsh,sizeof(struct nshhdr));
 		if (ret < 0) {
-			printk("Failed to load NSH to packet: %d\n", ret);
+			printk("[ADJUST] Failed to load NSH to packet: %d\n", ret);
 			return BPF_DROP;
 		}
+		printk("[ADJUST] Succesfully re-added NSH header!\n");
 	}
 
-	bpf_tail_call(skb, &jmp_table, FWD_STAGE);
+	// bpf_tail_call(skb, &jmp_table, FWD_STAGE);
 
-	// If all is right, this is unreachable code.
+	// With the tail call, this is unreachable code.
 	// It's here just to be safe.
 	return BPF_OK;
 
@@ -220,13 +240,21 @@ int sfc_forwarding(struct __sk_buff *skb)
     struct fwd_entry *next_hop;
     __u32 sph;
     __u32 si, spi;
+	int ret;
+
+	// TODO: The link between these two progs
+	// 		 should be a tail call instead
+	ret = adjust_nsh(skb);
+	if(ret == BPF_DROP){
+		return TC_ACT_SHOT;
+	}
 
     if (data + sizeof(*eth) > data_end)
         return TC_ACT_SHOT;
 
     // Keep regular traffic working
-    if (eth->h_proto != htons(ETH_P_NSH))
-		return TC_ACT_OK;
+    // if (eth->h_proto != htons(ETH_P_NSH))
+	// 	return TC_ACT_OK;
 
     nsh = (void*) eth + sizeof(*eth);
 
@@ -242,21 +270,24 @@ int sfc_forwarding(struct __sk_buff *skb)
 
     if(next_hop){ // Use likely() here?
         if(next_hop->flags & 0x1){
-            printk("FWD: End of chain.\n");        
+            printk("[FORWARD]: End of chain.\n");
             // Remove external encapsulation
         }else{
-            // // Update MAC daddr
-            // // OBS: Source MAC should be updated
-            // memmove(eth->h_dest,next_hop->address,ETH_ALEN);
-            // sph = ntohl(sph);
-            // sph--;
-            // nsh->serv_path = htonl(sph);    
+            printk("[FORWARD]: Updating next hop info\n");
+            // Update MAC daddr
+            // OBS: Source MAC should be updated
+            __builtin_memmove(eth->h_dest,next_hop->address,ETH_ALEN);
+            sph = ntohl(sph);
+            sph--;
+            nsh->serv_path = htonl(sph);
 		}
     }else{
+		printk("[FORWARD]: No corresponding rule.\n");
         // No corresponding rule. Drop the packet.
         return TC_ACT_SHOT;
     }
 
+	printk("[FORWARD]: Successfully forwarded the pkt!\n");
     return TC_ACT_OK;
 }
 
