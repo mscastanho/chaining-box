@@ -3,20 +3,13 @@
 
 #include <linux/if_ether.h>
 
-struct fwd_entry {
-    // Flags:
-    // Bit 0 : is end of chain
-    // Bits 1-7 : reserved
-    __u8 flags;
-    unsigned char address[ETH_ALEN];
-};
-
 // Pins a map to the global namespace.
 // This will make it available at 
 //      /sys/fs/bpf/tc/globals/<map name>
 // Other programs can interact with it through 
 // the BPF_OBJ_GET bpf command.
 #define PIN_GLOBAL_NS 2
+#define PIN_OBJECT_NS 1
 
 // Nicer way to call bpf_trace_printk()
 #define printk(fmt, ...)						\
@@ -25,6 +18,14 @@ struct fwd_entry {
 			bpf_trace_printk(____fmt, sizeof(____fmt),	\
 				     ##__VA_ARGS__);			\
 		})
+
+struct fwd_entry {
+    // Flags:
+    // Bit 0 : is end of chain
+    // Bits 1-7 : reserved
+    __u8 flags;
+    unsigned char address[ETH_ALEN];
+};
 
 // Specific map structure used by tc and iproute2
 // Extracted from iproute2 source code:

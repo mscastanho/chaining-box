@@ -21,6 +21,14 @@ struct bpf_elf_map SEC("maps") nsh_data = {
     .pinning = PIN_GLOBAL_NS,
 };
 
+struct bpf_elf_map SEC("maps") not_found = {
+    .type = BPF_MAP_TYPE_HASH,
+    .size_key = sizeof(struct ip_5tuple),
+    .size_value = sizeof(struct nshhdr),
+    .max_elem = 2048,
+    .pinning = PIN_GLOBAL_NS,
+};
+
 struct bpf_elf_map SEC("maps") fwd_table = {
     .type = BPF_MAP_TYPE_HASH,
     .size_key = sizeof(__u32), // Key is SPH (SPI + SI) -> 4 Bytes
@@ -89,7 +97,6 @@ int decap_nsh(struct xdp_md *ctx)
 	struct iphdr *ip = (void*)nsh + sizeof(*nsh) + sizeof(*eth);
 	struct ip_5tuple key = { }; // Verifier does not allow uninitialized keys
 	int ret = 0;
-	char fmt[] = "sfc_decap_kern: ERROR! step %d\n";
 
     if(data + sizeof(*eth) > data_end)
     	return XDP_DROP;
@@ -114,16 +121,21 @@ int decap_nsh(struct xdp_md *ctx)
 	// Retrieve IP 5-tuple
 	ret = get_tuple(ip,data_end,&key);
 	if(ret){
-		bpf_trace_printk(fmt,sizeof(fmt),1);
+		printk("[DECAP] get_tuple() failed.\n");
 		return XDP_DROP;
 	}
 
 	// Save NSH data
-	bpf_map_update_elem(&nsh_data, &key, nsh, BPF_ANY);
+	ret = bpf_map_update_elem(&nsh_data, &key, nsh, BPF_ANY);
+	if(ret == 0){
+		printk("[DECAP] Stored NSH in table.\n");
+	}
 
 	// Remove outer Ethernet + NSH headers
-	if(bpf_xdp_adjust_head(ctx, (int)(sizeof(*nsh) + sizeof(*eth))))
+	if(bpf_xdp_adjust_head(ctx, (int)(sizeof(struct nshhdr) + sizeof(struct ethhdr))))
 		return XDP_DROP;
+
+	printk("[DECAP] Decapsulated packet.\n");
 
     return XDP_PASS;
 }
@@ -140,10 +152,23 @@ int decap_nsh(struct xdp_md *ctx)
 SEC("encap")
 int encap_nsh(struct __sk_buff *skb)
 {
+    void *data = (void *)(long)skb->data;
+    void *data_end = (void *)(long)skb->data_end;
+	struct ip_5tuple key = { };
+	struct nshhdr *nsh;
 	int ret;
-	// void *data;
-    // void* data_end;
-	// struct iphdr ip;
+
+	ret = get_tuple(data,data_end,&key);
+	if (ret < 0) {
+		printk("[ENCAP]: get_tuple() failed: %d\n", ret);
+        return BPF_DROP;
+	}
+
+	nsh = bpf_map_lookup_elem(&nsh_data,&key);
+	if(nsh == NULL){
+		printk("[ENCAP]: Packet not previously decapped. Dropping.\n");
+		return BPF_DROP;
+	}
 
     // Add space for NSH before IP header
 	// This space will be filled by the next stage
@@ -165,7 +190,7 @@ int encap_nsh(struct __sk_buff *skb)
 	// // which packets to encapsulate
 	// ip->version = IP_VERSION_UNASSIGNED;
 
-	printk("[ENCAP]: Successfully resized packet!\n");
+	printk("[ENCAP]: Resized packet!\n");
 
 	return BPF_OK;
 }
@@ -180,8 +205,7 @@ int adjust_nsh(struct __sk_buff *skb)
 	struct nshhdr *nsh, *prev_nsh;
 	struct ethhdr *ieth, *oeth;
 	struct iphdr *ip;
-
-	// struct nshhdr nop2 = {0,0,0,0};
+	struct nshhdr nop2 = {0,0,0,0};
 	
 	// Bounds check to please the verifier
 	if(data + 2*sizeof(struct ethhdr) + sizeof(struct nshhdr) > data_end)
@@ -209,8 +233,11 @@ int adjust_nsh(struct __sk_buff *skb)
 	// Re-add corresponding NSH
     prev_nsh = bpf_map_lookup_elem(&nsh_data,&key);
 	if(prev_nsh == NULL){
-		printk("[ADJUST] NSH header not found in table.\n");
-		// bpf_map_update_elem(&nsh_data, &key, &nop2, BPF_ANY);
+		printk("[ADJUST] NSH header not found in table: (%04x,%04x,...\n",
+		key.ip_src,key.ip_dst);
+		printk("[ADJUST] ...%02x,%02x,%02x)\n",
+		key.sport,key.dport,key.proto);
+		bpf_map_update_elem(&not_found, &key, &nop2, BPF_ANY);
 		return BPF_DROP;
 	}else{
 		memcpy(nsh,prev_nsh,sizeof(struct nshhdr));
@@ -218,7 +245,7 @@ int adjust_nsh(struct __sk_buff *skb)
 			printk("[ADJUST] Failed to load NSH to packet: %d\n", ret);
 			return BPF_DROP;
 		}
-		printk("[ADJUST] Succesfully re-added NSH header!\n");
+		printk("[ADJUST] Re-added NSH header!\n");
 	}
 
 	// bpf_tail_call(skb, &jmp_table, FWD_STAGE);
