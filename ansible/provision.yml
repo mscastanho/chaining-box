@@ -66,6 +66,7 @@
         - python-scapy
         - python-netifaces
         - binutils-dev
+        - hping3
     - name: Clone newest iproute2 repo
       git:
         repo: https://git.kernel.org/pub/scm/network/iproute2/iproute2-next.git
