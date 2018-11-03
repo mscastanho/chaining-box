@@ -27,6 +27,11 @@ struct fwd_entry {
     unsigned char address[ETH_ALEN];
 };
 
+struct cls_entry {
+    uint32_t sph;
+    unsigned char next_hop[ETH_ALEN];
+}__attribute__((packed));
+
 // Specific map structure used by tc and iproute2
 // Extracted from iproute2 source code:
 //      iproute2/include/bpf_elf.h

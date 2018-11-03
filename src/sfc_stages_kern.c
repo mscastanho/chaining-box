@@ -13,6 +13,14 @@
 #define ADJ_STAGE 1
 #define FWD_STAGE 2
 
+struct bpf_elf_map SEC("maps") cls_table = {
+    .type = BPF_MAP_TYPE_HASH,
+    .size_key = sizeof(struct ip_5tuple),
+    .size_value = sizeof(struct cls_entry), // Value is sph + MAC address
+    .max_elem = 2048,
+    .pinning = PIN_GLOBAL_NS,
+};
+
 struct bpf_elf_map SEC("maps") nsh_data = {
     .type = BPF_MAP_TYPE_HASH,
     .size_key = sizeof(struct ip_5tuple),
@@ -21,13 +29,13 @@ struct bpf_elf_map SEC("maps") nsh_data = {
     .pinning = PIN_GLOBAL_NS,
 };
 
-struct bpf_elf_map SEC("maps") not_found = {
-    .type = BPF_MAP_TYPE_HASH,
-    .size_key = sizeof(struct ip_5tuple),
-    .size_value = sizeof(struct nshhdr),
-    .max_elem = 2048,
-    .pinning = PIN_GLOBAL_NS,
-};
+// struct bpf_elf_map SEC("maps") not_found = {
+//     .type = BPF_MAP_TYPE_HASH,
+//     .size_key = sizeof(struct ip_5tuple),
+//     .size_value = sizeof(struct nshhdr),
+//     .max_elem = 2048,
+//     .pinning = PIN_GLOBAL_NS,
+// };
 
 struct bpf_elf_map SEC("maps") fwd_table = {
     .type = BPF_MAP_TYPE_HASH,
@@ -86,6 +94,75 @@ static inline int get_tuple(void* ip_data, void* data_end, struct ip_5tuple *t){
 
 	return 0;
 };
+
+SEC("classify")
+int classify_pkt(struct xdp_md *ctx)
+{
+	void *data_end = (void *)(long)ctx->data_end;
+    void *data = (void *)(long)ctx->data;
+    struct nshhdr *nsh;
+    struct cls_entry *cls;
+    struct ethhdr *eth;
+	struct iphdr *ip;
+	struct ip_5tuple key = { };
+	int ret;
+
+	if(data + sizeof(struct ethhdr) + sizeof(struct iphdr) > data_end){
+		printk("[CLASSIFY] Bounds check #1 failed.\n");
+		return XDP_DROP;
+	}
+	
+	eth = data;
+	ip = (void*)eth + sizeof(struct ethhdr);
+
+    if(ntohs(eth->h_proto) != ETH_P_IP){
+		printk("[CLASSIFY] Not an IPv4 packet, dropping.\n");
+		return XDP_DROP;
+	}
+
+	ret = get_tuple(ip,data_end,&key);
+	if (ret < 0){
+		printk("[CLASSIFY] get_tuple() failed: %d\n",ret);
+		return XDP_DROP;
+	}
+
+	cls = bpf_map_lookup_elem(&cls_table,&key);
+	if(cls == NULL){
+		printk("[CLASSIFY] No rule for packet.\n");
+		return XDP_DROP;
+	}
+
+	printk("[CLASSIFY] Matched packet flow.\n");
+
+	// Insert outer Ethernet + NSH headers
+	if(bpf_xdp_adjust_head(ctx, 0 - (int)(sizeof(struct nshhdr) + sizeof(struct ethhdr)))){
+		printk("[CLASSIFY] Error creating room in packet.\n");
+		return XDP_DROP;
+	}
+
+	if(data + sizeof(struct ethhdr) + sizeof(struct nshhdr) > data_end){
+		printk("[CLASSIFY] Bounds check #2 failed.\n");
+		return XDP_DROP;
+	}
+
+	eth = data; // Points to the new outermost Ethernet header
+	nsh = (void*)eth + sizeof(struct ethhdr);
+
+	memmove(eth->h_dest,cls->next_hop,ETH_ALEN);
+	// TODO: Set proper eth->h_source
+	eth->h_proto = htons(ETH_P_NSH);
+
+    nsh->basic_info = ((uint16_t) 0) 	    |  
+						NSH_TTL_DEFAULT 	| 
+						NSH_BASE_LENGHT_MD_TYPE_2;               
+    nsh->md_type 	= NSH_MD_TYPE_2;
+    nsh->next_proto = NSH_NEXT_PROTO_ETHER;
+	nsh->serv_path 	= htonl(cls->sph);
+
+	printk("[CLASSIFY] NSH added.\n");
+
+    return XDP_TX; 
+}
 
 SEC("decap")
 int decap_nsh(struct xdp_md *ctx)
@@ -205,11 +282,13 @@ int adjust_nsh(struct __sk_buff *skb)
 	struct nshhdr *nsh, *prev_nsh;
 	struct ethhdr *ieth, *oeth;
 	struct iphdr *ip;
-	struct nshhdr nop2 = {0,0,0,0};
+	// struct nshhdr nop2 = {0,0,0,0};
 	
 	// Bounds check to please the verifier
-	if(data + 2*sizeof(struct ethhdr) + sizeof(struct nshhdr) > data_end)
+	if(data + 2*sizeof(struct ethhdr) + sizeof(struct nshhdr) > data_end){
+		printk("[ADJUST]: Bounds check failed.\n");
 		return BPF_DROP;
+	}
 	
 	oeth = data;
 	nsh = (void*) oeth + sizeof(struct ethhdr);
@@ -237,7 +316,7 @@ int adjust_nsh(struct __sk_buff *skb)
 		key.ip_src,key.ip_dst);
 		printk("[ADJUST] ...%02x,%02x,%02x)\n",
 		key.sport,key.dport,key.proto);
-		bpf_map_update_elem(&not_found, &key, &nop2, BPF_ANY);
+		// bpf_map_update_elem(&not_found, &key, &nop2, BPF_ANY);
 		return BPF_DROP;
 	}else{
 		memcpy(nsh,prev_nsh,sizeof(struct nshhdr));
@@ -276,8 +355,10 @@ int sfc_forwarding(struct __sk_buff *skb)
 		return TC_ACT_SHOT;
 	}
 
-    if (data + sizeof(*eth) > data_end)
-        return TC_ACT_SHOT;
+    if (data + sizeof(*eth) > data_end){
+		printk("[FORWARD]: Bounds check failed.\n");
+	    return TC_ACT_SHOT;
+	}
 
     // Keep regular traffic working
     // if (eth->h_proto != htons(ETH_P_NSH))
@@ -285,8 +366,10 @@ int sfc_forwarding(struct __sk_buff *skb)
 
     nsh = (void*) eth + sizeof(*eth);
 
-    if ((void*) nsh + sizeof(*nsh) > data_end)
-        return TC_ACT_SHOT;
+    if ((void*) nsh + sizeof(*nsh) > data_end){
+		printk("[FORWARD]: Bounds check failed.\n");     
+	    return TC_ACT_SHOT;
+	}
     
     // TODO: Check if endianness is correct!
     sph = ntohl(nsh->serv_path);
@@ -305,7 +388,7 @@ int sfc_forwarding(struct __sk_buff *skb)
             // OBS: Source MAC should be updated
             __builtin_memmove(eth->h_dest,next_hop->address,ETH_ALEN);
             sph = ntohl(sph);
-            sph--;
+            sph--; // TODO: Fix this operation. Take care with endianness
             nsh->serv_path = htonl(sph);
 		}
     }else{
