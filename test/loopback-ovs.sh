@@ -1,9 +1,10 @@
-if [ -z $1 ]; then
-    echo "Usage: $0 <iface>"
+if [ -z $1 ] || [ -z $2 ]; then
+    echo "Usage: $0 <iface0> <iface1>"
     exit 1
 fi
 
-IFACE="$1"
+IFACE0="$1"
+IFACE1="$2"
 OVS_DIR=/home/vagrant/ovs
 
 # Kill all ovs processes currently running
@@ -62,7 +63,8 @@ ovs_get_iface_number () {
 
 BRIDGE=br0
 ovs-vsctl add-br $BRIDGE -- set bridge $BRIDGE datapath_type=netdev
-ovs-vsctl add-port $BRIDGE $IFACE
+ovs-vsctl add-port $BRIDGE $IFACE0
+ovs-vsctl add-port $BRIDGE $IFACE1
 
 # Create loopback rule
-ovs-ofctl add-flow $BRIDGE in_port=$(ovs_get_iface_number $IFACE),actions=in_port
+ovs-ofctl add-flow $BRIDGE in_port=$(ovs_get_iface_number $IFACE0),actions=output:$(ovs_get_iface_number $IFACE1)

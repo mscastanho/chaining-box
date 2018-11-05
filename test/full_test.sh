@@ -14,6 +14,8 @@ function replace_address {
 NS1=testns1
 VETH0=testveth0
 VETH1=testveth1
+VETH2=testveth2
+VETH3=testveth3
 TESTSUBNET="10.1.0.0" # Will use /24
 IPVETH0=$(replace_address $TESTSUBNET 50)
 IPVETH1=$(replace_address $TESTSUBNET 51)
@@ -26,8 +28,8 @@ BPFOBJ=../src/sfc_stages_kern.o
 function unload_bpf {
     echo "Unloading BPF code"
     ip link set dev $VETH0 xdp off
-    ip route del 0.0.0.0/0 dev $VETH0
-    tc filter del dev $VETH0 egress
+    ip route del 0.0.0.0/0 dev $VETH2
+    tc filter del dev $VETH2 egress
 }
 
 function load_bpf {
@@ -41,12 +43,12 @@ function load_bpf {
     # ip route add $IPVETH1/32 encap bpf headroom 22 \
     #     xmit obj $BPFOBJ section encap dev $VETH0
     ip route add 0.0.0.0/0 encap bpf headroom 22 \
-        xmit obj $BPFOBJ section encap dev $VETH0
+        xmit obj $BPFOBJ section encap dev $VETH2
 
     # # Load adjust + forward codes
-    tc qdisc add dev $VETH0 clsact 2> /dev/null
-    tc filter del dev $VETH0 egress 2> /dev/null
-    tc filter add dev $VETH0 egress bpf da obj $BPFOBJ \
+    tc qdisc add dev $VETH2 clsact 2> /dev/null
+    tc filter del dev $VETH2 egress 2> /dev/null
+    tc filter add dev $VETH2 egress bpf da obj $BPFOBJ \
         sec forward
 }
 
@@ -76,6 +78,8 @@ function destroy_infra {
     ip netns del $NS1 2> /dev/null
     ip link del $VETH0 2> /dev/null
     ip link del $VETH1 2> /dev/null
+    ip link del $VETH2 2> /dev/null
+    ip link del $VETH3 2> /dev/null
     # rm -f $DUMPFILE 2> /dev/null
 }
 
@@ -87,6 +91,7 @@ function create_infra {
     ip netns add $NS1
     
     ip link add $VETH0 type veth peer name $VETH1
+    ip link add $VETH2 type veth peer name $VETH3
 
     MACVETH0=$(get_mac $VETH0)
     MACVETH1=$(get_mac $VETH1)
@@ -95,12 +100,16 @@ function create_infra {
     # echo "MACVETH1 = $MACVETH1" 
 
     ip link set $VETH1 netns $NS1
+    ip link set $VETH3 netns $NS1
     
     ip link set dev $VETH0 up
     ip link set dev $VETH0 promisc on
+    ip link set dev $VETH2 up
+    ip link set dev $VETH2 promisc on
 
     $NSCMD1 ip link set dev $VETH1 up
     $NSCMD1 ip link set lo up
+    $NSCMD1 ip link set dev $VETH3 up
 
     ip addr add $IPVETH0/24 dev $VETH0
     $NSCMD1 ip addr add $IPVETH1/24 dev $VETH1
@@ -137,7 +146,7 @@ pkill tcpdump
 
 create_infra
 
-bash loopback-ovs.sh $VETH0
+bash loopback-ovs.sh $VETH0 $VETH2
 
 # tcpdump -i $VETH0 -XX not ip6 & > $DUMPFILE
 
