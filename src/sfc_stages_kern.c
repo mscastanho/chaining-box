@@ -283,6 +283,18 @@ int adjust_nsh(struct __sk_buff *skb)
 	struct ethhdr *ieth, *oeth;
 	struct iphdr *ip;
 	// struct nshhdr nop2 = {0,0,0,0};
+
+	// Add space for NSH before IP header
+	// This space will be filled by the next stage
+	// ret = bpf_skb_adjust_room(skb, sizeof(struct nshhdr) + sizeof(struct ethhdr), BPF_ADJ_ROOM_NET, 0);
+	// if (ret < 0) {
+	// 	printk("[ADJUST]: Failed to add extra room: %d\n", ret);
+    //     return BPF_DROP;
+	// }
+
+	// #pragma clang loop unroll(full)
+
+	printk("[ADJUST]: ENCAPSULATED PACKET, DUDE!!!\n");
 	
 	// Bounds check to please the verifier
 	if(data + 2*sizeof(struct ethhdr) + sizeof(struct nshhdr) > data_end){
