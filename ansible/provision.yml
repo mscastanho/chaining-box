@@ -8,38 +8,38 @@
   tasks:
     - name: Create dir for kernel files
       file:
-        path: /usr/src/kernel-v4.18
+        path: /usr/src/kernel-v4.19
         state: directory
     # TODO:
     # - Enable gather facts
     # - Get kernel version from facts (hostvars[item]['ansible_kernel'])
-    # - Check if kernel 4.18 is already being used before downloading
+    # - Check if kernel 4.19 is already being used before downloading
     # - Check if files are already present locally before downloading
-    - name: Download kernel v4.18
+    - name: Download kernel v4.19
       get_url:
         url: "{{ item }}"
-        dest: /usr/src/kernel-v4.18/
+        dest: /usr/src/kernel-v4.19/
       loop:
-        - "http://kernel.ubuntu.com/~kernel-ppa/mainline/v4.18/linux-headers-4.18.0-041800_4.18.0-041800.201808122131_all.deb"
-        - "http://kernel.ubuntu.com/~kernel-ppa/mainline/v4.18/linux-headers-4.18.0-041800-generic_4.18.0-041800.201808122131_amd64.deb"
-        - "http://kernel.ubuntu.com/~kernel-ppa/mainline/v4.18/linux-image-unsigned-4.18.0-041800-generic_4.18.0-041800.201808122131_amd64.deb"
-        - "http://kernel.ubuntu.com/~kernel-ppa/mainline/v4.18/linux-modules-4.18.0-041800-generic_4.18.0-041800.201808122131_amd64.deb"
-      when: ansible_kernel is not match(".*4\.18\.0.*")
-    - name: Install kernel v4.18
+        - "http://kernel.ubuntu.com/~kernel-ppa/mainline/v4.19/linux-headers-4.19.0-041900_4.19.0-041900.201810221809_all.deb"
+        - "http://kernel.ubuntu.com/~kernel-ppa/mainline/v4.19/linux-headers-4.19.0-041900-generic_4.19.0-041900.201810221809_amd64.deb"
+        - "http://kernel.ubuntu.com/~kernel-ppa/mainline/v4.19/linux-image-unsigned-4.19.0-041900-generic_4.19.0-041900.201810221809_amd64.deb"
+        - "http://kernel.ubuntu.com/~kernel-ppa/mainline/v4.19/linux-modules-4.19.0-041900-generic_4.19.0-041900.201810221809_amd64.deb"
+      when: ansible_kernel is not match(".*4\.19\.0.*")
+    - name: Install kernel v4.19
       shell: dpkg -i *.deb
       args:
-        chdir: /usr/src/kernel-v4.18/
+        chdir: /usr/src/kernel-v4.19/
       register: install_result
-      when: ansible_kernel is not match(".*4\.18\.0.*")
+      when: ansible_kernel is not match(".*4\.19\.0.*")
     - name: Reboot and wait
       reboot:
       when: install_result is changed
-    - name: Fail if kernel 4.18 not loaded
+    - name: Fail if kernel 4.19 not loaded
       fail:
-        msg: "Wrong kernel loaded ({{ result.stdout }}). Expected 4.18.0"
+        msg: "Wrong kernel loaded ({{ ansible_kernel }}). Expected 4.19.0"
       # vars:
         # kernel_version: "{{ result.stdout }}"
-      when: ansible_kernel is not match(".*4\.18\.0.*")
+      when: ansible_kernel is not match(".*4\.19\.0.*")
     - name: Install dependencies
       apt:
         name: "{{ item }}"
@@ -67,32 +67,32 @@
         - python-netifaces
         - binutils-dev
         - hping3
-    - name: Clone newest iproute2 repo
-      git:
-        repo: https://git.kernel.org/pub/scm/network/iproute2/iproute2-next.git
-        dest: /home/vagrant/iproute2/
-    - name: Install iproute2
-      shell: ./configure && make && make install
-      args:
-        chdir: /home/vagrant/iproute2
-    # TODO: Fix BCC installation
-    # - name: Install BCC
-    #   script: install-bcc.sh 
-    - name: Clone prototype-kernel project
-      git:
-        repo: https://github.com/netoptimizer/prototype-kernel.git
-        dest: /home/vagrant/prototype-kernel
-    - name: Clone linux kernel net-next tree
-      git:
-        repo: https://git.kernel.org/pub/scm/linux/kernel/git/davem/net-next.git
-        dest: /home/vagrant/net-next
-        version: v4.18
-        depth: 1 # Reduce commit history to download faster
-    # TODO: Create .config file for kernel compilation
-    # - name: Compile kernel headers
-    #   shell: make headers_install
-    #     chdir: /home/vagrant/net-next
-    - name: Install bpftool
-      shell: make && make install
-      args:
-        chdir: /home/vagrant/net-next/tools/bpf/bpftool
+    # - name: Clone newest iproute2 repo
+    #   git:
+    #     repo: https://git.kernel.org/pub/scm/network/iproute2/iproute2-next.git
+    #     dest: /home/vagrant/iproute2/
+    # - name: Install iproute2
+    #   shell: ./configure && make && make install
+    #   args:
+    #     chdir: /home/vagrant/iproute2
+    # # TODO: Fix BCC installation
+    # # - name: Install BCC
+    # #   script: install-bcc.sh 
+    # - name: Clone prototype-kernel project
+    #   git:
+    #     repo: https://github.com/netoptimizer/prototype-kernel.git
+    #     dest: /home/vagrant/prototype-kernel
+    # - name: Clone linux kernel net-next tree
+    #   git:
+    #     repo: https://git.kernel.org/pub/scm/linux/kernel/git/davem/net-next.git
+    #     dest: /home/vagrant/net-next
+    #     version: v4.19
+    #     depth: 1 # Reduce commit history to download faster
+    # # TODO: Create .config file for kernel compilation
+    # # - name: Compile kernel headers
+    # #   shell: make headers_install
+    # #     chdir: /home/vagrant/net-next
+    # - name: Install bpftool
+    #   shell: make && make install
+    #   args:
+    #     chdir: /home/vagrant/net-next/tools/bpf/bpftool
