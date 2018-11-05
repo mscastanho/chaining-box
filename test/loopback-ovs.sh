@@ -5,7 +5,7 @@ fi
 
 IFACE0="$1"
 IFACE1="$2"
-OVS_DIR=/home/vagrant/ovs
+OVS_DIR=/usr/share/openvswitch
 
 # Kill all ovs processes currently running
 echo "Killing ovs processes currently running..."
@@ -17,11 +17,11 @@ echo "Done."
 # Delete and create again directories necessary for ovs
 echo "Removing and recreating directories..."
 rm -rf /usr/local/etc/openvswitch
-rm -rf /usr/local/var/run/openvswitch/vhost-user*
 rm -f /usr/local/etc/openvswitch/conf.db
 
 mkdir -p /usr/local/etc/openvswitch
 mkdir -p /usr/local/var/run/openvswitch
+mkdir -p /var/run/openvswitch/
 echo "Done."
 
 ###################################
@@ -29,7 +29,7 @@ echo "Done."
 # Create ovs database
 echo "Creating ovs database..."
 ovsdb-tool create /usr/local/etc/openvswitch/conf.db \
-	$OVS_DIR/vswitchd/vswitch.ovsschema
+	$OVS_DIR/vswitch.ovsschema
 sleep 1
 echo "Done."
 
@@ -37,7 +37,7 @@ echo "Done."
 
 # Start ovsdb-server
 echo "Starting ovsdb server..."
-DB_SOCK=/usr/local/var/run/openvswitch/db.sock
+DB_SOCK=/var/run/openvswitch/db.sock
 ovsdb-server \
     --remote=punix:$DB_SOCK \
     --remote=db:Open_vSwitch,Open_vSwitch,manager_options \
@@ -62,9 +62,9 @@ ovs_get_iface_number () {
 }
 
 BRIDGE=br0
-ovs-vsctl add-br $BRIDGE -- set bridge $BRIDGE datapath_type=netdev
-ovs-vsctl add-port $BRIDGE $IFACE0
-ovs-vsctl add-port $BRIDGE $IFACE1
+ovs-vsctl --may-exist add-br $BRIDGE -- set bridge $BRIDGE datapath_type=netdev
+ovs-vsctl --may-exist add-port $BRIDGE $IFACE0
+ovs-vsctl --may-exist add-port $BRIDGE $IFACE1
 
 # Create loopback rule
 ovs-ofctl add-flow $BRIDGE in_port=$(ovs_get_iface_number $IFACE0),actions=output:$(ovs_get_iface_number $IFACE1)

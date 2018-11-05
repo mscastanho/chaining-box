@@ -324,10 +324,7 @@ int adjust_nsh(struct __sk_buff *skb)
 	// Re-add corresponding NSH
     prev_nsh = bpf_map_lookup_elem(&nsh_data,&key);
 	if(prev_nsh == NULL){
-		printk("[ADJUST] NSH header not found in table: (%04x,%04x,...\n",
-		key.ip_src,key.ip_dst);
-		printk("[ADJUST] ...%02x,%02x,%02x)\n",
-		key.sport,key.dport,key.proto);
+		printk("[ADJUST] NSH header not found in table.\n");
 		// bpf_map_update_elem(&not_found, &key, &nop2, BPF_ANY);
 		return BPF_DROP;
 	}else{
