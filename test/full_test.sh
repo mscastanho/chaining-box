@@ -28,7 +28,7 @@ BPFOBJ=../src/sfc_stages_kern.o
 function unload_bpf {
     echo "Unloading BPF code"
     ip link set dev $VETH0 xdp off
-    ip route del 0.0.0.0/0 dev $VETH2
+    # ip route del 0.0.0.0/0 dev $VETH2
     tc filter del dev $VETH2 egress
 }
 
@@ -42,8 +42,8 @@ function load_bpf {
     # Headroom = sizeof(Ethernet) + sizeof(NSH) = 14 + 8 = 22
     # ip route add $IPVETH1/32 encap bpf headroom 22 \
     #     xmit obj $BPFOBJ section encap dev $VETH0
-    ip route add 0.0.0.0/0 encap bpf headroom 22 \
-        xmit obj $BPFOBJ section encap dev $VETH2
+    # ip route add 0.0.0.0/0 encap bpf headroom 22 \
+    #     xmit obj $BPFOBJ section encap dev $VETH2
 
     # # Load adjust + forward codes
     tc qdisc add dev $VETH2 clsact 2> /dev/null
@@ -146,7 +146,7 @@ pkill tcpdump
 
 create_infra
 
-bash loopback-ovs.sh $VETH0 $VETH2
+# bash loopback-ovs.sh $VETH0 $VETH2
 
 # tcpdump -i $VETH0 -XX not ip6 & > $DUMPFILE
 

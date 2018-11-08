@@ -34,12 +34,15 @@
     - name: Reboot and wait
       reboot:
       when: install_result is changed
+    - name: Get kernel version
+      shell: uname -r
+      register: result
     - name: Fail if kernel 4.19 not loaded
       fail:
-        msg: "Wrong kernel loaded ({{ ansible_kernel }}). Expected 4.19.0"
-      # vars:
-        # kernel_version: "{{ result.stdout }}"
-      when: ansible_kernel is not match(".*4\.19\.0.*")
+        msg: "Wrong kernel loaded ({{ kernel_version }}}). Expected 4.19.0"
+      vars:
+        kernel_version: "{{ result.stdout }}"
+      when: kernel_version is not match(".*4\.19\.0.*")
     - name: Install dependencies
       apt:
         name: "{{ item }}"
@@ -67,32 +70,32 @@
         - python-netifaces
         - binutils-dev
         - hping3
-    # - name: Clone newest iproute2 repo
-    #   git:
-    #     repo: https://git.kernel.org/pub/scm/network/iproute2/iproute2-next.git
-    #     dest: /home/vagrant/iproute2/
-    # - name: Install iproute2
-    #   shell: ./configure && make && make install
-    #   args:
-    #     chdir: /home/vagrant/iproute2
-    # # TODO: Fix BCC installation
-    # # - name: Install BCC
-    # #   script: install-bcc.sh 
-    # - name: Clone prototype-kernel project
-    #   git:
-    #     repo: https://github.com/netoptimizer/prototype-kernel.git
-    #     dest: /home/vagrant/prototype-kernel
-    # - name: Clone linux kernel net-next tree
-    #   git:
-    #     repo: https://git.kernel.org/pub/scm/linux/kernel/git/davem/net-next.git
-    #     dest: /home/vagrant/net-next
-    #     version: v4.19
-    #     depth: 1 # Reduce commit history to download faster
-    # # TODO: Create .config file for kernel compilation
-    # # - name: Compile kernel headers
-    # #   shell: make headers_install
-    # #     chdir: /home/vagrant/net-next
-    # - name: Install bpftool
-    #   shell: make && make install
-    #   args:
-    #     chdir: /home/vagrant/net-next/tools/bpf/bpftool
+    - name: Clone newest iproute2 repo
+      git:
+        repo: https://git.kernel.org/pub/scm/network/iproute2/iproute2-next.git
+        dest: /home/vagrant/iproute2/
+    - name: Install iproute2
+      shell: ./configure && make && make install
+      args:
+        chdir: /home/vagrant/iproute2
+    # TODO: Fix BCC installation
+    # - name: Install BCC
+    #   script: install-bcc.sh 
+    - name: Clone prototype-kernel project
+      git:
+        repo: https://github.com/netoptimizer/prototype-kernel.git
+        dest: /home/vagrant/prototype-kernel
+    - name: Clone linux kernel net-next tree
+      git:
+        repo: https://git.kernel.org/pub/scm/linux/kernel/git/davem/net-next.git
+        dest: /home/vagrant/net-next
+        version: v4.19
+        depth: 1 # Reduce commit history to download faster
+    # TODO: Create .config file for kernel compilation
+    # - name: Compile kernel headers
+    #   shell: make headers_install
+    #     chdir: /home/vagrant/net-next
+    - name: Install bpftool
+      shell: make && make install
+      args:
+        chdir: /home/vagrant/net-next/tools/bpf/bpftool
