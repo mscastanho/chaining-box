@@ -6,12 +6,15 @@
 #include <uapi/linux/udp.h>
 #include <uapi/linux/pkt_cls.h>
 
+#include "bpf_endian.h"
 #include "bpf_helpers.h"
 #include "common.h"
 #include "nsh.h"
 
 #define ADJ_STAGE 1
 #define FWD_STAGE 2
+
+#define EXTRA_BYTES 2
 
 struct bpf_elf_map SEC("maps") cls_table = {
     .type = BPF_MAP_TYPE_HASH,
@@ -209,7 +212,7 @@ int decap_nsh(struct xdp_md *ctx)
 	}
 
 	// Remove outer Ethernet + NSH headers
-	if(bpf_xdp_adjust_head(ctx, (int)(sizeof(struct nshhdr) + sizeof(struct ethhdr))))
+	if(bpf_xdp_adjust_head(ctx, (int)(sizeof(struct nshhdr) + sizeof(struct ethhdr) + EXTRA_BYTES)))
 		return XDP_DROP;
 
 	printk("[DECAP] Decapsulated packet.\n");
@@ -275,66 +278,92 @@ int encap_nsh(struct __sk_buff *skb)
 // SEC("adjust")
 int adjust_nsh(struct __sk_buff *skb)
 {
-	void *data = (void *)(long)skb->data;
-    void* data_end = (void *)(long)skb->data_end;
-	int ret;
+	void *data;	data = (void *)(long)skb->data;
+    void *data_end = (void *)(long)skb->data_end;
+	int ret = 0;
 	struct ip_5tuple key = { }; // Verifier does not allow uninitialized keys
-	struct nshhdr *nsh, *prev_nsh;
+	struct nshhdr *prev_nsh, *nsh;
 	struct ethhdr *ieth, *oeth;
 	struct iphdr *ip;
+	__u16 prev_proto;
+	// __u32 prev_len = data_end - data;
 	// struct nshhdr nop2 = {0,0,0,0};
 
-	// Add space for NSH before IP header
-	// This space will be filled by the next stage
-	// ret = bpf_skb_adjust_room(skb, sizeof(struct nshhdr) + sizeof(struct ethhdr), BPF_ADJ_ROOM_NET, 0);
-	// if (ret < 0) {
-	// 	printk("[ADJUST]: Failed to add extra room: %d\n", ret);
-    //     return BPF_DROP;
+	if(data + sizeof(struct ethhdr) + sizeof(struct iphdr) > data_end){
+		printk("[ADJUST]: Bounds check failed\n");
+		return BPF_DROP;
+	}
+
+	// TODO: Check EtherType indeed corresponds to IP
+	ip = data + sizeof(struct ethhdr);
+
+	ret = get_tuple(ip,data_end,&key);
+	if (ret < 0) {
+		printk("[ADJUST]: get_tuple() failed: %d\n", ret);
+        return BPF_DROP;
+	}
+
+	// Check if we have a correponding NSH saved
+    prev_nsh = bpf_map_lookup_elem(&nsh_data,&key);
+	if(prev_nsh == NULL){
+		printk("[ADJUST] NSH header not found in table.\n");
+		// bpf_map_update_elem(&not_found, &key, &nop2, BPF_ANY);
+		return BPF_DROP;
+	}
+
+	// Save previous EtherType before it is overwritten
+	ieth = data;
+	prev_proto = ieth->h_proto;
+
+	// // printk("[ADJUST]: skb_max_len = %x\n", skb->dev->mtu + skb->dev->hard_header_len);
+	// if(ieth+1 > data_end){
+	// 	return BPF_DROP;
 	// }
 
-	// #pragma clang loop unroll(full)
+	// __be16 proto = skb->protocol;
+	// printk("[ADJUST]: skb->protocol = 0x%x ; eth->h_proto = 0x%x ; ETH_P_IP = 0x%x\n", proto,htons(ieth->h_proto),htons(ETH_P_IP));
 
-	printk("[ADJUST]: ENCAPSULATED PACKET, DUDE!!!\n");
+	// Hack to add space for NSH + Outer Ethernet
+	// vlan_push adds 4 bytes (802.1q header)
+	// We need to add 22 bytes, which is not possible
+	// So we'll add 24 bytes and try do deal with the 
+	// extra 2 bytes.
+ 	#pragma clang loop unroll(full)
+	for(int i = 0 ; i < 7 ; i++){
+		ret = bpf_skb_vlan_push(skb,ntohs(ETH_P_8021Q),0);
+		if (ret < 0) {
+			printk("[ADJUST]: Failed to add extra room: %d\n", ret);
+			return BPF_DROP;
+		} 
+	}
+
+	data = (void *)(long)skb->data;
+    data_end = (void *)(long)skb->data_end;
 	
 	// Bounds check to please the verifier
-	if(data + 2*sizeof(struct ethhdr) + sizeof(struct nshhdr) > data_end){
+	// EXTRA_BYTES is due to the hack used above to enable encapsulation
+	if(data + 2*sizeof(struct ethhdr) + sizeof(struct nshhdr) + EXTRA_BYTES > data_end){
 		printk("[ADJUST]: Bounds check failed.\n");
 		return BPF_DROP;
 	}
 	
 	oeth = data;
 	nsh = (void*) oeth + sizeof(struct ethhdr);
-	ieth = (void*) nsh + sizeof(struct nshhdr);
+	ieth = (void*) nsh + sizeof(struct nshhdr) + EXTRA_BYTES;
 	ip = (void*) ieth + sizeof(struct ethhdr);
 
-	// Original Ethernet is outside, we have to move it inside
-	// and clean the outer space
-	__builtin_memmove(ieth,oeth,sizeof(struct ethhdr));
-	__builtin_memset(oeth,0,sizeof(struct ethhdr));
+	// Original Ethernet is outside, let's copy it to the inside
+	__builtin_memcpy(ieth,oeth,sizeof(struct ethhdr));
+	// __builtin_memset(oeth,0,2*sizeof(struct ethhdr) + sizeof(struct nshhdr) + EXTRA_BYTES);
+	// __builtin_memset(oeth,0,sizeof(struct ethhdr));
+
 	oeth->h_proto = ntohs(ETH_P_NSH);
+	ieth->h_proto = prev_proto;
 	// oeth->h_dest and oeth->h_src will be set by fwd stage
 
-	// Get IP 5-tuple
-	ret = get_tuple(ip,data_end,&key);
-	if(ret){
-		printk("[ADJUST]: get_tuple() failed: %d\n", ret);
-		return BPF_DROP;
-	}
-
-	// Re-add corresponding NSH
-    prev_nsh = bpf_map_lookup_elem(&nsh_data,&key);
-	if(prev_nsh == NULL){
-		printk("[ADJUST] NSH header not found in table.\n");
-		// bpf_map_update_elem(&not_found, &key, &nop2, BPF_ANY);
-		return BPF_DROP;
-	}else{
-		memcpy(nsh,prev_nsh,sizeof(struct nshhdr));
-		if (ret < 0) {
-			printk("[ADJUST] Failed to load NSH to packet: %d\n", ret);
-			return BPF_DROP;
-		}
-		printk("[ADJUST] Re-added NSH header!\n");
-	}
+	// Re-add NSH
+	__builtin_memcpy(nsh,prev_nsh,sizeof(struct nshhdr));
+	printk("[ADJUST] Re-added NSH header!\n");
 
 	// bpf_tail_call(skb, &jmp_table, FWD_STAGE);
 
@@ -347,14 +376,13 @@ int adjust_nsh(struct __sk_buff *skb)
 SEC("forward")
 int sfc_forwarding(struct __sk_buff *skb)
 {
-    void *data     = (void *)(long)skb->data;
-    void *data_end = (void *)(long)skb->data_end;
+    void *data;
+    void *data_end;
 
-    struct ethhdr *eth = data;
+    struct ethhdr *eth;
     struct nshhdr *nsh;
     struct fwd_entry *next_hop;
-    __u32 sph;
-    __u32 si, spi;
+    __be32 sph, spi, si;
 	int ret;
 
 	// TODO: The link between these two progs
@@ -363,6 +391,15 @@ int sfc_forwarding(struct __sk_buff *skb)
 	if(ret == BPF_DROP){
 		return TC_ACT_SHOT;
 	}
+	
+	// We can only make these attributions here because
+	// adjust_nsh() changes the packet, making previous 
+	// values of data and data_end invalid.
+	// This should go away when we use the tail call
+	data     = (void *)(long)skb->data;
+	data_end = (void *)(long)skb->data_end;
+	
+	eth = data;
 
     if (data + sizeof(*eth) > data_end){
 		printk("[FORWARD]: Bounds check failed.\n");
@@ -381,24 +418,36 @@ int sfc_forwarding(struct __sk_buff *skb)
 	}
     
     // TODO: Check if endianness is correct!
-    sph = ntohl(nsh->serv_path);
-    spi = (sph & 0xFFFF00)>>8;
-    si = (sph & 0xFF);
+    sph = bpf_ntohl(nsh->serv_path);
+    spi = sph & 0xFFFFFF00;
+    si = sph & 0x000000FF;
+	printk("[FORWARD]: SPH = 0x%x ; SPI = 0x%x ; SI = 0x%x \n",sph,spi,si);
 
-    next_hop = bpf_map_lookup_elem(&fwd_table,&sph);
+    next_hop = bpf_map_lookup_elem(&fwd_table,&nsh->serv_path);
 
-    if(next_hop){ // Use likely() here?
+    if(likely(next_hop)){
+
+		// Check if is end of chain
         if(next_hop->flags & 0x1){
             printk("[FORWARD]: End of chain.\n");
             // Remove external encapsulation
         }else{
             printk("[FORWARD]: Updating next hop info\n");
             // Update MAC daddr
-            // OBS: Source MAC should be updated
+			if(si == 0){
+				printk("[FORWARD]: Anomalous SI number. Dropping packet.\n");
+				return TC_ACT_SHOT;
+			}
+			
+			// Update NSH header
+			// Update the SI this way is safe because we
+			// already checked if it is 0
+			sph--;
+            nsh->serv_path = bpf_htonl(sph);
+
+			// Update MAC addresses
+			// TODO: Update source MAC
             __builtin_memmove(eth->h_dest,next_hop->address,ETH_ALEN);
-            sph = ntohl(sph);
-            sph--; // TODO: Fix this operation. Take care with endianness
-            nsh->serv_path = htonl(sph);
 		}
     }else{
 		printk("[FORWARD]: No corresponding rule.\n");
