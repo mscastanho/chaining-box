@@ -127,7 +127,7 @@ function create_infra {
     # key = 5-tuple(10.1.0.50,10.1.0.51,1000,2000,TCP)
     # value = NSH(0x1,0xFF)
     # bpftool map update pinned /sys/fs/bpf/tc/globals/nsh_data \
-    # key hex 0a 01 00 32 0a 01 00 33 03 e8 07 d0 11 \
+    # key hex 0a 01 00 32 0a 01 00 33 03 e8 07 d0 06 \
     # value hex 00 02 02 03 00 00 01 ff any
 
     # Add entries to FWD stage
