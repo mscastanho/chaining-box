@@ -18,14 +18,13 @@
 			bpf_trace_printk(____fmt, sizeof(____fmt),	\
 				     ##__VA_ARGS__);			\
 		})
-
 struct fwd_entry {
     // Flags:
     // Bit 0 : is end of chain
     // Bits 1-7 : reserved
     __u8 flags;
     unsigned char address[ETH_ALEN];
-};
+}__attribute__((packed));
 
 struct cls_entry {
     uint32_t sph;

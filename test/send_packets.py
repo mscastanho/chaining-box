@@ -52,7 +52,7 @@ def main(argv):
     o_eth = Ether(src=out_src_mac,dst=out_dest_mac)
 
     if with_nsh:
-        in_pkt = o_eth/NSH(NSP=0x1,NSI=0xFF,MDType=0x2)/o_eth/i_ip/i_tcp/http_resp
+        in_pkt = o_eth/Dot1Q(vlan=0)/NSH(NSP=0x1,NSI=0xFF,MDType=0x2)/Raw("\x00\x00")/i_eth/i_ip/i_tcp/http_resp
     else:
         in_pkt = o_eth/i_ip/i_tcp/http_resp
         

@@ -1,5 +1,6 @@
 #include <uapi/linux/bpf.h>
 #include <uapi/linux/if_ether.h>
+#include <linux/if_vlan.h>
 #include <uapi/linux/in.h>
 #include <uapi/linux/ip.h>
 #include <uapi/linux/tcp.h>
@@ -17,35 +18,43 @@
 #define EXTRA_BYTES 2
 
 struct bpf_elf_map SEC("maps") cls_table = {
-    .type = BPF_MAP_TYPE_HASH,
-    .size_key = sizeof(struct ip_5tuple),
-    .size_value = sizeof(struct cls_entry), // Value is sph + MAC address
-    .max_elem = 2048,
-    .pinning = PIN_GLOBAL_NS,
+	.type = BPF_MAP_TYPE_HASH,
+	.size_key = sizeof(struct ip_5tuple),
+	.size_value = sizeof(struct cls_entry), // Value is sph + MAC address
+	.max_elem = 2048,
+	.pinning = PIN_GLOBAL_NS,
 };
 
 struct bpf_elf_map SEC("maps") nsh_data = {
-    .type = BPF_MAP_TYPE_HASH,
-    .size_key = sizeof(struct ip_5tuple),
-    .size_value = sizeof(struct nshhdr),
-    .max_elem = 2048,
-    .pinning = PIN_GLOBAL_NS,
+	.type = BPF_MAP_TYPE_HASH,
+	.size_key = sizeof(struct ip_5tuple),
+	.size_value = sizeof(struct nshhdr),
+	.max_elem = 2048,
+	.pinning = PIN_GLOBAL_NS,
+};
+
+struct bpf_elf_map SEC("maps") src_mac = {
+	.type = BPF_MAP_TYPE_HASH,
+	.size_key = sizeof(int),
+	.size_value = ETH_ALEN,
+	.max_elem = 1,
+	.pinning = PIN_GLOBAL_NS,
 };
 
 // struct bpf_elf_map SEC("maps") not_found = {
-//     .type = BPF_MAP_TYPE_HASH,
-//     .size_key = sizeof(struct ip_5tuple),
-//     .size_value = sizeof(struct nshhdr),
-//     .max_elem = 2048,
-//     .pinning = PIN_GLOBAL_NS,
+// 	.type = BPF_MAP_TYPE_HASH,
+// 	.size_key = sizeof(struct ip_5tuple),
+// 	.size_value = sizeof(struct nshhdr),
+// 	.max_elem = 2048,
+// 	.pinning = PIN_GLOBAL_NS,
 // };
 
 struct bpf_elf_map SEC("maps") fwd_table = {
-    .type = BPF_MAP_TYPE_HASH,
-    .size_key = sizeof(__u32), // Key is SPH (SPI + SI) -> 4 Bytes
-    .size_value = sizeof(struct fwd_entry), // Value is MAC address + end byte
-    .max_elem = 2048,
-    .pinning = PIN_GLOBAL_NS,
+	.type = BPF_MAP_TYPE_HASH,
+	.size_key = sizeof(__u32), // Key is SPH (SPI + SI) -> 4 Bytes
+	.size_value = sizeof(struct fwd_entry), // Value is MAC address + end byte
+	.max_elem = 2048,
+	.pinning = PIN_GLOBAL_NS,
 };
 
 // struct bpf_map_def SEC("maps") jmp_table = {
@@ -56,44 +65,44 @@ struct bpf_elf_map SEC("maps") fwd_table = {
 // };
 
 static inline int get_tuple(void* ip_data, void* data_end, struct ip_5tuple *t){
-    struct iphdr *ip;
-    struct udphdr *udp;
-    struct tcphdr *tcp;
+	struct iphdr *ip;
+	struct udphdr *udp;
+	struct tcphdr *tcp;
 
 	ip = ip_data;
-    if((void*) ip + sizeof(*ip) > data_end){
+	if((void*) ip + sizeof(*ip) > data_end){
 		printk("get_tuple(): Error accessing IP hdr\n");
 		return -1;
 	}
 
 	t->ip_src = ip->saddr;
-    t->ip_dst = ip->daddr;
+	t->ip_dst = ip->daddr;
 	t->proto = ip->protocol;
 
-    switch(ip->protocol){
-        case IPPROTO_UDP:
-            udp = ip_data + sizeof(*ip);
-            if((void*) udp + sizeof(*udp) > data_end){
+	switch(ip->protocol){
+		case IPPROTO_UDP:
+			udp = ip_data + sizeof(*ip);
+			if((void*) udp + sizeof(*udp) > data_end){
 				printk("get_tuple(): Error accessing UDP hdr\n");
 				return -1;
 			}
 
 			t->dport = udp->dest;
-            t->sport = udp->source;
-            break;
-        case IPPROTO_TCP:
-            tcp = ip_data + sizeof(*ip);
-            if((void*) tcp + sizeof(*tcp) > data_end){
+			t->sport = udp->source;
+			break;
+		case IPPROTO_TCP:
+			tcp = ip_data + sizeof(*ip);
+			if((void*) tcp + sizeof(*tcp) > data_end){
 				printk("get_tuple(): Error accessing TCP hdr\n");
 				return -1;
 			}
 
-	        t->dport = tcp->dest;
-            t->sport = tcp->source;
-            break;
+			t->dport = tcp->dest;
+			t->sport = tcp->source;
+			break;
 		/* TODO: Add ICMP */
-        default: ; 
-    }
+		default: ; 
+	}
 
 	return 0;
 };
@@ -102,10 +111,10 @@ SEC("classify")
 int classify_pkt(struct xdp_md *ctx)
 {
 	void *data_end = (void *)(long)ctx->data_end;
-    void *data = (void *)(long)ctx->data;
-    struct nshhdr *nsh;
-    struct cls_entry *cls;
-    struct ethhdr *eth;
+	void *data = (void *)(long)ctx->data;
+	struct nshhdr *nsh;
+	struct cls_entry *cls;
+	struct ethhdr *eth;
 	struct iphdr *ip;
 	struct ip_5tuple key = { };
 	int ret;
@@ -118,7 +127,7 @@ int classify_pkt(struct xdp_md *ctx)
 	eth = data;
 	ip = (void*)eth + sizeof(struct ethhdr);
 
-    if(ntohs(eth->h_proto) != ETH_P_IP){
+	if(ntohs(eth->h_proto) != ETH_P_IP){
 		printk("[CLASSIFY] Not an IPv4 packet, dropping.\n");
 		return XDP_DROP;
 	}
@@ -137,11 +146,17 @@ int classify_pkt(struct xdp_md *ctx)
 
 	printk("[CLASSIFY] Matched packet flow.\n");
 
-	// Insert outer Ethernet + NSH headers
-	if(bpf_xdp_adjust_head(ctx, 0 - (int)(sizeof(struct nshhdr) + sizeof(struct ethhdr)))){
+	// Insert outer Ethernet + NSH headers + EXTRA_BYTES
+	// Extra bytes needed by the hack on encapsulation. See
+	// ajust_nsh() below
+	if(bpf_xdp_adjust_head(ctx, 0 - (int)(sizeof(struct ethhdr) + sizeof(struct nshhdr) + EXTRA_BYTES))){
 		printk("[CLASSIFY] Error creating room in packet.\n");
 		return XDP_DROP;
 	}
+
+	// Pointers have changed after call to bpf_xdp_adjust_head()
+	data_end = (void *)(long)ctx->data_end;
+	data = (void *)(long)ctx->data;
 
 	if(data + sizeof(struct ethhdr) + sizeof(struct nshhdr) > data_end){
 		printk("[CLASSIFY] Bounds check #2 failed.\n");
@@ -151,44 +166,57 @@ int classify_pkt(struct xdp_md *ctx)
 	eth = data; // Points to the new outermost Ethernet header
 	nsh = (void*)eth + sizeof(struct ethhdr);
 
+	// TODO: Set extra bytes to 0
+
 	memmove(eth->h_dest,cls->next_hop,ETH_ALEN);
 	// TODO: Set proper eth->h_source
 	eth->h_proto = htons(ETH_P_NSH);
 
-    nsh->basic_info = ((uint16_t) 0) 	    |  
-						NSH_TTL_DEFAULT 	| 
-						NSH_BASE_LENGHT_MD_TYPE_2;               
-    nsh->md_type 	= NSH_MD_TYPE_2;
-    nsh->next_proto = NSH_NEXT_PROTO_ETHER;
+	nsh->basic_info = ((uint16_t) 0) 		|
+						NSH_TTL_DEFAULT 	|
+						NSH_BASE_LENGHT_MD_TYPE_2;
+	nsh->md_type 	= NSH_MD_TYPE_2;
+	nsh->next_proto = NSH_NEXT_PROTO_ETHER;
 	nsh->serv_path 	= htonl(cls->sph);
 
 	printk("[CLASSIFY] NSH added.\n");
 
-    return XDP_TX; 
+	// TODO: This should be bpf_redirect_map(), to allow
+	// redirecting the packet to another interface
+	return XDP_PASS; 
 }
 
 SEC("decap")
 int decap_nsh(struct xdp_md *ctx)
 {
-    void *data_end = (void *)(long)ctx->data_end;
-    void *data = (void *)(long)ctx->data;
-    struct ethhdr *eth = data;
-    struct nshhdr *nsh = (void*)eth + sizeof(*eth);
+	void *data_end = (void *)(long)ctx->data_end;
+	void *data = (void *)(long)ctx->data;
+	struct ethhdr *eth = data;
+	struct vlan_ethhdr *vleth;
+	struct nshhdr *nsh = (void*)eth + sizeof(*eth);
 	struct iphdr *ip = (void*)nsh + sizeof(*nsh) + sizeof(*eth);
 	struct ip_5tuple key = { }; // Verifier does not allow uninitialized keys
 	int ret = 0;
 
-    if(data + sizeof(*eth) > data_end)
-    	return XDP_DROP;
+	if(data + sizeof(*eth) > data_end)
+		return XDP_DROP;
 
-	if(ntohs(eth->h_proto) != ETH_P_NSH)
+	if(ntohs(eth->h_proto) != ETH_P_8021Q){
 		return XDP_PASS;
+	}
+
+	if(data + sizeof(struct vlan_ethhdr) > data_end)
+		return XDP_DROP;
 	
-	nsh = (void*) eth + sizeof(*eth);
+	vleth = data;
+	if(ntohs(vleth->h_vlan_encapsulated_proto) != ETH_P_NSH)
+		return XDP_PASS;	
+	
+	nsh = (void*) vleth + sizeof(*vleth);
 
 	// Check if we can access NSH
-    if ((void*) nsh + sizeof(*nsh) > data_end)
-        return XDP_DROP;
+	if ((void*) nsh + sizeof(*nsh) > data_end)
+		return XDP_DROP;
 	
 	// Check if next protocol is Ethernet
 	if(nsh->next_proto != NSH_NEXT_PROTO_ETHER)
@@ -212,12 +240,12 @@ int decap_nsh(struct xdp_md *ctx)
 	}
 
 	// Remove outer Ethernet + NSH headers
-	if(bpf_xdp_adjust_head(ctx, (int)(sizeof(struct nshhdr) + sizeof(struct ethhdr) + EXTRA_BYTES)))
+	if(bpf_xdp_adjust_head(ctx, (int)(sizeof(struct nshhdr) + sizeof(struct vlan_ethhdr) + EXTRA_BYTES)))
 		return XDP_DROP;
 
 	printk("[DECAP] Decapsulated packet.\n");
 
-    return XDP_PASS;
+	return XDP_PASS;
 }
 
 /* 
@@ -232,8 +260,8 @@ int decap_nsh(struct xdp_md *ctx)
 SEC("encap")
 int encap_nsh(struct __sk_buff *skb)
 {
-    void *data = (void *)(long)skb->data;
-    void *data_end = (void *)(long)skb->data_end;
+	void *data = (void *)(long)skb->data;
+	void *data_end = (void *)(long)skb->data_end;
 	struct ip_5tuple key = { };
 	struct nshhdr *nsh;
 	int ret;
@@ -241,7 +269,7 @@ int encap_nsh(struct __sk_buff *skb)
 	ret = get_tuple(data,data_end,&key);
 	if (ret < 0) {
 		printk("[ENCAP]: get_tuple() failed: %d\n", ret);
-        return BPF_DROP;
+		return BPF_DROP;
 	}
 
 	nsh = bpf_map_lookup_elem(&nsh_data,&key);
@@ -250,16 +278,16 @@ int encap_nsh(struct __sk_buff *skb)
 		return BPF_DROP;
 	}
 
-    // Add space for NSH before IP header
+	// Add space for NSH before IP header
 	// This space will be filled by the next stage
 	ret = bpf_skb_change_head(skb, sizeof(struct nshhdr) + sizeof(struct ethhdr), 0);
 	if (ret < 0) {
 		printk("[ENCAP]: Failed to add extra room: %d\n", ret);
-        return BPF_DROP;
+		return BPF_DROP;
 	}
 
 	// data = (void *)(long)skb->data;
-    // data_end = (void *)(long)skb->data_end;
+	// data_end = (void *)(long)skb->data_end;
 
 	// ip = data + 2*sizeof(struct ethhdr) + sizeof(nshhdr);
 
@@ -286,6 +314,8 @@ int adjust_nsh(struct __sk_buff *skb)
 	struct ethhdr *ieth, *oeth;
 	struct iphdr *ip;
 	__u16 prev_proto;
+	__be32 sph, spi, si;
+
 	// __u32 prev_len = data_end - data;
 	// struct nshhdr nop2 = {0,0,0,0};
 
@@ -300,7 +330,7 @@ int adjust_nsh(struct __sk_buff *skb)
 	ret = get_tuple(ip,data_end,&key);
 	if (ret < 0) {
 		printk("[ADJUST]: get_tuple() failed: %d\n", ret);
-        return BPF_DROP;
+		return BPF_DROP;
 	}
 
 	// Check if we have a correponding NSH saved
@@ -338,7 +368,7 @@ int adjust_nsh(struct __sk_buff *skb)
 	}
 
 	data = (void *)(long)skb->data;
-    data_end = (void *)(long)skb->data_end;
+	data_end = (void *)(long)skb->data_end;
 	
 	// Bounds check to please the verifier
 	// EXTRA_BYTES is due to the hack used above to enable encapsulation
@@ -365,6 +395,22 @@ int adjust_nsh(struct __sk_buff *skb)
 	__builtin_memcpy(nsh,prev_nsh,sizeof(struct nshhdr));
 	printk("[ADJUST] Re-added NSH header!\n");
 
+	sph = bpf_ntohl(nsh->serv_path);
+	spi = sph & 0xFFFFFF00;
+	si = sph & 0x000000FF;
+	printk("[ADJUST]: SPH = 0x%x ; SPI = 0x%x ; SI = 0x%x \n",sph,spi,si);
+
+	if(si == 0){
+		printk("[ADJUST]: Anomalous SI number. Dropping packet.\n");
+		return BPF_DROP;
+	}
+
+	// Update NSH header
+	// Update the SI this way is safe because we
+	// already checked if it is 0
+	sph--;
+	nsh->serv_path = bpf_htonl(sph);
+
 	// bpf_tail_call(skb, &jmp_table, FWD_STAGE);
 
 	// With the tail call, this is unreachable code.
@@ -376,14 +422,14 @@ int adjust_nsh(struct __sk_buff *skb)
 SEC("forward")
 int sfc_forwarding(struct __sk_buff *skb)
 {
-    void *data;
-    void *data_end;
-
-    struct ethhdr *eth;
-    struct nshhdr *nsh;
-    struct fwd_entry *next_hop;
-    __be32 sph, spi, si;
+	void *data;
+	void *data_end;
+	void *smac;
+	struct ethhdr *eth;
+	struct nshhdr *nsh;
+	struct fwd_entry *next_hop;
 	int ret;
+	int zero = 0;
 
 	// TODO: The link between these two progs
 	// 		 should be a tail call instead
@@ -401,31 +447,24 @@ int sfc_forwarding(struct __sk_buff *skb)
 	
 	eth = data;
 
-    if (data + sizeof(*eth) > data_end){
+	if (data + sizeof(*eth) > data_end){
 		printk("[FORWARD]: Bounds check failed.\n");
-	    return TC_ACT_SHOT;
+		return TC_ACT_SHOT;
 	}
 
-    // Keep regular traffic working
-    // if (eth->h_proto != htons(ETH_P_NSH))
+	// Keep regular traffic working
+	// if (eth->h_proto != htons(ETH_P_NSH))
 	// 	return TC_ACT_OK;
 
-    nsh = (void*) eth + sizeof(*eth);
+	nsh = (void*) eth + sizeof(*eth);
 
-    if ((void*) nsh + sizeof(*nsh) > data_end){
+	if ((void*) nsh + sizeof(*nsh) > data_end){
 		printk("[FORWARD]: Bounds check failed.\n");     
-	    return TC_ACT_SHOT;
+		return TC_ACT_SHOT;
 	}
-    
-    // TODO: Check if endianness is correct!
-    sph = bpf_ntohl(nsh->serv_path);
-    spi = sph & 0xFFFFFF00;
-    si = sph & 0x000000FF;
-	printk("[FORWARD]: SPH = 0x%x ; SPI = 0x%x ; SI = 0x%x \n",sph,spi,si);
 
-    next_hop = bpf_map_lookup_elem(&fwd_table,&nsh->serv_path);
-
-    if(likely(next_hop)){
+	next_hop = bpf_map_lookup_elem(&fwd_table,&nsh->serv_path);
+	if(likely(next_hop)){
 
 		// Check if is end of chain
         if(next_hop->flags & 0x1){
@@ -433,20 +472,16 @@ int sfc_forwarding(struct __sk_buff *skb)
             // Remove external encapsulation
         }else{
             printk("[FORWARD]: Updating next hop info\n");
-            // Update MAC daddr
-			if(si == 0){
-				printk("[FORWARD]: Anomalous SI number. Dropping packet.\n");
-				return TC_ACT_SHOT;
-			}
 			
-			// Update NSH header
-			// Update the SI this way is safe because we
-			// already checked if it is 0
-			sph--;
-            nsh->serv_path = bpf_htonl(sph);
+			// Get src MAC from table. Is there a better way?
+			smac = bpf_map_lookup_elem(&src_mac,&zero);
+			if(smac == NULL){
+				printk("[FORWARD]: No source MAC configured\n");
+				return BPF_DROP;
+			}
 
 			// Update MAC addresses
-			// TODO: Update source MAC
+			__builtin_memmove(eth->h_source,smac,ETH_ALEN);
             __builtin_memmove(eth->h_dest,next_hop->address,ETH_ALEN);
 		}
     }else{
