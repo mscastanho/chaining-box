@@ -27,7 +27,7 @@ struct fwd_entry {
 }__attribute__((packed));
 
 struct cls_entry {
-    uint32_t sph;
+    __u32 sph;
     unsigned char next_hop[ETH_ALEN];
 }__attribute__((packed));
 
@@ -51,5 +51,10 @@ struct ip_5tuple {
     __u16 dport;
     __u8 proto;
 }__attribute__((packed));
+
+struct vlanhdr {
+	__be16 h_vlan_TCI;
+	__be16 h_vlan_encapsulated_proto;
+};
 
 #endif /* COMMON_H_ */

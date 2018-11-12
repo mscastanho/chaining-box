@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
 
-bpf_path="/home/vagrant/prototype-kernel/kernel/samples/bpf"
-bpf_obj="sfc_fwd_kern.o"
-bpf_section="sfc_fwd"
+if [ -z $1 ] || [ -z $2 ] || [ -z $3 ]; then
+    echo "Usage: $0 <bpf_code.o> <section> <iface>"
+    exit 1
+fi
+
+bpf_obj="$1"
+bpf_section="$2"
 qdisc_name="clsact"
-iface="enp0s8"
+iface="$3"
 direction="egress"
 
 # bpf_path="$1"
@@ -29,5 +33,5 @@ if [ -n "$(tc filter show dev $iface $direction)" ]; then
 fi
 
 # (Re)load BPF code
-tc filter add dev $iface $direction bpf da obj $bpf_path/$bpf_obj \
+tc filter add dev $iface $direction bpf da obj $bpf_obj \
     sec $bpf_section && echo "=> BPF code loaded"
