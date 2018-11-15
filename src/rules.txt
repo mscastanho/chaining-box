@@ -1,0 +1,29 @@
+# dsfc1
+
+bpftool map update pinned /sys/fs/bpf/tc/globals/fwd_table \
+key hex 00 00 01 fe \
+value hex 00 52 54 00 97 0f ee any
+
+bpftool map update pinned /sys/fs/bpf/tc/globals/src_mac \
+key hex 00 00 00 00 \
+value hex 52 54 00 ff 3f b7 any
+
+# dsfc2
+
+bpftool map update pinned /sys/fs/bpf/tc/globals/fwd_table \
+key hex 00 00 01 fd \
+value hex 00 52 54 00 e2 20 f5 any
+
+bpftool map update pinned /sys/fs/bpf/tc/globals/src_mac \
+key hex 00 00 00 00 \
+value hex 52 54 00 97 0f ee any
+
+# dsfc3
+
+bpftool map update pinned /sys/fs/bpf/tc/globals/fwd_table \
+key hex 00 00 01 fc \
+value hex 01 00 00 00 00 00 00 any
+
+bpftool map update pinned /sys/fs/bpf/tc/globals/src_mac \
+key hex 00 00 00 00 \
+value hex 52 54 00 e2 20 f5 any

@@ -50,14 +50,15 @@ def main(argv):
     i_tcp = TCP(sport=1000,dport=2000)
 
     o_eth = Ether(src=out_src_mac,dst=out_dest_mac)
-
+    extra_bytes = Raw("\x00\x00\x00\x00\x00\x00")
     if with_nsh:
-        in_pkt = o_eth/Dot1Q(vlan=10)/NSH(NSP=0x1,NSI=0xFF,MDType=0x2)/Raw("\x00\x00")/i_eth/i_ip/i_tcp/http_resp
+        in_pkt = o_eth/Dot1Q(vlan=10)/NSH(NSP=0x1,NSI=0xFF,MDType=0x2)/extra_bytes/i_eth/i_ip/i_tcp/http_resp/Raw("\x00\x00\x00\x00\x00\x00")
     else:
         in_pkt = o_eth/i_ip/i_tcp/http_resp
-        
-    print "Beautiful packet!\n"
-    in_pkt.show()
+
+    print "\nPacket size: %d\n" % len(in_pkt)
+#    print "Beautiful packet!\n"
+#    in_pkt.show()
     print "Ugly packet!\n"
     hexdump(in_pkt)
 

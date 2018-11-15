@@ -31,7 +31,7 @@ while True:
     destinationIP=socket.inet_ntoa(ipHdr[2])
     sourceIP=socket.inet_ntoa(ipHdr[1])
 
-    if sourceIP != "10.0.2.2":
+    if sourceIP != "192.168.121.1" and sourceIP != "192.168.121.63":
         print "src: " + sourceIP + " dst: " + destinationIP
         count += 1
         try:

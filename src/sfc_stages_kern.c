@@ -15,7 +15,7 @@
 #define ADJ_STAGE 1
 #define FWD_STAGE 2
 
-#define EXTRA_BYTES 2
+#define EXTRA_BYTES 6
 
 struct bpf_elf_map SEC("maps") cls_table = {
 	.type = BPF_MAP_TYPE_HASH,
@@ -196,13 +196,26 @@ int decap_nsh(struct xdp_md *ctx)
 	struct nshhdr *nsh;
 	struct iphdr *ip;
 	struct ip_5tuple key = { }; // Verifier does not allow uninitialized keys
+	//void *smac;
 	int ret = 0;
-
+	//int zero = 0;
 	eth = data;
 
 	if(data + sizeof(struct ethhdr) > data_end)
 		return XDP_DROP;
-	
+
+	//smac = bpf_map_lookup_elem(&src_mac,&zero);
+        //if(smac == NULL){
+	//        printk("[DECAP]: No source MAC configured\n");
+        //        return XDP_DROP;
+        //}
+
+	// Check if packet is for me
+	//if(__builtin_memcmp(smac,data,ETH_ALEN)){
+	//	printk("[DECAP] Not for me. Dropping.\n");
+	//	return XDP_DROP;
+	//}
+
 	if(bpf_ntohs(eth->h_proto) != ETH_P_8021Q)
 		return XDP_PASS;
 
@@ -254,7 +267,11 @@ int decap_nsh(struct xdp_md *ctx)
 	data_end = (void *)(long)ctx->data_end;
 	data = (void *)(long)ctx->data;
 
-	printk("[DECAP] Size after: %d\n",data_end-data);
+	eth = data;
+	if(eth + sizeof(*eth) > data_end)
+		return XDP_DROP;
+
+	printk("[DECAP] Size after: %d ; EtherType = 0x%x\n",data_end-data,bpf_ntohs(eth->h_proto));
 
 	// printk("[DECAP] Decapsulated packet\n");
 
@@ -367,12 +384,14 @@ int adjust_nsh(struct __sk_buff *skb)
 	// printk("[ADJUST]: skb->protocol = 0x%x ; eth->h_proto = 0x%x ; ETH_P_IP = 0x%x\n", proto,htons(ieth->h_proto),htons(ETH_P_IP));
 
 	// Hack to add space for NSH + Outer Ethernet
+	// The only way we found to add bytes to packet
+	// was using vlan_push. Not at all ideal.
 	// vlan_push adds 4 bytes (802.1q header)
-	// We need to add 22 bytes, which is not possible
-	// So we'll add 24 bytes and try do deal with the 
-	// extra 2 bytes.
+	// We need to add 26 bytes, which is not possible using
+	// vlan tags. So we'll add 8 tags (32 bytes) and try to 
+	// deal with the extra 6 bytes.
  	#pragma clang loop unroll(full)
-	for(int i = 0 ; i < 7 ; i++){
+	for(int i = 0 ; i < 8 ; i++){
 		ret = bpf_skb_vlan_push(skb,ntohs(ETH_P_8021Q),0);
 		if (ret < 0) {
 			printk("[ADJUST]: Failed to add extra room: %d\n", ret);
@@ -411,7 +430,7 @@ int adjust_nsh(struct __sk_buff *skb)
 	sph = bpf_ntohl(nsh->serv_path);
 	spi = sph & 0xFFFFFF00;
 	si = sph & 0x000000FF;
-	printk("[ADJUST]: SPH = 0x%x ; SPI = 0x%x ; SI = 0x%x \n",sph,spi,si);
+	printk("[ADJUST]: SPH = 0x%x ; SPI = 0x%x ; SI = 0x%x \n",sph,spi>>8,si);
 
 	if(si == 0){
 		printk("[ADJUST]: Anomalous SI number. Dropping packet.\n");
@@ -476,16 +495,19 @@ int sfc_forwarding(struct __sk_buff *skb)
 		return TC_ACT_SHOT;
 	}
 
+	__u32 sph = bpf_ntohl(nsh->serv_path);
+	printk("[FORWARD] SPH = 0x%x\n",sph);
 	next_hop = bpf_map_lookup_elem(&fwd_table,&nsh->serv_path);
 	if(likely(next_hop)){
 
 		// Check if is end of chain
         if(next_hop->flags & 0x1){
             printk("[FORWARD]: End of chain.\n");
+		return BPF_DROP; //TODO: Change this
             // Remove external encapsulation
         }else{
             printk("[FORWARD]: Updating next hop info\n");
-			
+
 			// Get src MAC from table. Is there a better way?
 			smac = bpf_map_lookup_elem(&src_mac,&zero);
 			if(smac == NULL){
