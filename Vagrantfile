@@ -1,5 +1,7 @@
 # Number of VMs to provision
-N = 4
+# If N > 245, the script mus be modified
+# See IP and MAC values configured below
+N = 3
 
 Vagrant.configure("2") do |config|
 
@@ -13,6 +15,7 @@ Vagrant.configure("2") do |config|
       # Private network for inter-vm communication
       machine.vm.network "private_network", 
           ip: "10.0.0.#{10+machine_id}",
+          mac: "00:00:00:00:00:#{"%02x" % (machine_id+10)}", # Must be lowercase
           nic_type: "virtio",
           libvirt__driver_name: "vhost",
           libvirt__driver_queues: "8"
@@ -26,7 +29,7 @@ Vagrant.configure("2") do |config|
       
       machine.vm.provider "libvirt" do |lv|
         lv.default_prefix = ""
-        lv.memory = "2048"
+        lv.memory = "1024"
         lv.graphics_type = "vnc"
         lv.graphics_ip = "0.0.0.0"
       end
