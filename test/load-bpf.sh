@@ -1,3 +1,10 @@
+#!/usr/bin/env bash
+
+if [ -z $1 ] || [ -z $2 ]; then
+    echo "Usage: $0 <bpf_code.o> <iface>"
+    exit 1
+fi
+
 function load_bpf {
     BPFOBJ="$1"
     DEV="$2"
@@ -19,11 +26,6 @@ function load_bpf {
     tc filter add dev $DEV egress bpf da obj $BPFOBJ \
         sec forward
 }
-
-if [ -z $1 ] || [ -z $2 ]; then
-    echo "Usage: $0 <bpf_code.o> <iface>"
-    exit 1
-fi
 
 PROG="$1"
 IFACE="$2"
