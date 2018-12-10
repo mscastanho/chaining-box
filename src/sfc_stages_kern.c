@@ -35,7 +35,7 @@ struct bpf_elf_map SEC("maps") nsh_data = {
 
 struct bpf_elf_map SEC("maps") src_mac = {
 	.type = BPF_MAP_TYPE_HASH,
-	.size_key = sizeof(int),
+	.size_key = sizeof(__u8),
 	.size_value = ETH_ALEN,
 	.max_elem = 1,
 	.pinning = PIN_GLOBAL_NS,
@@ -461,7 +461,7 @@ int sfc_forwarding(struct __sk_buff *skb)
 	struct nshhdr *nsh;
 	struct fwd_entry *next_hop;
 	int ret;
-	int zero = 0;
+	__u8 zero = 0;
 
 	// TODO: The link between these two progs
 	// 		 should be a tail call instead
