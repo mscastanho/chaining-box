@@ -17,6 +17,8 @@
 
 #define EXTRA_BYTES 6
 
+#define BPF_END_CHAIN 100
+
 struct bpf_elf_map SEC("maps") cls_table = {
 	.type = BPF_MAP_TYPE_HASH,
 	.size_key = sizeof(struct ip_5tuple),
@@ -196,25 +198,33 @@ int decap_nsh(struct xdp_md *ctx)
 	struct nshhdr *nsh;
 	struct iphdr *ip;
 	struct ip_5tuple key = { }; // Verifier does not allow uninitialized keys
-	//void *smac;
+	void *smac;
 	int ret = 0;
-	//int zero = 0;
+	__u8 zero = 0;
 	eth = data;
 
 	if(data + sizeof(struct ethhdr) > data_end)
 		return XDP_DROP;
 
-	//smac = bpf_map_lookup_elem(&src_mac,&zero);
-        //if(smac == NULL){
-	//        printk("[DECAP]: No source MAC configured\n");
-        //        return XDP_DROP;
-        //}
+	smac = bpf_map_lookup_elem(&src_mac,&zero);
+	if(smac == NULL){
+		printk("[DECAP]: No source MAC configured\n");
+			return XDP_DROP;
+	}
+	
+	// Hack to compare MAC address
+	// At the time of writing, __builtin_memcmp()
+	// was not working.
+	char* mymac = (char*) smac;
+	char* dstmac = (char*) data;
 
-	// Check if packet is for me
-	//if(__builtin_memcmp(smac,data,ETH_ALEN)){
-	//	printk("[DECAP] Not for me. Dropping.\n");
-	//	return XDP_DROP;
-	//}
+	#pragma clang loop unroll(full)
+	for(int i = 5 ; i >= 0 ; i--){
+		if(mymac[i] ^ dstmac[i]){
+			// printk("[DECAP] Not for me. Dropping.\n");
+			return XDP_DROP;
+		}
+	}
 
 	if(bpf_ntohs(eth->h_proto) != ETH_P_8021Q)
 		return XDP_PASS;
@@ -258,7 +268,7 @@ int decap_nsh(struct xdp_md *ctx)
 		printk("[DECAP] Stored NSH in table.\n");
 	}
 
-	printk("[DECAP] Previous size: %d\n",data_end-data);
+	// printk("[DECAP] Previous size: %d\n",data_end-data);
 
 
 	// Remove outer Ethernet + NSH headers
@@ -271,7 +281,7 @@ int decap_nsh(struct xdp_md *ctx)
 	if(eth + sizeof(*eth) > data_end)
 		return XDP_DROP;
 
-	printk("[DECAP] Size after: %d ; EtherType = 0x%x\n",data_end-data,bpf_ntohs(eth->h_proto));
+	// printk("[DECAP] Size after: %d ; EtherType = 0x%x\n",data_end-data,bpf_ntohs(eth->h_proto));
 
 	// printk("[DECAP] Decapsulated packet\n");
 
@@ -345,6 +355,7 @@ int adjust_nsh(struct __sk_buff *skb)
 	struct iphdr *ip;
 	__u16 prev_proto;
 	__be32 sph, spi, si;
+	struct fwd_entry *next_hop;
 
 	// __u32 prev_len = data_end - data;
 	// struct nshhdr nop2 = {0,0,0,0};
@@ -369,6 +380,31 @@ int adjust_nsh(struct __sk_buff *skb)
 		printk("[ADJUST] NSH header not found in table.\n");
 		// bpf_map_update_elem(&not_found, &key, &nop2, BPF_ANY);
 		return BPF_DROP;
+	}
+
+	sph = bpf_ntohl(prev_nsh->serv_path);
+	spi = sph & 0xFFFFFF00;
+	si = sph & 0x000000FF;
+	printk("[ADJUST]: SPH = 0x%x ; SPI = 0x%x ; SI = 0x%x \n",sph,spi>>8,si);
+
+	if(si == 0){
+		printk("[ADJUST]: Anomalous SI number. Dropping packet.\n");
+		return BPF_DROP;
+	}
+
+	// Update the SI this way is safe because we
+	// already checked if it is 0
+	sph--;
+	prev_nsh->serv_path = bpf_htonl(sph);
+
+	// Check if it is end of chain
+	// If it is, we don't have to re-encapsulate it
+	// TODO: This lookup is repeated in FWD stage.
+	// 		 Ideally, this should only be done once
+	next_hop = bpf_map_lookup_elem(&fwd_table,&prev_nsh->serv_path);
+	if(likely(next_hop) && (next_hop->flags & 0x1)){
+		printk("[FORWARD]: End of chain 1! SPH = 0x%x\n",sph);
+		return BPF_END_CHAIN;
 	}
 
 	// Save previous EtherType before it is overwritten
@@ -427,22 +463,6 @@ int adjust_nsh(struct __sk_buff *skb)
 	__builtin_memcpy(nsh,prev_nsh,sizeof(struct nshhdr));
 	printk("[ADJUST] Re-added NSH header!\n");
 
-	sph = bpf_ntohl(nsh->serv_path);
-	spi = sph & 0xFFFFFF00;
-	si = sph & 0x000000FF;
-	printk("[ADJUST]: SPH = 0x%x ; SPI = 0x%x ; SI = 0x%x \n",sph,spi>>8,si);
-
-	if(si == 0){
-		printk("[ADJUST]: Anomalous SI number. Dropping packet.\n");
-		return BPF_DROP;
-	}
-
-	// Update NSH header
-	// Update the SI this way is safe because we
-	// already checked if it is 0
-	sph--;
-	nsh->serv_path = bpf_htonl(sph);
-
 	// bpf_tail_call(skb, &jmp_table, FWD_STAGE);
 
 	// With the tail call, this is unreachable code.
@@ -468,6 +488,9 @@ int sfc_forwarding(struct __sk_buff *skb)
 	ret = adjust_nsh(skb);
 	if(ret == BPF_DROP){
 		return TC_ACT_SHOT;
+	}else if(ret == BPF_END_CHAIN){
+		// Nothing else to do, just send to network
+		return TC_ACT_OK;
 	}
 	
 	// We can only make these attributions here because
@@ -491,22 +514,41 @@ int sfc_forwarding(struct __sk_buff *skb)
 	nsh = (void*) eth + sizeof(*eth);
 
 	if ((void*) nsh + sizeof(*nsh) > data_end){
-		printk("[FORWARD]: Bounds check failed.\n");     
+		printk("[FORWARD]: Bounds check failed.\n");
 		return TC_ACT_SHOT;
 	}
 
 	__u32 sph = bpf_ntohl(nsh->serv_path);
-	printk("[FORWARD] SPH = 0x%x\n",sph);
+	// printk("[FORWARD] SPH = 0x%x\n",sph);
 	next_hop = bpf_map_lookup_elem(&fwd_table,&nsh->serv_path);
 	if(likely(next_hop)){
 
 		// Check if is end of chain
-        if(next_hop->flags & 0x1){
-            printk("[FORWARD]: End of chain.\n");
-		return BPF_DROP; //TODO: Change this
-            // Remove external encapsulation
-        }else{
-            printk("[FORWARD]: Updating next hop info\n");
+		if(next_hop->flags & 0x1){
+			printk("[FORWARD] Size before: %d ; EtherType = 0x%x\n",data_end-data,bpf_ntohs(eth->h_proto));
+			printk("[FORWARD]: End of chain 2! SPH = 0x%x\n",sph);
+
+			#pragma clang loop unroll(full)
+			for(int i = 0 ; i < 8 ; i++){
+				ret = bpf_skb_vlan_pop(skb);
+				if (ret < 0) {
+					printk("[ADJUST]: Failed to add extra room: %d\n", ret);
+					return BPF_DROP;
+				} 
+			}
+
+			data     = (void *)(long)skb->data;
+			data_end = (void *)(long)skb->data_end;
+			eth = data;
+
+			if(eth+sizeof(*eth) > data_end)
+				return BPF_DROP;
+			
+			printk("[FORWARD] Size after: %d ; EtherType = 0x%x\n",data_end-data,bpf_ntohs(eth->h_proto));
+			return TC_ACT_OK; //TODO: Change this
+			// Remove external encapsulation
+		}else{
+			printk("[FORWARD]: Updating next hop info\n");
 
 			// Get src MAC from table. Is there a better way?
 			smac = bpf_map_lookup_elem(&src_mac,&zero);
@@ -517,16 +559,16 @@ int sfc_forwarding(struct __sk_buff *skb)
 
 			// Update MAC addresses
 			__builtin_memmove(eth->h_source,smac,ETH_ALEN);
-            __builtin_memmove(eth->h_dest,next_hop->address,ETH_ALEN);
+			__builtin_memmove(eth->h_dest,next_hop->address,ETH_ALEN);
 		}
-    }else{
+	}else{
 		printk("[FORWARD]: No corresponding rule.\n");
-        // No corresponding rule. Drop the packet.
-        return TC_ACT_SHOT;
-    }
+		// No corresponding rule. Drop the packet.
+		return TC_ACT_SHOT;
+	}
 
 	printk("[FORWARD]: Successfully forwarded the pkt!\n");
-    return TC_ACT_OK;
+	return TC_ACT_OK;
 }
 
 char _license[] SEC("license") = "GPL";

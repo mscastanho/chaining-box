@@ -45,8 +45,8 @@ def main(argv):
     http_resp += html
 
     # Generate input packets
-    i_eth = Ether(src="AA:BB:CC:DD:EE:FF",dst=out_dest_mac)
-    i_ip = IP(src="10.1.0.50",dst="10.1.0.51")
+    i_eth = Ether(src="AA:BB:CC:DD:EE:FF",dst="FA:EA:DA:CA:BA:AA")
+    i_ip = IP(src="10.10.10.10",dst="10.10.10.11")
     i_tcp = TCP(sport=1000,dport=2000)
 
     o_eth = Ether(src=out_src_mac,dst=out_dest_mac)
