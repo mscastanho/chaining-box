@@ -20,6 +20,10 @@ Vagrant.configure("2") do |config|
           libvirt__driver_name: "vhost",
           libvirt__driver_queues: "8"
 
+      machine.vm.network "forwarded_port",
+          guest: 22,
+          host: "#{2000+machine_id}"
+
       machine.ssh.insert_key = false
       machine.ssh.forward_x11 = true
 
