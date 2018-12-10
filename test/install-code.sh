@@ -13,7 +13,10 @@ NB_SFS="$1"
 SRC_DIR="/home/vagrant/dsfc/src"
 OBJ="sfc_stages_kern.o"
 IFACE="eth1"
+#PWD="vagrant"
+read -p 'Password:' -s PWD
+
 for i in `seq 1 $NB_SFS`; do
     # VMs are configured with forwarded ports for SSH connections
-    ssh -t -p "$((2000 + $i))" vagrant@localhost "sudo su; cd $SRC_DIR; make; ../test/load-bpf $OBJ $IFACE"
+    echo $PWD | ssh -p "$((2000 + $i))" vagrant@localhost "cd $SRC_DIR; make; echo $PWD | sudo -S ../test/load-bpf.sh $OBJ $IFACE"
 done

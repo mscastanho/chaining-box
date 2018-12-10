@@ -83,13 +83,23 @@ PROTO="6" # TCP
 NB_SFS="$1"
 FLOW="$(tuple_to_hex $IPSRC $IPDST $SPORT $DPORT $PROTO)"
 SPI="1"
+PWD="vagrant"
 for i in `seq 1 $NB_SFS`; do
+    # Install src_mac rule
+    MAC="00:00:00:00:00:$(number_to_hex $((10+$i)) 2)"
+    KEY="00"
+    VALUE="${MAC//:/}" # Remove colons from MAC"
+    ssh -p "$((2000 + $i))" vagrant@localhost "echo $PWD | sudo -S $(install_rule tc src_mac $KEY $VALUE)"
+#    echo "echo $PWD | sudo -S $(install_rule tc src_mac $KEY $VALUE)"
+
+    # Install SFC forwarding rule
     NEXT_MAC="00:00:00:00:00:$(number_to_hex $((11+$i)) 2)"
     SI="$((255-$i))"
-
+    [[ $i = $NB_SFS ]] && END_OF_CHAIN="01" || END_OF_CHAIN="00"
     KEY="$(number_to_hex $SPI 6)$(number_to_hex $SI 2)"
-    VALUE="${NEXT_MAC//:/}" # Remove colons from MAC"
+    VALUE="${END_OF_CHAIN}${NEXT_MAC//:/}" # Remove colons from MAC"
 
     # VMs are configured with forwarded ports for SSH connections
-    ssh -p "$((2000 + $i))" vagrant@localhost "$(install_rule tc fwd_table $SPH)"
+    ssh -p "$((2000 + $i))" vagrant@localhost "echo $PWD | sudo -S $(install_rule tc fwd_table $KEY $VALUE)"
+    #echo "echo $PWD | sudo -S $(install_rule tc fwd_table $KEY $VALUE)"
 done
