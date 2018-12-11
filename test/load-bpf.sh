@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
 
-if [ -z $1 ] || [ -z $2 ]; then
-    echo "Usage: $0 <bpf_code.o> <iface>"
+if [ -z $1 ] || [ -z $2 ] || [ -z $3 ]; then
+    echo "Usage: $0 <bpf_code.o> <iface> <type>"
     exit 1
 fi
 
-function load_bpf {
+# Allowed 'type' values:
+#   cls : classifier
+#   sf  : service function
+
+function load_sf {
     BPFOBJ="$1"
     DEV="$2"
 
@@ -27,7 +31,24 @@ function load_bpf {
         sec forward
 }
 
+function load_classifier {
+    BPFOBJ="$1"
+    DEV="$2"
+
+    # Load decap XDP code
+    ip -force link set dev $DEV xdp \
+        obj $BPFOBJ sec classify
+}
+
 PROG="$1"
 IFACE="$2"
+TYPE="$3"
 
-load_bpf $PROG $IFACE
+if [ $TYPE = "sf" ]; then
+    load_sf $PROG $IFACE
+elif [ $TYPE = "cls" ]; then
+    load_classifier $PROG $IFACE
+else
+    echo "Error: Unknown type"
+    exit 1
+fi

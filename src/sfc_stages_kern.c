@@ -130,7 +130,7 @@ int classify_pkt(struct xdp_md *ctx)
 	ip = (void*)eth + sizeof(struct ethhdr);
 
 	if(ntohs(eth->h_proto) != ETH_P_IP){
-		printk("[CLASSIFY] Not an IPv4 packet, dropping.\n");
+		// printk("[CLASSIFY] Not an IPv4 packet, dropping.\n");
 		return XDP_DROP;
 	}
 
