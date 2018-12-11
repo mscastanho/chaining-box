@@ -54,7 +54,7 @@ def main(argv):
     if with_nsh:
         in_pkt = o_eth/Dot1Q(vlan=10)/NSH(NSP=0x1,NSI=0xFF,MDType=0x2)/extra_bytes/i_eth/i_ip/i_tcp/http_resp/Raw("\x00\x00\x00\x00\x00\x00")
     else:
-        in_pkt = o_eth/i_ip/i_tcp/http_resp
+        in_pkt = i_eth/i_ip/i_tcp/http_resp
 
     print "\nPacket size: %d\n" % len(in_pkt)
 #    print "Beautiful packet!\n"

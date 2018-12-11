@@ -18,6 +18,7 @@
 #define EXTRA_BYTES 6
 
 #define BPF_END_CHAIN 100
+#define VLAN_TCI 0x000A
 
 struct bpf_elf_map SEC("maps") cls_table = {
 	.type = BPF_MAP_TYPE_HASH,
@@ -65,6 +66,24 @@ struct bpf_elf_map SEC("maps") fwd_table = {
 // 	.value_size = sizeof(u32),
 // 	.max_entries = 2,
 // };
+
+// The pointer passed to this function must have been
+// bounds checked already
+static inline int set_src_mac(struct ethhdr *eth){
+	void* smac;
+	__u8 zero = 0;
+
+	// Get src MAC from table. Is there a better way?
+	smac = bpf_map_lookup_elem(&src_mac,&zero);
+	if(smac == NULL){
+		printk("[FORWARD]: No source MAC configured\n");
+		return -1;
+	}
+
+	__builtin_memmove(eth->h_source,smac,ETH_ALEN);
+	
+	return 0;
+}
 
 static inline int get_tuple(void* ip_data, void* data_end, struct ip_5tuple *t){
 	struct iphdr *ip;
@@ -117,7 +136,9 @@ int classify_pkt(struct xdp_md *ctx)
 	struct nshhdr *nsh;
 	struct cls_entry *cls;
 	struct ethhdr *eth;
+	struct vlanhdr *vlan;
 	struct iphdr *ip;
+	void* extra_bytes;
 	struct ip_5tuple key = { };
 	int ret;
 
@@ -151,7 +172,7 @@ int classify_pkt(struct xdp_md *ctx)
 	// Insert outer Ethernet + NSH headers + EXTRA_BYTES
 	// Extra bytes needed by the hack on encapsulation. See
 	// ajust_nsh() below
-	if(bpf_xdp_adjust_head(ctx, 0 - (int)(sizeof(struct ethhdr) + sizeof(struct nshhdr) + EXTRA_BYTES))){
+	if(bpf_xdp_adjust_head(ctx, 0 - (int)(sizeof(struct ethhdr) + sizeof(struct vlanhdr) + sizeof(struct nshhdr) + EXTRA_BYTES))){
 		printk("[CLASSIFY] Error creating room in packet.\n");
 		return XDP_DROP;
 	}
@@ -160,19 +181,22 @@ int classify_pkt(struct xdp_md *ctx)
 	data_end = (void *)(long)ctx->data_end;
 	data = (void *)(long)ctx->data;
 
-	if(data + sizeof(struct ethhdr) + sizeof(struct nshhdr) > data_end){
+	if(data + sizeof(struct ethhdr) + sizeof(struct vlanhdr) + sizeof(struct nshhdr) + EXTRA_BYTES > data_end){
 		printk("[CLASSIFY] Bounds check #2 failed.\n");
 		return XDP_DROP;
 	}
 
 	eth = data; // Points to the new outermost Ethernet header
-	nsh = (void*)eth + sizeof(struct ethhdr);
+	vlan = (void*) eth + sizeof(struct ethhdr);
+	nsh = (void*)vlan + sizeof(struct vlanhdr);
+	extra_bytes = (void*)nsh + sizeof(struct nshhdr);
 
-	// TODO: Set extra bytes to 0
-
+	if(set_src_mac(eth)) return BPF_DROP;
 	memmove(eth->h_dest,cls->next_hop,ETH_ALEN);
-	// TODO: Set proper eth->h_source
-	eth->h_proto = htons(ETH_P_NSH);
+	eth->h_proto = htons(ETH_P_8021Q);
+
+	vlan->h_vlan_encapsulated_proto = bpf_htons(ETH_P_NSH); 
+	vlan->h_vlan_TCI = bpf_htons(VLAN_TCI);
 
 	nsh->basic_info = ((uint16_t) 0) 		|
 						NSH_TTL_DEFAULT 	|
@@ -181,11 +205,15 @@ int classify_pkt(struct xdp_md *ctx)
 	nsh->next_proto = NSH_NEXT_PROTO_ETHER;
 	nsh->serv_path 	= htonl(cls->sph);
 
+	// Set extra bytes to 0
+	// To understand why these are needed, check adjust()
+	__builtin_memset(extra_bytes,0,EXTRA_BYTES);
+
 	printk("[CLASSIFY] NSH added.\n");
 
 	// TODO: This should be bpf_redirect_map(), to allow
 	// redirecting the packet to another interface
-	return XDP_PASS; 
+	return XDP_TX; 
 }
 
 SEC("decap")
@@ -424,11 +452,13 @@ int adjust_nsh(struct __sk_buff *skb)
 	// was using vlan_push. Not at all ideal.
 	// vlan_push adds 4 bytes (802.1q header)
 	// We need to add 26 bytes, which is not possible using
-	// vlan tags. So we'll add 8 tags (32 bytes) and try to 
+	// vlan tags. Ideally we would add 28 bytes, but apparently
+	// XDP is dropping packets if the new addition is not multiple
+	// of 8 bytes. So we'll add 8 tags (32 bytes) and try to 
 	// deal with the extra 6 bytes.
  	#pragma clang loop unroll(full)
 	for(int i = 0 ; i < 8 ; i++){
-		ret = bpf_skb_vlan_push(skb,ntohs(ETH_P_8021Q),0);
+		ret = bpf_skb_vlan_push(skb,ntohs(ETH_P_8021Q),VLAN_TCI);
 		if (ret < 0) {
 			printk("[ADJUST]: Failed to add extra room: %d\n", ret);
 			return BPF_DROP;
@@ -476,12 +506,10 @@ int sfc_forwarding(struct __sk_buff *skb)
 {
 	void *data;
 	void *data_end;
-	void *smac;
 	struct ethhdr *eth;
 	struct nshhdr *nsh;
 	struct fwd_entry *next_hop;
 	int ret;
-	__u8 zero = 0;
 
 	// TODO: The link between these two progs
 	// 		 should be a tail call instead
@@ -525,40 +553,33 @@ int sfc_forwarding(struct __sk_buff *skb)
 
 		// Check if is end of chain
 		if(next_hop->flags & 0x1){
-			printk("[FORWARD] Size before: %d ; EtherType = 0x%x\n",data_end-data,bpf_ntohs(eth->h_proto));
+			// printk("[FORWARD] Size before: %d ; EtherType = 0x%x\n",data_end-data,bpf_ntohs(eth->h_proto));
 			printk("[FORWARD]: End of chain 2! SPH = 0x%x\n",sph);
 
-			#pragma clang loop unroll(full)
-			for(int i = 0 ; i < 8 ; i++){
-				ret = bpf_skb_vlan_pop(skb);
-				if (ret < 0) {
-					printk("[ADJUST]: Failed to add extra room: %d\n", ret);
-					return BPF_DROP;
-				} 
-			}
+			// #pragma clang loop unroll(full)
+			// for(int i = 0 ; i < 8 ; i++){
+			// 	ret = bpf_skb_vlan_pop(skb);
+			// 	if (ret < 0) {
+			// 		printk("[ADJUST]: Failed to add extra room: %d\n", ret);
+			// 		return BPF_DROP;
+			// 	} 
+			// }
 
-			data     = (void *)(long)skb->data;
-			data_end = (void *)(long)skb->data_end;
-			eth = data;
+			// data     = (void *)(long)skb->data;
+			// data_end = (void *)(long)skb->data_end;
+			// eth = data;
 
-			if(eth+sizeof(*eth) > data_end)
-				return BPF_DROP;
+			// if(eth+sizeof(*eth) > data_end)
+			// 	return BPF_DROP;
 			
-			printk("[FORWARD] Size after: %d ; EtherType = 0x%x\n",data_end-data,bpf_ntohs(eth->h_proto));
+			// printk("[FORWARD] Size after: %d ; EtherType = 0x%x\n",data_end-data,bpf_ntohs(eth->h_proto));
 			return TC_ACT_OK; //TODO: Change this
 			// Remove external encapsulation
 		}else{
 			printk("[FORWARD]: Updating next hop info\n");
 
-			// Get src MAC from table. Is there a better way?
-			smac = bpf_map_lookup_elem(&src_mac,&zero);
-			if(smac == NULL){
-				printk("[FORWARD]: No source MAC configured\n");
-				return BPF_DROP;
-			}
-
 			// Update MAC addresses
-			__builtin_memmove(eth->h_source,smac,ETH_ALEN);
+			if(set_src_mac(eth)) return BPF_DROP;
 			__builtin_memmove(eth->h_dest,next_hop->address,ETH_ALEN);
 		}
 	}else{
