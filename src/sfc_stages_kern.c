@@ -89,12 +89,16 @@ static inline int get_tuple(void* ip_data, void* data_end, struct ip_5tuple *t){
 	struct iphdr *ip;
 	struct udphdr *udp;
 	struct tcphdr *tcp;
+	__u64 *init;
 
 	ip = ip_data;
 	if((void*) ip + sizeof(*ip) > data_end){
 		printk("get_tuple(): Error accessing IP hdr\n");
 		return -1;
 	}
+
+	init = (__u64*) ip_data;
+	printk("[Get-tuple] IP init: 0x%x\n",bpf_ntohl(*init));
 
 	t->ip_src = ip->saddr;
 	t->ip_dst = ip->daddr;
@@ -121,8 +125,12 @@ static inline int get_tuple(void* ip_data, void* data_end, struct ip_5tuple *t){
 			t->dport = tcp->dest;
 			t->sport = tcp->source;
 			break;
-		/* TODO: Add ICMP */
-		default: ; 
+		case IPPROTO_ICMP:
+			t->dport = 0;
+			t->sport = 0;
+			break;
+		default: 
+			return -1; 
 	}
 
 	return 0;
@@ -216,6 +224,125 @@ int classify_pkt(struct xdp_md *ctx)
 	return XDP_TX; 
 }
 
+SEC("classify_tc_tx")
+int classify_tc(struct __sk_buff *skb)
+{
+	void *data_end = (void *)(long)skb->data_end;
+	void *data = (void *)(long)skb->data;
+	struct nshhdr *nsh;
+	struct cls_entry *cls;
+	struct ethhdr *eth,*ieth,*oeth;
+	// struct vlanhdr *vlan;
+	struct iphdr *ip;
+	void* extra_bytes;
+	struct ip_5tuple key = { };
+	int ret;
+	__u16 prev_proto;
+
+	if(data + sizeof(struct ethhdr) + sizeof(struct iphdr) > data_end){
+		printk("[CLASSIFY] Bounds check #1 failed.\n");
+		return XDP_DROP;
+	}
+	
+	eth = data;
+	ip = (void*)eth + sizeof(struct ethhdr);
+
+	if(ntohs(eth->h_proto) != ETH_P_IP){
+		printk("[CLASSIFY] Not an IPv4 packet, passing along.\n");
+		return TC_ACT_OK;
+	}
+
+	ret = get_tuple(ip,data_end,&key);
+	if (ret < 0){
+		printk("[CLASSIFY] get_tuple() failed: %d\n",ret);
+		return TC_ACT_SHOT;
+	}
+
+	cls = bpf_map_lookup_elem(&cls_table,&key);
+	if(cls == NULL){
+		printk("[CLASSIFY] No rule for packet.\n");
+		return TC_ACT_OK;
+	}
+
+	printk("[CLASSIFY] Matched packet flow.\n");
+
+	// Save previous proto
+	ieth = data;
+	prev_proto = ieth->h_proto;
+
+	printk("[CLASS-TC] Size before: %d\n",data_end-data);
+
+	// Hack to add space for NSH + Outer Ethernet
+	// The only way we found to add bytes to packet
+	// was using vlan_push. Not at all ideal.
+	// vlan_push adds 4 bytes (802.1q header)
+	// We need to add 26 bytes, which is not possible using
+	// vlan tags. Ideally we would add 28 bytes, but apparently
+	// XDP is dropping packets if the new addition is not multiple
+	// of 8 bytes. So we'll add 8 tags (32 bytes) and try to 
+	// deal with the extra 6 bytes.
+ 	#pragma clang loop unroll(full)
+	for(int i = 0 ; i < 8 ; i++){
+		ret = bpf_skb_vlan_push(skb,ntohs(ETH_P_8021Q),VLAN_TCI);
+		if (ret < 0) {
+			printk("[ADJUST]: Failed to add extra room: %d\n", ret);
+			return BPF_DROP;
+		} 
+	}
+
+	data = (void *)(long)skb->data;
+	data_end = (void *)(long)skb->data_end;
+	
+	printk("[CLASS-TC] Size after: %d\n",data_end-data);
+
+	// Bounds check to please the verifier
+	// EXTRA_BYTES is due to the hack used above to enable encapsulation
+	if(data + 2*sizeof(struct ethhdr) + sizeof(struct nshhdr) + EXTRA_BYTES > data_end){
+		printk("[CLASSIFY] Bounds check #2 failed.\n");
+		return TC_ACT_SHOT;
+	}
+	
+	oeth = data;
+	// vlan = (void*) oeth + sizeof(struct ethhdr);
+	nsh = (void*) oeth + sizeof(struct ethhdr);
+	extra_bytes = (void*) nsh + sizeof(struct nshhdr);
+	ieth = (void*) extra_bytes + EXTRA_BYTES;
+	ip = (void*) ieth + sizeof(struct ethhdr);
+
+	// Original Ethernet is outside, let's copy it to the inside
+	__builtin_memcpy(ieth,oeth,sizeof(struct ethhdr));
+	// __builtin_memset(oeth,0,2*sizeof(struct ethhdr) + sizeof(struct nshhdr) + EXTRA_BYTES);
+	// __builtin_memset(oeth,0,sizeof(struct ethhdr));
+
+	oeth->h_proto = ntohs(ETH_P_NSH);
+	ieth->h_proto = prev_proto;
+	// oeth->h_dest and oeth->h_src will be set by fwd stage
+
+	if(set_src_mac(oeth)) return TC_ACT_SHOT;
+	memmove(oeth->h_dest,cls->next_hop,ETH_ALEN);
+
+	// oeth->h_proto = htons(ETH_P_8021Q);
+	// vlan->h_vlan_encapsulated_proto = bpf_htons(ETH_P_NSH); 
+	// vlan->h_vlan_TCI = bpf_htons(VLAN_TCI);
+
+	nsh->basic_info = ((uint16_t) 0) 		|
+						NSH_TTL_DEFAULT 	|
+						NSH_BASE_LENGHT_MD_TYPE_2;
+	nsh->md_type 	= NSH_MD_TYPE_2;
+	nsh->next_proto = NSH_NEXT_PROTO_ETHER;
+	nsh->serv_path 	= htonl(cls->sph);
+
+	// Set extra bytes to 0
+	// To understand why these are needed, check adjust()
+	__builtin_memset(extra_bytes,0,EXTRA_BYTES);
+
+	printk("[CLASSIFY] NSH added.\n");
+
+	// TODO: This should be bpf_redirect_map(), to allow
+	// redirecting the packet to another interface
+	return TC_ACT_OK; 
+}
+
 SEC("decap")
 int decap_nsh(struct xdp_md *ctx)
 {
@@ -246,14 +373,16 @@ int decap_nsh(struct xdp_md *ctx)
 	char* mymac = (char*) smac;
 	char* dstmac = (char*) data;
 
+	// TODO: If broadcast, pass
 	#pragma clang loop unroll(full)
 	for(int i = 5 ; i >= 0 ; i--){
 		if(mymac[i] ^ dstmac[i]){
-			// printk("[DECAP] Not for me. Dropping.\n");
+			printk("[DECAP] Not for me. Dropping.\n");
 			return XDP_DROP;
 		}
 	}
 
+	printk("[DECAP] oeth->proto: 0x%x\n",bpf_ntohs(eth->h_proto));
 	if(bpf_ntohs(eth->h_proto) != ETH_P_8021Q)
 		return XDP_PASS;
 
@@ -261,7 +390,8 @@ int decap_nsh(struct xdp_md *ctx)
 
 	if((void*)vlan + sizeof(struct vlanhdr) > data_end)
 		return XDP_DROP;
-	
+
+	printk("[DECAP] vlan->proto: 0x%x\n",bpf_ntohs(vlan->h_vlan_encapsulated_proto));	
 	if(bpf_ntohs(vlan->h_vlan_encapsulated_proto) != ETH_P_NSH)
 		return XDP_PASS;	
 	
@@ -271,6 +401,7 @@ int decap_nsh(struct xdp_md *ctx)
 	if ((void*) nsh + sizeof(struct nshhdr) > data_end)
 		return XDP_DROP;
 	
+	printk("[DECAP] nsh->next_proto: 0x%x\n",nsh->next_proto);	
 	// Check if next protocol is Ethernet
 	if(nsh->next_proto != NSH_NEXT_PROTO_ETHER)
 		return XDP_DROP;
@@ -296,7 +427,7 @@ int decap_nsh(struct xdp_md *ctx)
 		printk("[DECAP] Stored NSH in table.\n");
 	}
 
-	// printk("[DECAP] Previous size: %d\n",data_end-data);
+	printk("[DECAP] Previous size: %d\n",data_end-data);
 
 
 	// Remove outer Ethernet + NSH headers
@@ -305,13 +436,13 @@ int decap_nsh(struct xdp_md *ctx)
 	data_end = (void *)(long)ctx->data_end;
 	data = (void *)(long)ctx->data;
 
-	eth = data;
-	if(eth + sizeof(*eth) > data_end)
-		return XDP_DROP;
+	// eth = data;
+	// if(eth + sizeof(*eth) > data_end){
+	// 	printk("[DECAP] Weird error, dropping...\n");
+	// 	return XDP_DROP;
+	// }
 
-	// printk("[DECAP] Size after: %d ; EtherType = 0x%x\n",data_end-data,bpf_ntohs(eth->h_proto));
-
-	// printk("[DECAP] Decapsulated packet\n");
+	printk("[DECAP] Decapsulated packet; Size after: %d\n",data_end-data);
 
 	return XDP_PASS;
 }

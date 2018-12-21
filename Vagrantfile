@@ -9,7 +9,7 @@ Vagrant.configure("2") do |config|
     hostname = "sfc#{machine_id}"
     config.vm.define hostname do |machine|
       machine.vm.box = "generic/ubuntu1804"
-      # machine.vm.box_version = "v1.8.40"
+      # machine.vm.box_version = "0.2"
       machine.vm.hostname = hostname
 
       # Private network for inter-vm communication
