@@ -76,7 +76,9 @@ static inline int set_src_mac(struct ethhdr *eth){
 	// Get src MAC from table. Is there a better way?
 	smac = bpf_map_lookup_elem(&src_mac,&zero);
 	if(smac == NULL){
+		#ifdef DEBUG
 		printk("[FORWARD]: No source MAC configured\n");
+		#endif /* DEBUG */
 		return -1;
 	}
 
@@ -93,12 +95,14 @@ static inline int get_tuple(void* ip_data, void* data_end, struct ip_5tuple *t){
 
 	ip = ip_data;
 	if((void*) ip + sizeof(*ip) > data_end){
+		#ifdef DEBUG
 		printk("get_tuple(): Error accessing IP hdr\n");
+		#endif /* DEBUG */
+
 		return -1;
 	}
 
 	init = (__u64*) ip_data;
-	printk("[Get-tuple] IP init: 0x%x\n",bpf_ntohl(*init));
 
 	t->ip_src = ip->saddr;
 	t->ip_dst = ip->daddr;
@@ -108,7 +112,10 @@ static inline int get_tuple(void* ip_data, void* data_end, struct ip_5tuple *t){
 		case IPPROTO_UDP:
 			udp = ip_data + sizeof(*ip);
 			if((void*) udp + sizeof(*udp) > data_end){
+				#ifdef DEBUG
 				printk("get_tuple(): Error accessing UDP hdr\n");
+				#endif /* DEBUG */
+
 				return -1;
 			}
 
@@ -118,7 +125,10 @@ static inline int get_tuple(void* ip_data, void* data_end, struct ip_5tuple *t){
 		case IPPROTO_TCP:
 			tcp = ip_data + sizeof(*ip);
 			if((void*) tcp + sizeof(*tcp) > data_end){
+				#ifdef DEBUG
 				printk("get_tuple(): Error accessing TCP hdr\n");
+				#endif /* DEBUG */
+
 				return -1;
 			}
 
@@ -151,7 +161,10 @@ int classify_pkt(struct xdp_md *ctx)
 	int ret;
 
 	if(data + sizeof(struct ethhdr) + sizeof(struct iphdr) > data_end){
+		#ifdef DEBUG
 		printk("[CLASSIFY] Bounds check #1 failed.\n");
+		#endif /* DEBUG */
+
 		return XDP_DROP;
 	}
 	
@@ -165,23 +178,34 @@ int classify_pkt(struct xdp_md *ctx)
 
 	ret = get_tuple(ip,data_end,&key);
 	if (ret < 0){
+		#ifdef DEBUG
 		printk("[CLASSIFY] get_tuple() failed: %d\n",ret);
+		#endif /* DEBUG */
+
 		return XDP_DROP;
 	}
 
 	cls = bpf_map_lookup_elem(&cls_table,&key);
 	if(cls == NULL){
+		#ifdef DEBUG
 		printk("[CLASSIFY] No rule for packet.\n");
+		#endif /* DEBUG */
+
 		return XDP_DROP;
 	}
 
+	#ifdef DEBUG
 	printk("[CLASSIFY] Matched packet flow.\n");
+	#endif /* DEBUG */
 
 	// Insert outer Ethernet + NSH headers + EXTRA_BYTES
 	// Extra bytes needed by the hack on encapsulation. See
 	// ajust_nsh() below
 	if(bpf_xdp_adjust_head(ctx, 0 - (int)(sizeof(struct ethhdr) + sizeof(struct vlanhdr) + sizeof(struct nshhdr) + EXTRA_BYTES))){
+		#ifdef DEBUG
 		printk("[CLASSIFY] Error creating room in packet.\n");
+		#endif /* DEBUG */
+
 		return XDP_DROP;
 	}
 
@@ -190,7 +214,10 @@ int classify_pkt(struct xdp_md *ctx)
 	data = (void *)(long)ctx->data;
 
 	if(data + sizeof(struct ethhdr) + sizeof(struct vlanhdr) + sizeof(struct nshhdr) + EXTRA_BYTES > data_end){
+		#ifdef DEBUG
 		printk("[CLASSIFY] Bounds check #2 failed.\n");
+		#endif /* DEBUG */
+
 		return XDP_DROP;
 	}
 
@@ -217,7 +244,9 @@ int classify_pkt(struct xdp_md *ctx)
 	// To understand why these are needed, check adjust()
 	__builtin_memset(extra_bytes,0,EXTRA_BYTES);
 
+	#ifdef DEBUG
 	printk("[CLASSIFY] NSH added.\n");
+	#endif /* DEBUG */
 
 	// TODO: This should be bpf_redirect_map(), to allow
 	// redirecting the packet to another interface
@@ -240,7 +269,10 @@ int classify_tc(struct __sk_buff *skb)
 	__u16 prev_proto;
 
 	if(data + sizeof(struct ethhdr) + sizeof(struct iphdr) > data_end){
+		#ifdef DEBUG
 		printk("[CLASSIFY] Bounds check #1 failed.\n");
+		#endif /* DEBUG */
+
 		return XDP_DROP;
 	}
 	
@@ -248,29 +280,42 @@ int classify_tc(struct __sk_buff *skb)
 	ip = (void*)eth + sizeof(struct ethhdr);
 
 	if(ntohs(eth->h_proto) != ETH_P_IP){
+		#ifdef DEBUG
 		printk("[CLASSIFY] Not an IPv4 packet, passing along.\n");
+		#endif /* DEBUG */
+
 		return TC_ACT_OK;
 	}
 
 	ret = get_tuple(ip,data_end,&key);
 	if (ret < 0){
+		#ifdef DEBUG
 		printk("[CLASSIFY] get_tuple() failed: %d\n",ret);
+		#endif /* DEBUG */
+
 		return TC_ACT_SHOT;
 	}
 
 	cls = bpf_map_lookup_elem(&cls_table,&key);
 	if(cls == NULL){
+		#ifdef DEBUG
 		printk("[CLASSIFY] No rule for packet.\n");
+		#endif /* DEBUG */
+
 		return TC_ACT_OK;
 	}
 
+	#ifdef DEBUG
 	printk("[CLASSIFY] Matched packet flow.\n");
+	#endif /* DEBUG */
 
 	// Save previous proto
 	ieth = data;
 	prev_proto = ieth->h_proto;
 
+	#ifdef DEBUG
 	printk("[CLASS-TC] Size before: %d\n",data_end-data);
+	#endif /* DEBUG */
 
 	// Hack to add space for NSH + Outer Ethernet
 	// The only way we found to add bytes to packet
@@ -285,7 +330,10 @@ int classify_tc(struct __sk_buff *skb)
 	for(int i = 0 ; i < 8 ; i++){
 		ret = bpf_skb_vlan_push(skb,ntohs(ETH_P_8021Q),VLAN_TCI);
 		if (ret < 0) {
+			#ifdef DEBUG
 			printk("[ADJUST]: Failed to add extra room: %d\n", ret);
+			#endif /* DEBUG */
+
 			return BPF_DROP;
 		} 
 	}
@@ -293,12 +341,16 @@ int classify_tc(struct __sk_buff *skb)
 	data = (void *)(long)skb->data;
 	data_end = (void *)(long)skb->data_end;
 	
+	#ifdef DEBUG
 	printk("[CLASS-TC] Size after: %d\n",data_end-data);
+	#endif /* DEBUG */
 
 	// Bounds check to please the verifier
 	// EXTRA_BYTES is due to the hack used above to enable encapsulation
 	if(data + 2*sizeof(struct ethhdr) + sizeof(struct nshhdr) + EXTRA_BYTES > data_end){
+		#ifdef DEBUG
 		printk("[CLASSIFY] Bounds check #2 failed.\n");
+		#endif /* DEBUG */
 		return TC_ACT_SHOT;
 	}
 	
@@ -336,7 +388,9 @@ int classify_tc(struct __sk_buff *skb)
 	// To understand why these are needed, check adjust()
 	__builtin_memset(extra_bytes,0,EXTRA_BYTES);
 
+	#ifdef DEBUG
 	printk("[CLASSIFY] NSH added.\n");
+	#endif /* DEBUG */
 
 	// TODO: This should be bpf_redirect_map(), to allow
 	// redirecting the packet to another interface
@@ -363,8 +417,11 @@ int decap_nsh(struct xdp_md *ctx)
 
 	smac = bpf_map_lookup_elem(&src_mac,&zero);
 	if(smac == NULL){
+		#ifdef DEBUG
 		printk("[DECAP]: No source MAC configured\n");
-			return XDP_DROP;
+		#endif /* DEBUG */
+
+		return XDP_DROP;
 	}
 	
 	// Hack to compare MAC address
@@ -377,12 +434,18 @@ int decap_nsh(struct xdp_md *ctx)
 	#pragma clang loop unroll(full)
 	for(int i = 5 ; i >= 0 ; i--){
 		if(mymac[i] ^ dstmac[i]){
+			#ifdef DEBUG
 			printk("[DECAP] Not for me. Dropping.\n");
+			#endif /* DEBUG */
+
 			return XDP_DROP;
 		}
 	}
 
+	#ifdef DEBUG
 	printk("[DECAP] oeth->proto: 0x%x\n",bpf_ntohs(eth->h_proto));
+	#endif /* DEBUG */
+
 	if(bpf_ntohs(eth->h_proto) != ETH_P_8021Q)
 		return XDP_PASS;
 
@@ -391,17 +454,22 @@ int decap_nsh(struct xdp_md *ctx)
 	if((void*)vlan + sizeof(struct vlanhdr) > data_end)
 		return XDP_DROP;
 
+	#ifdef DEBUG
 	printk("[DECAP] vlan->proto: 0x%x\n",bpf_ntohs(vlan->h_vlan_encapsulated_proto));	
+	#endif /* DEBUG */
+
 	if(bpf_ntohs(vlan->h_vlan_encapsulated_proto) != ETH_P_NSH)
 		return XDP_PASS;	
 	
 	nsh = (void*)vlan + sizeof(struct vlanhdr);
-
+	
 	// Check if we can access NSH
 	if ((void*) nsh + sizeof(struct nshhdr) > data_end)
 		return XDP_DROP;
 	
-	printk("[DECAP] nsh->next_proto: 0x%x\n",nsh->next_proto);	
+	#ifdef DEBUG
+	printk("[DECAP] SPH: 0x%x\n",bpf_ntohl(nsh->serv_path));	
+	#endif /* DEBUG */
 	// Check if next protocol is Ethernet
 	if(nsh->next_proto != NSH_NEXT_PROTO_ETHER)
 		return XDP_DROP;
@@ -417,18 +485,24 @@ int decap_nsh(struct xdp_md *ctx)
 	// Retrieve IP 5-tuple
 	ret = get_tuple(ip,data_end,&key);
 	if(ret){
+		#ifdef DEBUG
 		printk("[DECAP] get_tuple() failed.\n");
+		#endif /* DEBUG */
+
 		return XDP_DROP;
 	}
 
 	// Save NSH data
 	ret = bpf_map_update_elem(&nsh_data, &key, nsh, BPF_ANY);
 	if(ret == 0){
+		#ifdef DEBUG
 		printk("[DECAP] Stored NSH in table.\n");
+		#endif /* DEBUG */
 	}
 
+	#ifdef DEBUG
 	printk("[DECAP] Previous size: %d\n",data_end-data);
-
+	#endif /* DEBUG */
 
 	// Remove outer Ethernet + NSH headers
 	bpf_xdp_adjust_head(ctx, (int)(sizeof(struct ethhdr) + sizeof(struct vlanhdr) + sizeof(struct nshhdr) + EXTRA_BYTES));
@@ -442,7 +516,9 @@ int decap_nsh(struct xdp_md *ctx)
 	// 	return XDP_DROP;
 	// }
 
+	#ifdef DEBUG
 	printk("[DECAP] Decapsulated packet; Size after: %d\n",data_end-data);
+	#endif /* DEBUG */
 
 	return XDP_PASS;
 }
@@ -467,13 +543,17 @@ int encap_nsh(struct __sk_buff *skb)
 
 	ret = get_tuple(data,data_end,&key);
 	if (ret < 0) {
+		#ifdef DEBUG
 		printk("[ENCAP]: get_tuple() failed: %d\n", ret);
+		#endif /* DEBUG */
 		return BPF_DROP;
 	}
 
 	nsh = bpf_map_lookup_elem(&nsh_data,&key);
 	if(nsh == NULL){
+		#ifdef DEBUG
 		printk("[ENCAP]: Packet not previously decapped. Dropping.\n");
+		#endif /* DEBUG */
 		return BPF_DROP;
 	}
 
@@ -481,7 +561,10 @@ int encap_nsh(struct __sk_buff *skb)
 	// This space will be filled by the next stage
 	ret = bpf_skb_change_head(skb, sizeof(struct nshhdr) + sizeof(struct ethhdr), 0);
 	if (ret < 0) {
+		#ifdef DEBUG
 		printk("[ENCAP]: Failed to add extra room: %d\n", ret);
+		#endif /* DEBUG */
+
 		return BPF_DROP;
 	}
 
@@ -497,7 +580,9 @@ int encap_nsh(struct __sk_buff *skb)
 	// // which packets to encapsulate
 	// ip->version = IP_VERSION_UNASSIGNED;
 
+	#ifdef DEBUG
 	printk("[ENCAP]: Resized packet!\n");
+	#endif /* DEBUG */
 
 	return BPF_OK;
 }
@@ -520,8 +605,11 @@ int adjust_nsh(struct __sk_buff *skb)
 	// struct nshhdr nop2 = {0,0,0,0};
 
 	if(data + sizeof(struct ethhdr) + sizeof(struct iphdr) > data_end){
+		#ifdef DEBUG
 		printk("[ADJUST]: Bounds check failed\n");
-		return BPF_DROP;
+		#endif /* DEBUG */
+
+		return TC_ACT_SHOT;
 	}
 
 	// TODO: Check EtherType indeed corresponds to IP
@@ -529,40 +617,59 @@ int adjust_nsh(struct __sk_buff *skb)
 
 	ret = get_tuple(ip,data_end,&key);
 	if (ret < 0) {
+		#ifdef DEBUG
 		printk("[ADJUST]: get_tuple() failed: %d\n", ret);
-		return BPF_DROP;
+		#endif /* DEBUG */
+
+		return TC_ACT_SHOT;
 	}
 
 	// Check if we have a correponding NSH saved
     prev_nsh = bpf_map_lookup_elem(&nsh_data,&key);
 	if(prev_nsh == NULL){
+		#ifdef DEBUG
 		printk("[ADJUST] NSH header not found in table.\n");
+		#endif /* DEBUG */
 		// bpf_map_update_elem(&not_found, &key, &nop2, BPF_ANY);
-		return BPF_DROP;
+		return TC_ACT_SHOT;
 	}
+
+	#ifdef DEBUG
+	printk("[ADJUST]: First look: SPH = 0x%x\n",bpf_ntohl(prev_nsh->serv_path));
+	#endif /* DEBUG */
 
 	sph = bpf_ntohl(prev_nsh->serv_path);
 	spi = sph & 0xFFFFFF00;
 	si = sph & 0x000000FF;
+	#ifdef DEBUG
 	printk("[ADJUST]: SPH = 0x%x ; SPI = 0x%x ; SI = 0x%x \n",sph,spi>>8,si);
+	#endif /* DEBUG */
 
 	if(si == 0){
+		#ifdef DEBUG
 		printk("[ADJUST]: Anomalous SI number. Dropping packet.\n");
-		return BPF_DROP;
+		#endif /* DEBUG */
+		return TC_ACT_SHOT;
 	}
 
 	// Update the SI this way is safe because we
 	// already checked if it is 0
 	sph--;
-	prev_nsh->serv_path = bpf_htonl(sph);
 
 	// Check if it is end of chain
 	// If it is, we don't have to re-encapsulate it
 	// TODO: This lookup is repeated in FWD stage.
 	// 		 Ideally, this should only be done once
-	next_hop = bpf_map_lookup_elem(&fwd_table,&prev_nsh->serv_path);
+	#ifdef DEBUG
+	printk("[ADJUST]: Pre-lookup: SPH = 0x%x\n",sph);
+	#endif /* DEBUG */
+
+	__u32 fkey = bpf_htonl(sph);
+	next_hop = bpf_map_lookup_elem(&fwd_table,&fkey);
 	if(likely(next_hop) && (next_hop->flags & 0x1)){
-		printk("[FORWARD]: End of chain 1! SPH = 0x%x\n",sph);
+		#ifdef DEBUG
+		printk("[ADJUST]: End of chain 1! SPH = 0x%x\n",sph);
+		#endif /* DEBUG */
 		return BPF_END_CHAIN;
 	}
 
@@ -591,8 +698,10 @@ int adjust_nsh(struct __sk_buff *skb)
 	for(int i = 0 ; i < 8 ; i++){
 		ret = bpf_skb_vlan_push(skb,ntohs(ETH_P_8021Q),VLAN_TCI);
 		if (ret < 0) {
+			#ifdef DEBUG
 			printk("[ADJUST]: Failed to add extra room: %d\n", ret);
-			return BPF_DROP;
+			#endif /* DEBUG */
+			return TC_ACT_SHOT;
 		} 
 	}
 
@@ -602,8 +711,10 @@ int adjust_nsh(struct __sk_buff *skb)
 	// Bounds check to please the verifier
 	// EXTRA_BYTES is due to the hack used above to enable encapsulation
 	if(data + 2*sizeof(struct ethhdr) + sizeof(struct nshhdr) + EXTRA_BYTES > data_end){
+		#ifdef DEBUG
 		printk("[ADJUST]: Bounds check failed.\n");
-		return BPF_DROP;
+		#endif /* DEBUG */
+		return TC_ACT_SHOT;
 	}
 	
 	oeth = data;
@@ -622,13 +733,16 @@ int adjust_nsh(struct __sk_buff *skb)
 
 	// Re-add NSH
 	__builtin_memcpy(nsh,prev_nsh,sizeof(struct nshhdr));
+	nsh->serv_path = bpf_htonl(sph);
+	#ifdef DEBUG
 	printk("[ADJUST] Re-added NSH header!\n");
+	#endif /* DEBUG */
 
 	// bpf_tail_call(skb, &jmp_table, FWD_STAGE);
 
 	// With the tail call, this is unreachable code.
 	// It's here just to be safe.
-	return BPF_OK;
+	return TC_ACT_OK;
 
 }
 
@@ -645,14 +759,14 @@ int sfc_forwarding(struct __sk_buff *skb)
 	// TODO: The link between these two progs
 	// 		 should be a tail call instead
 	ret = adjust_nsh(skb);
-	if(ret == BPF_DROP){
+	if(ret == TC_ACT_SHOT){
 		return TC_ACT_SHOT;
 	}else if(ret == BPF_END_CHAIN){
 		// Nothing else to do, just send to network
 		return TC_ACT_OK;
 	}
 	
-	// We can only make these attributions here because
+	// We can only make these attributions here since
 	// adjust_nsh() changes the packet, making previous 
 	// values of data and data_end invalid.
 	// This should go away when we use the tail call
@@ -662,7 +776,9 @@ int sfc_forwarding(struct __sk_buff *skb)
 	eth = data;
 
 	if (data + sizeof(*eth) > data_end){
+		#ifdef DEBUG
 		printk("[FORWARD]: Bounds check failed.\n");
+		#endif /* DEBUG */
 		return TC_ACT_SHOT;
 	}
 
@@ -673,11 +789,12 @@ int sfc_forwarding(struct __sk_buff *skb)
 	nsh = (void*) eth + sizeof(*eth);
 
 	if ((void*) nsh + sizeof(*nsh) > data_end){
+		#ifdef DEBUG
 		printk("[FORWARD]: Bounds check failed.\n");
+		#endif /* DEBUG */
 		return TC_ACT_SHOT;
 	}
 
-	__u32 sph = bpf_ntohl(nsh->serv_path);
 	// printk("[FORWARD] SPH = 0x%x\n",sph);
 	next_hop = bpf_map_lookup_elem(&fwd_table,&nsh->serv_path);
 	if(likely(next_hop)){
@@ -685,7 +802,10 @@ int sfc_forwarding(struct __sk_buff *skb)
 		// Check if is end of chain
 		if(next_hop->flags & 0x1){
 			// printk("[FORWARD] Size before: %d ; EtherType = 0x%x\n",data_end-data,bpf_ntohs(eth->h_proto));
+			#ifdef DEBUG
+			__u32 sph = bpf_ntohl(nsh->serv_path);
 			printk("[FORWARD]: End of chain 2! SPH = 0x%x\n",sph);
+			#endif /* DEBUG */
 
 			// #pragma clang loop unroll(full)
 			// for(int i = 0 ; i < 8 ; i++){
@@ -707,19 +827,25 @@ int sfc_forwarding(struct __sk_buff *skb)
 			return TC_ACT_OK; //TODO: Change this
 			// Remove external encapsulation
 		}else{
+			#ifdef DEBUG
 			printk("[FORWARD]: Updating next hop info\n");
-
+			#endif /* DEBUG */
 			// Update MAC addresses
 			if(set_src_mac(eth)) return BPF_DROP;
 			__builtin_memmove(eth->h_dest,next_hop->address,ETH_ALEN);
 		}
 	}else{
-		printk("[FORWARD]: No corresponding rule.\n");
+		#ifdef DEBUG
+		__u32 sph = bpf_ntohl(nsh->serv_path);
+		printk("[FORWARD]: No corresponding rule. SPH = 0x%x\n",sph);
+		#endif /* DEBUG */
 		// No corresponding rule. Drop the packet.
 		return TC_ACT_SHOT;
 	}
 
+	#ifdef DEBUG
 	printk("[FORWARD]: Successfully forwarded the pkt!\n");
+	#endif /* DEBUG */
 	return TC_ACT_OK;
 }
 

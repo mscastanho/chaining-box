@@ -1,7 +1,7 @@
 # Number of VMs to provision
 # If N > 245, the script mus be modified
 # See IP and MAC values configured below
-N = 3
+N = 8
 
 Vagrant.configure("2") do |config|
 
@@ -52,12 +52,12 @@ Vagrant.configure("2") do |config|
         end
       end
 
-      # Hack to change VM's XML definition since we
-      # cannot add some host params through vagrant-libvirt
-      config.trigger.after :up do |trigger|
-        trigger.info = "Adding params to XML file"
-        trigger.run = {path: "./redefine-vm.sh", args: ["#{hostname}"]}
-      end
+      # # Hack to change VM's XML definition since we
+      # # cannot add some host params through vagrant-libvirt
+      # config.trigger.after :up do |trigger|
+      #   trigger.info = "Adding params to XML file"
+      #   trigger.run = {path: "./redefine-vm.sh", args: ["#{hostname}"]}
+      # end
     end
   end
 

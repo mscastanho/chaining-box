@@ -113,6 +113,10 @@ EXTRA_CFLAGS=-Werror
 
 all: dependencies $(KERN_OBJECTS) $(USER_OBJECTS)
 
+debug: CFLAGS += -DDEBUG
+debug: EXTRA_CFLAGS += -DDEBUG
+debug: all
+
 ecko:
 	@echo "kern_srcs: $(KERN_OBJECTS)"
 	@echo "user_srcs: $(USER_OBJECTS)"

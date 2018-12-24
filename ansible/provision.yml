@@ -86,6 +86,7 @@
         - python-netifaces
         - binutils-dev
         - hping3
+        - openvswitch-switch
       tags: install
     - name: Clone newest iproute2 repo
       git:
