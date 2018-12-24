@@ -17,11 +17,12 @@ IFACE="eth1"
 read -p 'Password:' -s PWD
 
 # Install code on classifier
-echo $PWD | ssh -p 2000 vagrant@localhost "cd $SRC_DIR; make; echo $PWD | sudo -S ../test/load-bpf.sh $OBJ $IFACE cls"
+# echo $PWD | ssh -p 2000 vagrant@localhost "cd $SRC_DIR; make; echo $PWD | sudo -S ../test/load-bpf.sh $OBJ $IFACE cls"
 
 # Install code on SFs
 for i in `seq 0 $((NB_SFS-1))`; do
     # VMs are configured with forwarded ports for SSH connections
-    # echo $PWD | ssh -p "$((2000 + $i))" vagrant@localhost "cd $SRC_DIR; make; echo $PWD | sudo -S ../test/load-bpf.sh $OBJ $IFACE sf"
-    echo "cd $SRC_DIR; make; echo $PWD | sudo -S ../test/load-bpf.sh $OBJ $IFACE sf"
+    cmd="cd $SRC_DIR; make; echo $PWD | sudo -S ../test/load-bpf.sh $OBJ $IFACE sf"
+    # ssh -p "$((2000 + $i))" vagrant@localhost "$cmd"
+    echo "$cmd"
 done

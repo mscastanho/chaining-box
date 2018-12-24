@@ -1,0 +1,1 @@
+ovs-vsctl --format=json list Interface | jq '[.data[] | {name: .[26], rx_packets:.[31][1][7][1], rx_dropped:.[31][1][3][1], tx_packets:.[31][1][11][1], tx_dropped:.[31][1][9][1]}] | sort_by(.name)'

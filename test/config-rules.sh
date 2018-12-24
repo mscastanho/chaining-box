@@ -86,26 +86,34 @@ SPI="1"
 PWD="vagrant"
 
 for i in `seq 0 $((NB_SFS-1))`; do
-    outfile="rules-sfc$i.txt"
-    echo > $outfile
+    echo -e "\nConfiguring SF$i.."
+
+    # outfile="rules-sfc$i.txt"
+    # echo > $outfile
     
     # Install src_mac rule
     MAC="00:00:00:00:00:$(number_to_hex $((10+$i)) 2)"
     KEY="00"
     VALUE="${MAC//:/}" # Remove colons from MAC"
-    # ssh -p "$((2000 + $i))" vagrant@localhost "echo $PWD | sudo -S $(install_rule tc src_mac $KEY $VALUE)"
-    echo "sudo -S $(install_rule tc src_mac $KEY $VALUE)" >> $outfile
+    cmd="$(install_rule tc src_mac $KEY $VALUE)"
+    # ssh -p "$((2000 + $i))" vagrant@localhost "echo $PWD | sudo -S $cmd"
+    echo "$cmd" #>> $outfile
 
-    NEXT_MAC="00:00:00:00:00:$(number_to_hex $((11+$i)) 2)"
+    if [ $i = $((NB_SFS-1)) ]; then
+        NEXT_MAC="00:00:00:00:00:00" # End of chain. Placeholder MAC.
+    else
+        NEXT_MAC="00:00:00:00:00:$(number_to_hex $((11+$i)) 2)"
+    fi
 
     # Install SFC forwarding rule
-    SI="$((255-$i))"
-    [[ $i = $NB_SFS ]] && END_OF_CHAIN="01" || END_OF_CHAIN="00"
+    SI="$((254-$i))"
+    [[ $i = $((NB_SFS-1)) ]] && END_OF_CHAIN="01" || END_OF_CHAIN="00"
     KEY="$(number_to_hex $SPI 6)$(number_to_hex $SI 2)"
     VALUE="${END_OF_CHAIN}${NEXT_MAC//:/}" # Remove colons from MAC"
 
+    cmd="$(install_rule tc fwd_table $KEY $VALUE)"
     # VMs are configured with forwarded ports for SSH connections
-    # ssh -p "$((2000 + $i))" vagrant@localhost "echo $PWD | sudo -S $(install_rule tc fwd_table $KEY $VALUE)"
-    echo "sudo -S $(install_rule tc fwd_table $KEY $VALUE)" >> $outfile
+    # ssh -p "$((2000 + $i))" vagrant@localhost "echo $PWD | sudo -S $cmd"
+    echo "$cmd" # >> $outfile
 
 done
