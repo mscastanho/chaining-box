@@ -18,7 +18,7 @@ virsh dumpxml $GUEST > $XMLDEF
 
 regex="<driver name='vhost'.*\/>"
 
-if [ -n "$(grep '$regex' $XMLDEF)" ]; then 
+if [ -n `$(grep "$regex" $XMLDEF)` ]; then
     sed -i "s/$regex/<driver name='vhost' queues='8'>\n<host tso4='off' tso6='off' ecn='off' ufo='off'\/>\n<guest tso4='off' tso6='off' ecn='off' ufo='off'\/>\n<\/driver>/g" $XMLDEF
 
     virsh -q define $XMLDEF && \
