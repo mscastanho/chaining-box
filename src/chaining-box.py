@@ -17,9 +17,12 @@ def usage():
 if len(sys.argv) != 2:
     usage()
 
-in_if = sys.argv[1]
 
-ip = pyroute2.IPRoute()
+ipr = pyroute2.IPRoute()
+
+iface = sys.argv[1]
+iface_id = ipr.link_lookup(ifname=iface)[0]
+
 # TODO: get MAC address
 # out_idx = ip.link_lookup(ifname=out_if)[0]
 
@@ -31,11 +34,17 @@ b = BPF(src_file = "sfc_stages_kern.c")
 # src_mac = b.get_data("src_mac")
 # fwd_table = b.get_data("fwd_table")
 
-# decap_fn = b.load_func("decap_nsh", BPF.XDP)
-# fwd_fn = b.load_func("sfc_forwarding", BPF.SCHED_CLS)
+# Configure Decap stage
+decap_fn = b.load_func("decap_nsh", BPF.XDP)
+b.attach_xdp(iface, decap_fn, flags)
 
-# b.attach_xdp(in_if, in_fn, flags)
-# b.attach_xdp(out_if, out_fn, flags)
+# Configure Forwarding stage
+fwd_fn = b.load_func("sfc_forwarding", BPF.SCHED_CLS)
+
+ipr.tc("add", "clsact", iface_id)
+# TODO: Check 'parent' param
+ipr.tc("add-filter", "bpf", iface_id, ":1", fd=fwd_fn.fd, name=fwd_fn.name,
+    parent="ffff:fff3", classid=1, direct_action=True)
 
 # rxcnt = b.get_table("rxcnt")
 # prev = 0
@@ -47,5 +56,6 @@ while 1:
         print("Removing filter from device")
         break
 
-b.remove_xdp(in_if, flags)
-b.remove_xdp(out_if, flags)
+# Cleanup
+b.remove_xdp(iface, flags)
+ipr.tc("del", "clsact", iface_id)

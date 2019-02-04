@@ -264,7 +264,7 @@ int classify_tc(struct __sk_buff *skb)
 		return TC_ACT_SHOT;
 	}
 
-	cls = cls_table.lookup_elem(&key);
+	cls = cls_table.lookup(&key);
 	if(cls == NULL){
 		#ifdef DEBUG
 		printk("[CLASSIFY] No rule for packet.\n");
@@ -365,7 +365,6 @@ int classify_tc(struct __sk_buff *skb)
 	return TC_ACT_OK; 
 }
 
-SEC("decap")
 int decap_nsh(struct xdp_md *ctx)
 {
 	void *data_end = (void *)(long)ctx->data_end;
@@ -714,7 +713,6 @@ static int adjust_nsh(struct __sk_buff *skb)
 
 }
 
-SEC("forward")
 int sfc_forwarding(struct __sk_buff *skb)
 {
 	void *data;
@@ -816,5 +814,3 @@ int sfc_forwarding(struct __sk_buff *skb)
 	#endif /* DEBUG */
 	return TC_ACT_OK;
 }
-
-char _license[] SEC("license") = "GPL";
