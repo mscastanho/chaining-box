@@ -8,7 +8,6 @@
 #include <uapi/linux/pkt_cls.h>
 
 #include "bpf_endian.h"
-#include "bpf_helpers.h"
 #include "common.h"
 #include "nsh.h"
 
@@ -20,52 +19,21 @@
 #define BPF_END_CHAIN 100
 #define VLAN_TCI 0x000A
 
-struct bpf_elf_map SEC("maps") cls_table = {
-	.type = BPF_MAP_TYPE_HASH,
-	.size_key = sizeof(struct ip_5tuple),
-	.size_value = sizeof(struct cls_entry), // Value is sph + MAC address
-	.max_elem = 2048,
-	.pinning = PIN_GLOBAL_NS,
+// TODO: Enable global pinning?
+BPF_HASH(cls_table, struct ip_5tuple, struct cls_entry, 2048);
+
+// TODO: Enable global pinning?
+BPF_HASH(nsh_data, struct ip_5tuple, struct nshhdr, 2048);
+
+struct mac_addr {
+	unsigned char addr[ETH_ALEN];
 };
 
-struct bpf_elf_map SEC("maps") nsh_data = {
-	.type = BPF_MAP_TYPE_HASH,
-	.size_key = sizeof(struct ip_5tuple),
-	.size_value = sizeof(struct nshhdr),
-	.max_elem = 2048,
-	.pinning = PIN_GLOBAL_NS,
-};
+// TODO: Enable global pinning?
+BPF_HASH(src_mac, __u8, struct mac_addr, 1);
 
-struct bpf_elf_map SEC("maps") src_mac = {
-	.type = BPF_MAP_TYPE_HASH,
-	.size_key = sizeof(__u8),
-	.size_value = ETH_ALEN,
-	.max_elem = 1,
-	.pinning = PIN_GLOBAL_NS,
-};
-
-// struct bpf_elf_map SEC("maps") not_found = {
-// 	.type = BPF_MAP_TYPE_HASH,
-// 	.size_key = sizeof(struct ip_5tuple),
-// 	.size_value = sizeof(struct nshhdr),
-// 	.max_elem = 2048,
-// 	.pinning = PIN_GLOBAL_NS,
-// };
-
-struct bpf_elf_map SEC("maps") fwd_table = {
-	.type = BPF_MAP_TYPE_HASH,
-	.size_key = sizeof(__u32), // Key is SPH (SPI + SI) -> 4 Bytes
-	.size_value = sizeof(struct fwd_entry), // Value is MAC address + end byte
-	.max_elem = 2048,
-	.pinning = PIN_GLOBAL_NS,
-};
-
-// struct bpf_map_def SEC("maps") jmp_table = {
-// 	.type = BPF_MAP_TYPE_PROG_ARRAY,
-// 	.key_size = sizeof(u32),
-// 	.value_size = sizeof(u32),
-// 	.max_entries = 2,
-// };
+// TODO: Enable global pinning?
+BPF_HASH(fwd_table, __u32, struct fwd_entry, 2048);
 
 // The pointer passed to this function must have been
 // bounds checked already
@@ -74,7 +42,7 @@ static inline int set_src_mac(struct ethhdr *eth){
 	__u8 zero = 0;
 
 	// Get src MAC from table. Is there a better way?
-	smac = bpf_map_lookup_elem(&src_mac,&zero);
+	smac = src_mac.lookup(&zero);
 	if(smac == NULL){
 		#ifdef DEBUG
 		printk("[FORWARD]: No source MAC configured\n");
@@ -185,7 +153,7 @@ int classify_pkt(struct xdp_md *ctx)
 		return XDP_DROP;
 	}
 
-	cls = bpf_map_lookup_elem(&cls_table,&key);
+	cls = cls_table.lookup(&key);
 	if(cls == NULL){
 		#ifdef DEBUG
 		printk("[CLASSIFY] No rule for packet.\n");
@@ -296,7 +264,7 @@ int classify_tc(struct __sk_buff *skb)
 		return TC_ACT_SHOT;
 	}
 
-	cls = bpf_map_lookup_elem(&cls_table,&key);
+	cls = cls_table.lookup_elem(&key);
 	if(cls == NULL){
 		#ifdef DEBUG
 		printk("[CLASSIFY] No rule for packet.\n");
@@ -415,7 +383,7 @@ int decap_nsh(struct xdp_md *ctx)
 	if(data + sizeof(struct ethhdr) > data_end)
 		return XDP_DROP;
 
-	smac = bpf_map_lookup_elem(&src_mac,&zero);
+	smac = src_mac.lookup(&zero);
 	if(smac == NULL){
 		#ifdef DEBUG
 		printk("[DECAP]: No source MAC configured\n");
@@ -493,7 +461,7 @@ int decap_nsh(struct xdp_md *ctx)
 	}
 
 	// Save NSH data
-	ret = bpf_map_update_elem(&nsh_data, &key, nsh, BPF_ANY);
+	ret = nsh_data.update(&key, nsh);
 	if(ret == 0){
 		#ifdef DEBUG
 		printk("[DECAP] Stored NSH in table.\n");
@@ -532,8 +500,8 @@ int decap_nsh(struct xdp_md *ctx)
  * We will fill this gap and readjust the headers in the
  * next stage, where we'll have access to the entire pkt.
 */
-SEC("encap")
-int encap_nsh(struct __sk_buff *skb)
+SEC("l3_encap")
+int l3_encap_nsh(struct __sk_buff *skb)
 {
 	void *data = (void *)(long)skb->data;
 	void *data_end = (void *)(long)skb->data_end;
@@ -549,7 +517,7 @@ int encap_nsh(struct __sk_buff *skb)
 		return BPF_DROP;
 	}
 
-	nsh = bpf_map_lookup_elem(&nsh_data,&key);
+	nsh = nsh_data.lookup(&key);
 	if(nsh == NULL){
 		#ifdef DEBUG
 		printk("[ENCAP]: Packet not previously decapped. Dropping.\n");
@@ -588,7 +556,7 @@ int encap_nsh(struct __sk_buff *skb)
 }
 
 // SEC("adjust")
-int adjust_nsh(struct __sk_buff *skb)
+static int adjust_nsh(struct __sk_buff *skb)
 {
 	void *data;	data = (void *)(long)skb->data;
     void *data_end = (void *)(long)skb->data_end;
@@ -625,7 +593,7 @@ int adjust_nsh(struct __sk_buff *skb)
 	}
 
 	// Check if we have a correponding NSH saved
-    prev_nsh = bpf_map_lookup_elem(&nsh_data,&key);
+    prev_nsh = nsh_data.lookup(&key);
 	if(prev_nsh == NULL){
 		#ifdef DEBUG
 		printk("[ADJUST] NSH header not found in table.\n");
@@ -665,7 +633,7 @@ int adjust_nsh(struct __sk_buff *skb)
 	#endif /* DEBUG */
 
 	__u32 fkey = bpf_htonl(sph);
-	next_hop = bpf_map_lookup_elem(&fwd_table,&fkey);
+	next_hop = fwd_table.lookup(&fkey);
 	if(likely(next_hop) && (next_hop->flags & 0x1)){
 		#ifdef DEBUG
 		printk("[ADJUST]: End of chain 1! SPH = 0x%x\n",sph);
@@ -796,7 +764,7 @@ int sfc_forwarding(struct __sk_buff *skb)
 	}
 
 	// printk("[FORWARD] SPH = 0x%x\n",sph);
-	next_hop = bpf_map_lookup_elem(&fwd_table,&nsh->serv_path);
+	next_hop = fwd_table.lookup(&nsh->serv_path);
 	if(likely(next_hop)){
 
 		// Check if is end of chain
