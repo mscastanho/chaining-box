@@ -4,3 +4,4 @@
 *.retry
 *.out
 __pycache__*
+*.o

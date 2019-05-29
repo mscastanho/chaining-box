@@ -1,11 +1,14 @@
-#include <uapi/linux/bpf.h>
-#include <uapi/linux/if_ether.h>
+#include <linux/bpf.h>
+#include <linux/if_ether.h>
 // #include <linux/if_vlan.h>
-#include <uapi/linux/in.h>
-#include <uapi/linux/ip.h>
-#include <uapi/linux/tcp.h>
-#include <uapi/linux/udp.h>
-#include <uapi/linux/pkt_cls.h>
+#include <linux/in.h>
+#include <linux/ip.h>
+#include <linux/tcp.h>
+#include <linux/udp.h>
+#include <linux/pkt_cls.h>
+
+#include <stdint.h>
+#include <stdlib.h>
 
 #include "bpf_endian.h"
 #include "bpf_helpers.h"
@@ -83,7 +86,7 @@ static inline int set_src_mac(struct ethhdr *eth){
 	}
 
 	__builtin_memmove(eth->h_source,smac,ETH_ALEN);
-	
+
 	return 0;
 }
 
@@ -139,8 +142,8 @@ static inline int get_tuple(void* ip_data, void* data_end, struct ip_5tuple *t){
 			t->dport = 0;
 			t->sport = 0;
 			break;
-		default: 
-			return -1; 
+		default:
+			return -1;
 	}
 
 	return 0;
@@ -167,11 +170,11 @@ int classify_pkt(struct xdp_md *ctx)
 
 		return XDP_DROP;
 	}
-	
+
 	eth = data;
 	ip = (void*)eth + sizeof(struct ethhdr);
 
-	if(ntohs(eth->h_proto) != ETH_P_IP){
+	if(bpf_ntohs(eth->h_proto) != ETH_P_IP){
 		// printk("[CLASSIFY] Not an IPv4 packet, dropping.\n");
 		return XDP_DROP;
 	}
@@ -227,10 +230,10 @@ int classify_pkt(struct xdp_md *ctx)
 	extra_bytes = (void*)nsh + sizeof(struct nshhdr);
 
 	if(set_src_mac(eth)) return BPF_DROP;
-	memmove(eth->h_dest,cls->next_hop,ETH_ALEN);
-	eth->h_proto = htons(ETH_P_8021Q);
+	__builtin_memmove(eth->h_dest,cls->next_hop,ETH_ALEN);
+	eth->h_proto = bpf_htons(ETH_P_8021Q);
 
-	vlan->h_vlan_encapsulated_proto = bpf_htons(ETH_P_NSH); 
+	vlan->h_vlan_encapsulated_proto = bpf_htons(ETH_P_NSH);
 	vlan->h_vlan_TCI = bpf_htons(VLAN_TCI);
 
 	nsh->basic_info = ((uint16_t) 0) 		|
@@ -238,7 +241,7 @@ int classify_pkt(struct xdp_md *ctx)
 						NSH_BASE_LENGHT_MD_TYPE_2;
 	nsh->md_type 	= NSH_MD_TYPE_2;
 	nsh->next_proto = NSH_NEXT_PROTO_ETHER;
-	nsh->serv_path 	= htonl(cls->sph);
+	nsh->serv_path 	= bpf_htonl(cls->sph);
 
 	// Set extra bytes to 0
 	// To understand why these are needed, check adjust()
@@ -250,7 +253,7 @@ int classify_pkt(struct xdp_md *ctx)
 
 	// TODO: This should be bpf_redirect_map(), to allow
 	// redirecting the packet to another interface
-	return XDP_TX; 
+	return XDP_TX;
 }
 
 SEC("classify_tc_tx")
@@ -275,11 +278,11 @@ int classify_tc(struct __sk_buff *skb)
 
 		return XDP_DROP;
 	}
-	
+
 	eth = data;
 	ip = (void*)eth + sizeof(struct ethhdr);
 
-	if(ntohs(eth->h_proto) != ETH_P_IP){
+	if(bpf_ntohs(eth->h_proto) != ETH_P_IP){
 		#ifdef DEBUG
 		printk("[CLASSIFY] Not an IPv4 packet, passing along.\n");
 		#endif /* DEBUG */
@@ -324,23 +327,23 @@ int classify_tc(struct __sk_buff *skb)
 	// We need to add 26 bytes, which is not possible using
 	// vlan tags. Ideally we would add 28 bytes, but apparently
 	// XDP is dropping packets if the new addition is not multiple
-	// of 8 bytes. So we'll add 8 tags (32 bytes) and try to 
+	// of 8 bytes. So we'll add 8 tags (32 bytes) and try to
 	// deal with the extra 6 bytes.
  	#pragma clang loop unroll(full)
 	for(int i = 0 ; i < 8 ; i++){
-		ret = bpf_skb_vlan_push(skb,ntohs(ETH_P_8021Q),VLAN_TCI);
+		ret = bpf_skb_vlan_push(skb,bpf_ntohs(ETH_P_8021Q),VLAN_TCI);
 		if (ret < 0) {
 			#ifdef DEBUG
 			printk("[ADJUST]: Failed to add extra room: %d\n", ret);
 			#endif /* DEBUG */
 
 			return BPF_DROP;
-		} 
+		}
 	}
 
 	data = (void *)(long)skb->data;
 	data_end = (void *)(long)skb->data_end;
-	
+
 	#ifdef DEBUG
 	printk("[CLASS-TC] Size after: %d\n",data_end-data);
 	#endif /* DEBUG */
@@ -353,7 +356,7 @@ int classify_tc(struct __sk_buff *skb)
 		#endif /* DEBUG */
 		return TC_ACT_SHOT;
 	}
-	
+
 	oeth = data;
 	// vlan = (void*) oeth + sizeof(struct ethhdr);
 	nsh = (void*) oeth + sizeof(struct ethhdr);
@@ -366,15 +369,15 @@ int classify_tc(struct __sk_buff *skb)
 	// __builtin_memset(oeth,0,2*sizeof(struct ethhdr) + sizeof(struct nshhdr) + EXTRA_BYTES);
 	// __builtin_memset(oeth,0,sizeof(struct ethhdr));
 
-	oeth->h_proto = ntohs(ETH_P_NSH);
+	oeth->h_proto = bpf_ntohs(ETH_P_NSH);
 	ieth->h_proto = prev_proto;
 	// oeth->h_dest and oeth->h_src will be set by fwd stage
 
 	if(set_src_mac(oeth)) return TC_ACT_SHOT;
-	memmove(oeth->h_dest,cls->next_hop,ETH_ALEN);
+	__builtin_memmove(oeth->h_dest,cls->next_hop,ETH_ALEN);
 
-	// oeth->h_proto = htons(ETH_P_8021Q);
-	// vlan->h_vlan_encapsulated_proto = bpf_htons(ETH_P_NSH); 
+	// oeth->h_proto = bpf_htons(ETH_P_8021Q);
+	// vlan->h_vlan_encapsulated_proto = bpf_htons(ETH_P_NSH);
 	// vlan->h_vlan_TCI = bpf_htons(VLAN_TCI);
 
 	nsh->basic_info = ((uint16_t) 0) 		|
@@ -382,7 +385,7 @@ int classify_tc(struct __sk_buff *skb)
 						NSH_BASE_LENGHT_MD_TYPE_2;
 	nsh->md_type 	= NSH_MD_TYPE_2;
 	nsh->next_proto = NSH_NEXT_PROTO_ETHER;
-	nsh->serv_path 	= htonl(cls->sph);
+	nsh->serv_path 	= bpf_htonl(cls->sph);
 
 	// Set extra bytes to 0
 	// To understand why these are needed, check adjust()
@@ -394,7 +397,7 @@ int classify_tc(struct __sk_buff *skb)
 
 	// TODO: This should be bpf_redirect_map(), to allow
 	// redirecting the packet to another interface
-	return TC_ACT_OK; 
+	return TC_ACT_OK;
 }
 
 SEC("decap")
@@ -423,7 +426,7 @@ int decap_nsh(struct xdp_md *ctx)
 
 		return XDP_DROP;
 	}
-	
+
 	// Hack to compare MAC address
 	// At the time of writing, __builtin_memcmp()
 	// was not working.
@@ -455,25 +458,25 @@ int decap_nsh(struct xdp_md *ctx)
 		return XDP_DROP;
 
 	#ifdef DEBUG
-	printk("[DECAP] vlan->proto: 0x%x\n",bpf_ntohs(vlan->h_vlan_encapsulated_proto));	
+	printk("[DECAP] vlan->proto: 0x%x\n",bpf_ntohs(vlan->h_vlan_encapsulated_proto));
 	#endif /* DEBUG */
 
 	if(bpf_ntohs(vlan->h_vlan_encapsulated_proto) != ETH_P_NSH)
-		return XDP_PASS;	
-	
+		return XDP_PASS;
+
 	nsh = (void*)vlan + sizeof(struct vlanhdr);
-	
+
 	// Check if we can access NSH
 	if ((void*) nsh + sizeof(struct nshhdr) > data_end)
 		return XDP_DROP;
-	
+
 	#ifdef DEBUG
-	printk("[DECAP] SPH: 0x%x\n",bpf_ntohl(nsh->serv_path));	
+	printk("[DECAP] SPH: 0x%x\n",bpf_ntohl(nsh->serv_path));
 	#endif /* DEBUG */
 	// Check if next protocol is Ethernet
 	if(nsh->next_proto != NSH_NEXT_PROTO_ETHER)
 		return XDP_DROP;
-	
+
 	// Single check for Inner Ether + IP
 	if((void*)nsh + sizeof(struct nshhdr) + EXTRA_BYTES + sizeof(struct ethhdr) + sizeof(struct iphdr) > data_end)
 		return XDP_DROP;
@@ -523,7 +526,7 @@ int decap_nsh(struct xdp_md *ctx)
 	return XDP_PASS;
 }
 
-/* 
+/*
  * This program will be responsible for adding room
  * for the NSH + Ethernet encapsulations. It will be
  * attached to the LWT hook, which only sees an L3
@@ -683,7 +686,7 @@ int adjust_nsh(struct __sk_buff *skb)
 	// }
 
 	// __be16 proto = skb->protocol;
-	// printk("[ADJUST]: skb->protocol = 0x%x ; eth->h_proto = 0x%x ; ETH_P_IP = 0x%x\n", proto,htons(ieth->h_proto),htons(ETH_P_IP));
+	// printk("[ADJUST]: skb->protocol = 0x%x ; eth->h_proto = 0x%x ; ETH_P_IP = 0x%x\n", proto,bpf_htons(ieth->h_proto),bpf_htons(ETH_P_IP));
 
 	// Hack to add space for NSH + Outer Ethernet
 	// The only way we found to add bytes to packet
@@ -692,22 +695,22 @@ int adjust_nsh(struct __sk_buff *skb)
 	// We need to add 26 bytes, which is not possible using
 	// vlan tags. Ideally we would add 28 bytes, but apparently
 	// XDP is dropping packets if the new addition is not multiple
-	// of 8 bytes. So we'll add 8 tags (32 bytes) and try to 
+	// of 8 bytes. So we'll add 8 tags (32 bytes) and try to
 	// deal with the extra 6 bytes.
  	#pragma clang loop unroll(full)
 	for(int i = 0 ; i < 8 ; i++){
-		ret = bpf_skb_vlan_push(skb,ntohs(ETH_P_8021Q),VLAN_TCI);
+		ret = bpf_skb_vlan_push(skb,bpf_ntohs(ETH_P_8021Q),VLAN_TCI);
 		if (ret < 0) {
 			#ifdef DEBUG
 			printk("[ADJUST]: Failed to add extra room: %d\n", ret);
 			#endif /* DEBUG */
 			return TC_ACT_SHOT;
-		} 
+		}
 	}
 
 	data = (void *)(long)skb->data;
 	data_end = (void *)(long)skb->data_end;
-	
+
 	// Bounds check to please the verifier
 	// EXTRA_BYTES is due to the hack used above to enable encapsulation
 	if(data + 2*sizeof(struct ethhdr) + sizeof(struct nshhdr) + EXTRA_BYTES > data_end){
@@ -716,7 +719,7 @@ int adjust_nsh(struct __sk_buff *skb)
 		#endif /* DEBUG */
 		return TC_ACT_SHOT;
 	}
-	
+
 	oeth = data;
 	nsh = (void*) oeth + sizeof(struct ethhdr);
 	ieth = (void*) nsh + sizeof(struct nshhdr) + EXTRA_BYTES;
@@ -727,7 +730,7 @@ int adjust_nsh(struct __sk_buff *skb)
 	// __builtin_memset(oeth,0,2*sizeof(struct ethhdr) + sizeof(struct nshhdr) + EXTRA_BYTES);
 	// __builtin_memset(oeth,0,sizeof(struct ethhdr));
 
-	oeth->h_proto = ntohs(ETH_P_NSH);
+	oeth->h_proto = bpf_ntohs(ETH_P_NSH);
 	ieth->h_proto = prev_proto;
 	// oeth->h_dest and oeth->h_src will be set by fwd stage
 
@@ -765,14 +768,14 @@ int sfc_forwarding(struct __sk_buff *skb)
 		// Nothing else to do, just send to network
 		return TC_ACT_OK;
 	}
-	
+
 	// We can only make these attributions here since
-	// adjust_nsh() changes the packet, making previous 
+	// adjust_nsh() changes the packet, making previous
 	// values of data and data_end invalid.
 	// This should go away when we use the tail call
 	data     = (void *)(long)skb->data;
 	data_end = (void *)(long)skb->data_end;
-	
+
 	eth = data;
 
 	if (data + sizeof(*eth) > data_end){
@@ -783,7 +786,7 @@ int sfc_forwarding(struct __sk_buff *skb)
 	}
 
 	// Keep regular traffic working
-	// if (eth->h_proto != htons(ETH_P_NSH))
+	// if (eth->h_proto != bpf_htons(ETH_P_NSH))
 	// 	return TC_ACT_OK;
 
 	nsh = (void*) eth + sizeof(*eth);
@@ -813,7 +816,7 @@ int sfc_forwarding(struct __sk_buff *skb)
 			// 	if (ret < 0) {
 			// 		printk("[ADJUST]: Failed to add extra room: %d\n", ret);
 			// 		return BPF_DROP;
-			// 	} 
+			// 	}
 			// }
 
 			// data     = (void *)(long)skb->data;
@@ -822,7 +825,7 @@ int sfc_forwarding(struct __sk_buff *skb)
 
 			// if(eth+sizeof(*eth) > data_end)
 			// 	return BPF_DROP;
-			
+
 			// printk("[FORWARD] Size after: %d ; EtherType = 0x%x\n",data_end-data,bpf_ntohs(eth->h_proto));
 			return TC_ACT_OK; //TODO: Change this
 			// Remove external encapsulation
