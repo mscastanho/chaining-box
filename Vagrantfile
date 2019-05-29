@@ -43,6 +43,7 @@ Vagrant.configure("2") do |config|
       machine.vm.synced_folder "headers/", "/home/vagrant/chaining-box/headers", type: "rsync", rsync__chown: true
       machine.vm.synced_folder "src/", "/home/vagrant/chaining-box/src", type: "rsync", rsync__chown: true
       machine.vm.synced_folder "test/", "/home/vagrant/chaining-box/test", type: "rsync", rsync__chown: true
+      machine.vm.synced_folder "libbpf/", "/home/vagrant/chaining-box/libbpf", type: "rsync", rsync__chown: true
       machine.vm.synced_folder ".", "/vagrant", disabled: true
 
       # Install missing packages
