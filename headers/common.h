@@ -3,10 +3,13 @@
 
 #include <linux/if_ether.h>
 
+#define likely(x)       __builtin_expect(!!(x), 1)
+#define unlikely(x)     __builtin_expect(!!(x), 0)
+
 // Pins a map to the global namespace.
-// This will make it available at 
+// This will make it available at
 //      /sys/fs/bpf/tc/globals/<map name>
-// Other programs can interact with it through 
+// Other programs can interact with it through
 // the BPF_OBJ_GET bpf command.
 #define PIN_GLOBAL_NS 2
 #define PIN_OBJECT_NS 1
