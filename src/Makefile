@@ -1,6 +1,6 @@
 # Copyright(c) 2017 Jesper Dangaard Brouer, Red Hat, Inc.
-#         	   2018 Matheus Castanho, - 
-# Extracted from: 
+#         	   2018 Matheus Castanho, -
+# Extracted from:
 # 	https://github.com/netoptimizer/prototype-kernel.git
 # 	file: prototype-kernel/kernel/samples/bpf/Makefile
 
@@ -93,6 +93,8 @@ CC = gcc
 
 NOSTDINC_FLAGS := -nostdinc -isystem $(shell $(CC) -print-file-name=include)
 
+LOCALHEADERS := -I../headers
+
 # TODO: can we remove(?) copy of uapi/linux/bpf.h stored here: ./tools/include/
 # LINUXINCLUDE := -I./tools/include/
 #
@@ -140,7 +142,7 @@ clean:
 	rm -f $(USER_OBJECTS)
 	make -C $(TOOLS_PATH)/lib/bpf clean
 
-dependencies: verify_llvm_target_bpf linux-src-devel-headers create_symlinks
+dependencies: verify_llvm_target_bpf linux-src-devel-headers #create_symlinks
 
 linux-src:
 	@if ! test -d $(KERNEL)/; then \
@@ -179,12 +181,11 @@ verify_llvm_target_bpf: verify_cmds
 		exit 2; \
 	else true; fi
 
-# Create symbolic links to files needed to compile BPF progs
-# TODO: Switch to symlinks to kernel source
-create_symlinks:
-	ln -nfs $(BPF_PATH)/bpf_helpers.h; \
-	ln -nfs $(BPF_PATH)/libbpf.h; \
-	
+# # Create symbolic links to files needed to compile BPF progs
+# # TODO: Switch to symlinks to kernel source
+# create_symlinks:
+# 	ln -nfs $(BPF_PATH)/libbpf.h; \
+
 # Most xxx_user program still depend on old bpf_load.c
 $(OBJECT_LOADBPF): $(BPF_PATH)/bpf_load.c $(BPF_PATH)/bpf_load.h
 	$(CC) $(CFLAGS) -o $@ -c $<
@@ -203,8 +204,8 @@ $(LIBBPF): $(LIBBPF_SOURCES) $(TOOLS_PATH)/lib/bpf/Makefile
 # Use -Wno-address-of-packed-member as eBPF verifier enforces
 # unaligned access checks where necessary
 #
-$(KERN_OBJECTS): %.o: %.c bpf_helpers.h Makefile
-	$(CLANG) -S $(NOSTDINC_FLAGS) $(LINUXINCLUDE) $(EXTRA_CFLAGS) \
+$(KERN_OBJECTS): %.o: %.c Makefile
+	$(CLANG) -S $(NOSTDINC_FLAGS) $(LINUXINCLUDE) $(LOCALHEADERS) $(EXTRA_CFLAGS) \
 	    -D__KERNEL__ -D__ASM_SYSREG_H \
 	    -D__BPF_TRACING__ \
 	    -Wall \
