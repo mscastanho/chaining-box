@@ -4,61 +4,7 @@
   gather_facts: yes
   become: yes
   become_user: root
-  remote_user: vagrant
   tasks:
-    # TODO: Find the proper way to do this
-    # Hack to enable correct DNS resolution on KVM guest
-    - name: Copy proper /etc/resolv.conf
-      copy:
-        src: /run/systemd/resolve/resolv.conf
-        dest: /etc/resolv.conf
-        remote_src: yes
-        force: yes
-      ignore_errors: yes
-      tags: dns
-    - name: Disable and stop system-resolved
-      shell: systemctl disable systemd-resolved.service && systemctl stop systemd-resolved
-      tags: dns
-      register: result
-      ignore_errors: yes
-    - name: Reboot and wait
-      reboot:
-      tags: dns
-      when: result is changed
-    - name: Create dir for kernel files
-      file:
-        path: /usr/src/kernel-v4.19
-        state: directory
-    # TODO:
-    # - Check if files are already present locally before downloading
-    - name: Download kernel v4.19
-      get_url:
-        url: "{{ item }}"
-        dest: /usr/src/kernel-v4.19/
-      loop:
-        - "http://kernel.ubuntu.com/~kernel-ppa/mainline/v4.19/linux-headers-4.19.0-041900_4.19.0-041900.201810221809_all.deb"
-        - "http://kernel.ubuntu.com/~kernel-ppa/mainline/v4.19/linux-headers-4.19.0-041900-generic_4.19.0-041900.201810221809_amd64.deb"
-        - "http://kernel.ubuntu.com/~kernel-ppa/mainline/v4.19/linux-image-unsigned-4.19.0-041900-generic_4.19.0-041900.201810221809_amd64.deb"
-        - "http://kernel.ubuntu.com/~kernel-ppa/mainline/v4.19/linux-modules-4.19.0-041900-generic_4.19.0-041900.201810221809_amd64.deb"
-      when: ansible_kernel is not match(".*4\.19\.0.*")
-    - name: Install kernel v4.19
-      shell: dpkg -i *.deb
-      args:
-        chdir: /usr/src/kernel-v4.19/
-      register: install_result
-      when: ansible_kernel is not match(".*4\.19\.0.*")
-    - name: Reboot and wait
-      reboot:
-      when: install_result is changed
-    - name: Get kernel version
-      shell: uname -r
-      register: result
-    - name: Fail if kernel 4.19 not loaded
-      fail:
-        msg: "Wrong kernel loaded ({{ kernel_version }}}). Expected 4.19.0"
-      vars:
-        kernel_version: "{{ result.stdout }}"
-      when: kernel_version is not match(".*4\.19\.0.*")
     - name: Install dependencies
       apt:
         name: "{{ item }}"
@@ -66,14 +12,15 @@
       loop:
         - make
         - gcc
+        - g++
+        - pkg-config
         - libssl-dev
         - bc
         - libelf-dev
-        - libcap-dev
+        - libpcap-dev
         - gcc-multilib
         - libncurses5-dev
         - git
-        - pkg-config
         - graphviz
         - llvm
         - clang
@@ -82,48 +29,38 @@
         - bison
         - flex
         - ifupdown
-        - python-scapy
         - python-netifaces
         - binutils-dev
         - hping3
-        - openvswitch-switch
+        - net-tools
+        - autoconf
+        - automake
+        - libtool
+        - unzip
+        - curl
+        - protobuf-compiler
+        - protobuf-c-compiler
+        - libprotobuf-c-dev
+        - vim
+        - python-protobuf
       tags: install
-    - name: Clone newest iproute2 repo
-      git:
-        repo: https://git.kernel.org/pub/scm/network/iproute2/iproute2-next.git
-        dest: /home/vagrant/iproute2/
-      tags: kernel
-      ignore_errors: yes
-    - name: Install iproute2
-      shell: ./configure && make && make install
-      args:
-        chdir: /home/vagrant/iproute2
-      ignore_errors: yes
-      tags: kernel
-    # TODO: Fix BCC installation
-    # - name: Install BCC
-    #   script: install-bcc.sh 
     - name: Clone prototype-kernel project
       git:
         repo: https://github.com/netoptimizer/prototype-kernel.git
-        dest: /home/vagrant/prototype-kernel
+        dest: /home/ebpf/prototype-kernel
       ignore_errors: yes
-      tags: kernel
+      tags: clone
     - name: Clone linux kernel net-next tree
       git:
         repo: https://git.kernel.org/pub/scm/linux/kernel/git/davem/net-next.git
-        dest: /home/vagrant/net-next
-        version: v4.19
+        dest: /home/ebpf/net-next
+        version: v5.0
         depth: 1 # Reduce commit history to download faster
       ignore_errors: yes
-      tags: kernel
-    # TODO: Create .config file for kernel compilation
-    # - name: Compile kernel headers
-    #   shell: make headers_install
-    #     chdir: /home/vagrant/net-next
+      tags: clone
     - name: Install bpftool
       shell: make && make install
       args:
-        chdir: /home/vagrant/net-next/tools/bpf/bpftool
+        chdir: /home/ebpf/net-next/tools/bpf/bpftool
       ignore_errors: yes
       tags: kernel
