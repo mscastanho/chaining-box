@@ -13,6 +13,8 @@
 #include <getopt.h>
 #include <time.h>
 #include <signal.h>
+#include <net/if.h>
+#include <linux/if_link.h>
 
 #include <bpf/bpf.h>
 #include <bpf/libbpf.h>
@@ -48,7 +50,7 @@ static const struct _bpf_files {
 };
 
 static char ifname[IF_NAMESIZE];
-static utin32_t xdp_flags;
+static uint32_t xdp_flags;
 static char objfile[256];
 static int ifindex;
 
@@ -62,7 +64,7 @@ void load_fwd_rule(uint32_t sph, struct fwd_entry entry){
     bpf_map_update_elem(fds.fwd_table,&sph,&entry,BPF_ANY);
 }
 
-void remove_progs(void){
+void remove_progs(int signo){
 #ifdef DEBUG
 	printf("Removing programs...");
 #endif
@@ -90,16 +92,13 @@ static void usage(char *argv[])
 	printf("\n");
 }
 
-void ctrlc_handler(int signo){
-	remove_progs(void);
-}
-
 int main(int argc, char **argv)
 {
 	struct bpf_prog_load_attr prog_load_attr = {
 		.prog_type = BPF_PROG_TYPE_XDP,
-		.file = bpf_obj;
+		.file = objfile,
 	};
+	int longindex = 0, opt, fd = -1;
 	int ret = EXIT_SUCCESS;
 	struct bpf_object *obj;
 	int prog_fd;
@@ -119,7 +118,7 @@ int main(int argc, char **argv)
 				if (!(ifindex = if_nametoindex(ifname))){
 					fprintf(stderr,
 						"ERR: --ingress \"%s\" not real dev\n",
-						ingress_ifname);
+						ifname);
 					return EXIT_FAILURE;
 				}
 				break;
@@ -130,7 +129,7 @@ int main(int argc, char **argv)
 						optarg);
 					return EXIT_FAILURE;
 				}
-				snprintf(objfile, sizeof(objfile), optarg);
+				strcpy(objfile, optarg);
 				break;
 			case 'h':
 			default:
@@ -145,7 +144,7 @@ int main(int argc, char **argv)
 
 	/* Load Dec stage on XDP */
 	if(bpf_prog_load_xattr(&prog_load_attr, &obj, &prog_fd)){
-		printf("ERR: could not load Dec stage")
+		printf("ERR: could not load Dec stage\n");
 		return -1;
 	}
 

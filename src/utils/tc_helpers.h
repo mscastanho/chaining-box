@@ -14,11 +14,11 @@ static int verbose = 1;
 
 static const char *tc_dir2s[] = {"ingress", "egress"};
 
-static int tc_attach_bpf(const char* dev, const char* bpf_obj,
+int tc_attach_bpf(const char* dev, const char* bpf_obj,
     const char* sec, const tc_dir dir);
 
-static int tc_list_filter(const char* dev, const tc_dir dir);
+int tc_list_filter(const char* dev, const tc_dir dir);
 
-static int tc_remove_filter(const char* dev, const tc_dir dir);
+int tc_remove_filter(const char* dev, const tc_dir dir);
 
 #endif /* TC_HELPERS_H_ */

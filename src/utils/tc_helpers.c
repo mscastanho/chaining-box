@@ -8,7 +8,7 @@
 #include "tc_helpers.h"
 #include "sys_helpers.h"
 
-static int tc_attach_bpf(const char* dev, const char* bpf_obj,
+int tc_attach_bpf(const char* dev, const char* bpf_obj,
 				const char* sec, const tc_dir dir){
 	int ret = 0;
 
@@ -40,7 +40,7 @@ static int tc_attach_bpf(const char* dev, const char* bpf_obj,
 	return ret;
 }
 
-static int tc_list_filter(const char* dev, const tc_dir dir){
+int tc_list_filter(const char* dev, const tc_dir dir){
 	int ret = 0;
 
 	ret = runcmd("%s filter show dev %s %s", tc_cmd, dev,
@@ -56,7 +56,7 @@ static int tc_list_filter(const char* dev, const tc_dir dir){
 }
 
 
-static int tc_remove_filter(const char* dev, const tc_dir dir){
+int tc_remove_filter(const char* dev, const tc_dir dir){
 	int ret = 0;
 
 	/* Remove all ingress filters on dev */
