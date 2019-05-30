@@ -11,8 +11,13 @@ LLC ?= llc
 CLANG ?= clang
 CC ?= gcc
 
-LIBBPF_DIR = ../libbpf/src
+# Add utils
+UTILSDIR = utils
+UTILS_SRC = ${wildcard ${UTILSDIR}/*.c}
+UTILS = ${UTILS_SRC:.c=.o}
 
+# Add libbpf
+LIBBPF_DIR = ../libbpf/src
 OBJECT_LIBBPF = $(LIBBPF_DIR)/libbpf.a
 
 CFLAGS ?= -I$(LIBBPF_DIR)/root/usr/include/
@@ -21,16 +26,18 @@ LDFLAGS ?= -L$(LIBBPF_DIR)
 
 LIBS = -lbpf -lelf
 
-all: llvm-check $(KERN_OBJECTS) agent
+all: test llvm-check $(KERN_OBJECTS) utils agent
 
-.PHONY: clean $(CLANG) $(LLC)
+test:
+	@echo ${UTILS}
+
+.PHONY: clean $(CLANG) $(LLC) all utils
 
 clean:
 	cd $(LIBBPF_DIR) && $(MAKE) clean;
-	rm -f $(TARGET)
-	rm -f $(XDP_OBJ)
-	rm -f $(USER_OBJ)
+	cd $(UTILSDIR) && $(MAKE) clean;
 	rm -f *.ll
+	rm -f *.o
 
 llvm-check: $(CLANG) $(LLC)
 	@for TOOL in $^ ; do \
@@ -46,8 +53,7 @@ $(OBJECT_LIBBPF):
 		echo "May need to run git submodule update --init"; \
 		exit 1; \
 	else \
-		cd $(LIBBPF_DIR) && $(MAKE) all; \
-		mkdir -p root; DESTDIR=root $(MAKE) install_headers; \
+		cd $(LIBBPF_DIR) && mkdir -p root; BUILD_STATIC_ONLY=y DESTDIR=root $(MAKE) install; \
 	fi
 
 $(KERN_OBJECTS): %.o: %.c
@@ -62,8 +68,8 @@ $(KERN_OBJECTS): %.o: %.c
 	    -O2 -emit-llvm -c -g $<
 	$(LLC) -march=bpf -filetype=obj -o $@ ${@:.o=.ll}
 
-agent: sfc_agent_user $(OBJECT_LIBBPF) utils
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $< $(LIBS)
-
 utils:
-	cd ../utils && $(MAKE)
+	$(MAKE) -C $(UTILSDIR)
+
+agent: sfc_agent_user.c $(OBJECT_LIBBPF) utils Makefile
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $< $(UTILS) $(LIBS)
