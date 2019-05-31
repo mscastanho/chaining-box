@@ -132,6 +132,7 @@ static inline int get_tuple(void* ip_data, void* data_end, struct ip_5tuple *t){
 				#ifdef DEBUG
 				printk("get_tuple(): Error accessing TCP hdr\n");
 				#endif /* DEBUG */
+				
 
 				return -1;
 			}
@@ -150,7 +151,7 @@ static inline int get_tuple(void* ip_data, void* data_end, struct ip_5tuple *t){
 	return 0;
 };
 
-SEC("classify")
+SEC("xdp/classify")
 int classify_pkt(struct xdp_md *ctx)
 {
 	void *data_end = (void *)(long)ctx->data_end;
@@ -401,7 +402,7 @@ int classify_pkt(struct xdp_md *ctx)
 // 	return TC_ACT_OK;
 // }
 
-SEC("decap")
+SEC("xdp/decap")
 int decap_nsh(struct xdp_md *ctx)
 {
 	void *data_end = (void *)(long)ctx->data_end;
@@ -687,7 +688,7 @@ int decap_nsh(struct xdp_md *ctx)
 
 // }
 
-SEC("forward")
+SEC("action/forward")
 int sfc_forwarding(struct __sk_buff *skb)
 {
 	void *data;

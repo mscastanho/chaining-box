@@ -49,10 +49,22 @@ static const struct _bpf_files {
 	"/sys/fs/bpf/tc/globals/fwd_table",
 };
 
+/* struct to keep BPF programs loaded */
+static struct {
+    char* name;
+    struct bpf_program *prog;
+    int fd;
+}stage_progs[3];
+
 static char ifname[IF_NAMESIZE];
 static uint32_t xdp_flags;
 static char objfile[256];
 static int ifindex;
+
+/* Map handles */
+int nsh_data = -1;
+int src_mac = -1;
+int fwd_table = -1;
 
 static struct {
     int decap_table;
@@ -142,8 +154,49 @@ int main(int argc, char **argv)
 	signal(SIGINT, remove_progs);
 	signal(SIGTERM, remove_progs);
 
+    obj = bpf_object__open(objfile);
+
+    struct bpf_program *p;
+    int cnt = 0;    
+    bpf_object__for_each_program(p,obj){
+        const char* name = bpf_program__title(p,false);
+        enum bpf_prog_type pt;
+        enum bpf_attach_type att;
+        
+        if(libbpf_prog_type_by_name(name,&pt,&att)){
+            printf("ERR: Could not infer type for prog \"%s\"\n", name);
+            bpf_object__close(obj);
+            return -1;
+        }
+            
+        /* Set prog type (inferred from sec name) */
+        bpf_program__set_type(p, pt);
+    }
+    
+    bpf_object__load(obj);
+    
+    struct bpf_map *m;
+    m = bpf_object__find_map_by_name(obj,"nsh_data");
+    if(!m) printf("ERR: Could not find map \"nsh_data\"\n");
+    else nsh_data = bpf_map__fd(m);    
+
+    m = bpf_object__find_map_by_name(obj,"src_mac");
+    if(!m) printf("ERR: Could not find map \"src_mac\"\n");
+    else src_mac = bpf_map__fd(m);
+
+    m = bpf_object__find_map_by_name(obj,"fwd_table");
+    if(!m) printf("ERR: Could not find map \"fwd_table\"\n");
+    else fwd_table = bpf_map__fd(m);
+
+    if(nsh_data == -1 || src_mac == -1 || fwd_table == -1)
+        printf("ERR: Could not get handle for maps\n");
+    else
+        printf("nsh_data = %d\nsrc_mac = %d\nfwd_table = %d\n",
+            nsh_data, src_mac, fwd_table);
+       
+
 	/* Load Dec stage on XDP */
-	if(bpf_prog_load_xattr(&prog_load_attr, &obj, &prog_fd)){
+	/*if(bpf_prog_load_xattr(&prog_load_attr, &obj, &prog_fd)){
 		printf("ERR: could not load Dec stage\n");
 		return -1;
 	}
@@ -151,16 +204,33 @@ int main(int argc, char **argv)
 	if(prog_fd < 1) {
 		printf("ERR: could not get XDP fd\n");
 		return -1;
-	}
+	}*/
 
 	/* Attach Dec stage to corresponding iface*/
-	if(bpf_set_link_xdp_fd(ifindex, prog_fd, xdp_flags) < 0) {
-		printf("error setting fd onto xdp\n");
-		return -1;
+	struct bpf_program *dec = bpf_object__find_program_by_title(
+                obj, "xdp/decap");
+
+    if(!dec){
+        ret = -1;
+        goto CLEANUP;
+    }
+
+    int dec_fd = bpf_program__fd(dec);
+
+    if(dec_fd == -1){
+        ret = -1;
+        goto CLEANUP;
+    }
+
+    printf("dec_fd = %d\n",dec_fd);
+    if((ret = bpf_set_link_xdp_fd(ifindex, dec_fd, xdp_flags)) < 0) {
+		printf("error setting fd onto xdp: ret = %d\n", ret);
+		ret = -1;
+        goto CLEANUP;
 	}
 
 	/* Load Enc and Fwd stages to TC */
-	tc_attach_bpf(ifname, objfile, "forward", EGRESS);
+	//tc_attach_bpf(ifname, objfile, "forward", EGRESS);
 
 	// fd = bpf_obj_get(bpf_files.fwd_table);
 	// if (fd < 0) {
@@ -184,6 +254,9 @@ int main(int argc, char **argv)
 	// 	}
 	// }
 
+
+CLEANUP:
+    bpf_object__close(obj);
 
 	return ret;
 }
