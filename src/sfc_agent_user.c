@@ -118,6 +118,10 @@ int main(int argc, char **argv)
 	memset(ifname, 0, IF_NAMESIZE); /* Can be used uninitialized */
 	xdp_flags = XDP_FLAGS_DRV_MODE;
 
+    /* Set default values */
+    ifindex = -1;
+    memset(objfile,'\0',sizeof(objfile));
+ 
 	/* Parse commands line args */
 	while ((opt = getopt_long(argc, argv, "hq",
 				  long_options, &longindex)) != -1) {
@@ -150,6 +154,11 @@ int main(int argc, char **argv)
 		}
 	}
 
+    if(ifindex == -1 || objfile[0] == '\0'){
+        fprintf(stderr,"ERR: required argument missing\n");
+        usage(argv);
+        return EXIT_FAILURE;
+    }
 	/* Register signal handlers */
 	signal(SIGINT, remove_progs);
 	signal(SIGTERM, remove_progs);
@@ -222,15 +231,15 @@ int main(int argc, char **argv)
         goto CLEANUP;
     }
 
-    printf("dec_fd = %d\n",dec_fd);
+    printf("ifindex = %d; dec_fd = %d\n",ifindex,dec_fd);
     if((ret = bpf_set_link_xdp_fd(ifindex, dec_fd, xdp_flags)) < 0) {
-		printf("error setting fd onto xdp: ret = %d\n", ret);
+		fprintf(stderr,"error setting fd onto xdp: ret = %d\n", ret);
 		ret = -1;
         goto CLEANUP;
 	}
 
 	/* Load Enc and Fwd stages to TC */
-	//tc_attach_bpf(ifname, objfile, "forward", EGRESS);
+	tc_attach_bpf(ifname, objfile, "action/forward", EGRESS);
 
 	// fd = bpf_obj_get(bpf_files.fwd_table);
 	// if (fd < 0) {
