@@ -159,7 +159,7 @@ int main(int argc, char **argv)
         usage(argv);
         return EXIT_FAILURE;
     }
-	/* Register signal handlers */
+	// Register signal handlers
 	signal(SIGINT, remove_progs);
 	signal(SIGTERM, remove_progs);
 
@@ -178,7 +178,7 @@ int main(int argc, char **argv)
             return -1;
         }
             
-        /* Set prog type (inferred from sec name) */
+        // Set prog type (inferred from sec name)
         bpf_program__set_type(p, pt);
     }
     
@@ -204,7 +204,7 @@ int main(int argc, char **argv)
             nsh_data, src_mac, fwd_table);
        
 
-	/* Load Dec stage on XDP */
+	// Load Dec stage on XDP
 	/*if(bpf_prog_load_xattr(&prog_load_attr, &obj, &prog_fd)){
 		printf("ERR: could not load Dec stage\n");
 		return -1;
@@ -215,7 +215,7 @@ int main(int argc, char **argv)
 		return -1;
 	}*/
 
-	/* Attach Dec stage to corresponding iface*/
+	// Attach Dec stage to corresponding iface
 	struct bpf_program *dec = bpf_object__find_program_by_title(
                 obj, "xdp/decap");
 
@@ -238,8 +238,14 @@ int main(int argc, char **argv)
         goto CLEANUP;
 	}
 
-	/* Load Enc and Fwd stages to TC */
-	tc_attach_bpf(ifname, objfile, "action/forward", EGRESS);
+    int id = 0;
+    while(true){
+        ret = bpf_prog_get_next_id(id, &id);
+	    if(ret) break;
+        printf("id = %d\n",id);
+    }
+    /* Load Enc and Fwd stages to TC */
+//	tc_attach_bpf(ifname, objfile, "action/forward", EGRESS);
 
 	// fd = bpf_obj_get(bpf_files.fwd_table);
 	// if (fd < 0) {
