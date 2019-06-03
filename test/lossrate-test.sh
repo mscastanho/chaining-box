@@ -6,7 +6,7 @@ if [ $EUID -ne 0 ]; then
 fi
 
 if [ -z "$1" ]; then
-    echo "Usage: $0 <server-ip>"
+    echo "Usage: $0 <server-ip> [iface]"
     exit 1
 fi
 
@@ -17,6 +17,7 @@ tmpfile="/tmp/out_iperf.json"
 
 # iperf parameters
 serverip="$1"
+iface="$2"
 delay=7
 rounds=10
 duration=55
@@ -58,14 +59,19 @@ for rate in `seq $rate_min $rate_step $rate_max`; do
     line="$rate"
     rateM=$(printf "%dM" $rate)
     echo "Starting to send at ${rateM}bps..."
-    
+
+    # Check if we need to bind to some interface
+    # if [ -n $iface ]; then
+    #   bind="-B $iface"
+    # fi
+
     i=1
     retries=0
     while [ $i -le $rounds ]; do
         outfile="round$i.json"
 
         echo -n "(${i}/${rounds}) : "
-        iperf3 -c $serverip --cport $dport -p $sport -l $length -u -b $rateM -t $duration -i $interval -O $omit -R -J > $outfile
+        iperf3 -c $serverip $bind --cport $sport -p $dport -l $length -u -b $rateM -t $duration -i $interval -O $omit -J > $outfile
         result="$(jq '.end.streams[0].udp.lost_percent' < $outfile)"
         echo -n "$result"
 

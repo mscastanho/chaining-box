@@ -35,3 +35,26 @@ Load eBPF code to iface:
 Unload eBPF code:
 
     sudo ip link set dev <interface> xdp off
+
+## Software versions
+    
+  - kernel v5.3
+  - clang 9.0
+  - elfutils 0.176
+  - bpftool v5.3.0
+  - perf v5.3.g4d856f72c10e
+  - pahole v1.15
+
+## Compiling the source code
+
+Make sure to have the kernel sources downloaded somewhere (e.g.: ~/devel/linux) and install the kernel headers locally:
+
+    cd ~/devel/linux
+    make headers_install
+
+Now you're ready to compile the code:
+
+    cd chaining-box/src
+    make KDIR=~/devel/linux
+
+`KDIR` is needed to point to the updated kernel headers, instead of the ones offered by the system (which might be outdated).

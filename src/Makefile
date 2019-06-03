@@ -25,7 +25,7 @@ UTILS = ${UTILS_SRC:.c=.o}
 LIBBPF_DIR = ./libbpf/src
 OBJECT_LIBBPF = $(LIBBPF_DIR)/libbpf.a
 
-CFLAGS ?= -I$(LIBBPF_DIR)/root/usr/include/
+CFLAGS += -I$(LIBBPF_DIR)/root/usr/include/
 CFLAGS += -Iheaders/ -Iutils/
 LDFLAGS ?= -L$(LIBBPF_DIR)
 
@@ -83,17 +83,21 @@ $(OBJECT_LIBBPF):
 		cd $(LIBBPF_DIR) && mkdir -p root; BUILD_STATIC_ONLY=y DESTDIR=root $(MAKE) install; \
 	fi
 
+# $(KERN_OBJECTS): %.o: %.c
+#   $(CLANG) -S \
+#       -D __BPF_TRACING__ \
+#       $(CFLAGS) \
+#       -Wall \
+#       -Wno-unused-value \
+#       -Wno-pointer-sign \
+#       -Wno-compare-distinct-pointer-types \
+#     -Werror \
+#     -O2 -emit-llvm -c -g $< -o ${@:.o=.ll}
+#   $(LLC) -march=bpf -filetype=obj -o $@ ${@:.o=.ll}
 $(KERN_OBJECTS): %.o: %.c
-	$(CLANG) -S \
-	    -D __BPF_TRACING__ \
-	    $(CFLAGS) \
-	    -Wall \
-	    -Wno-unused-value \
-	    -Wno-pointer-sign \
-	    -Wno-compare-distinct-pointer-types \
-		-Werror \
-		-O2 -emit-llvm -c -g $< -o ${@:.o=.ll}
-	$(LLC) -march=bpf -filetype=obj -o $@ ${@:.o=.ll}
+	$(CLANG) -O2 -g -Wall $(CFLAGS) -target bpf -emit-llvm -c $< -o ${@:.o=.bc}
+	$(LLC) ${@:.o=.bc} -march=bpf -mattr=dwarfris -filetype=obj -o $@
+	pahole -J $@
 
 utils:
 	$(MAKE) -C $(UTILSDIR)
