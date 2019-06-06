@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+if [ "$EUID" -ne 0 ]; then
+    echo "Please run as root."
+    exit
+fi
+
 host=$(hostname)
 
 # sfc0 (classifier) 

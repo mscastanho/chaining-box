@@ -31,7 +31,10 @@ all: test llvm-check $(KERN_OBJECTS) utils agent
 test:
 	@echo ${UTILS}
 
-.PHONY: clean $(CLANG) $(LLC) all utils
+.PHONY: clean $(CLANG) $(LLC) all utils debug
+
+debug: CFLAGS += -DDEBUG
+debug: all
 
 clean:
 	cd $(LIBBPF_DIR) && $(MAKE) clean;

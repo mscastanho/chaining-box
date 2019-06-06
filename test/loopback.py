@@ -22,19 +22,12 @@ sendSocket=socket.socket(socket.AF_PACKET,socket.SOCK_RAW,socket.htons(0x0800))
 count=0
 # rawSocket.bind((sys.argv[1], socket.htons(0x0800)))
 sendSocket.bind((sys.argv[1], socket.htons(0x0800)))
-print "Sniffing..."
+"Sniffing..."
 while True:
     receivedPacket=rawSocket.recv(65536)
-
-    ipHeader=receivedPacket[14:34]
-    ipHdr=struct.unpack("!12s4s4s",ipHeader)
-    destinationIP=socket.inet_ntoa(ipHdr[2])
-    sourceIP=socket.inet_ntoa(ipHdr[1])
-
-    if sourceIP != "192.168.121.1" and sourceIP != "192.168.121.63":
-        print "src: " + sourceIP + " dst: " + destinationIP
-        count += 1
-        try:
-            sendSocket.send(receivedPacket)
-        except socket.error as e:
-            print "     %s" % e
+    try:
+        sendSocket.send(receivedPacket)
+    except Exception as e:
+        pass
+    else:
+        count+=1
