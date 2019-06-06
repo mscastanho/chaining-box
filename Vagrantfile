@@ -1,11 +1,11 @@
 # Do all VM creation in series.
 # Parallel actions seem to break things.
-ENV['VAGRANT_NO_PARALLEL'] = 'yes'
+#ENV['VAGRANT_NO_PARALLEL'] = 'yes'
 
 # Number of VMs to provision
 # If N > 245, the script mus be modified
 # See IP and MAC values configured below
-N = 2
+N = 3
 
 Vagrant.configure("2") do |config|
 
@@ -46,10 +46,9 @@ Vagrant.configure("2") do |config|
       machine.vm.synced_folder "libbpf/", "/home/vagrant/chaining-box/libbpf", type: "rsync", rsync__chown: true
       machine.vm.synced_folder ".", "/vagrant", disabled: true
 
-      # Install missing packages
-      # Renew DHCP client to get new IP
+      # Re-create machine-id file to allow correct DHCP leasing by dnsmasq
       machine.vm.provision "shell",
-        inline: "sudo apt install bpfcc-tools python3-bpfcc python3-pyroute2 -y && sudo dhclient eth0"
+        inline: "sudo rm /etc/machine-id && systemd-machine-id-setup"
     end
   end
 end
