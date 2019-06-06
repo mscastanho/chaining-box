@@ -258,7 +258,7 @@ int classify_pkt(struct xdp_md *ctx)
 	return XDP_TX;
 }
 
-SEC("classify_tc_tx")
+SEC("action/classify")
 int classify_tc(struct __sk_buff *skb)
 {
 	void *data_end = (void *)(long)skb->data_end;
@@ -387,7 +387,10 @@ int classify_tc(struct __sk_buff *skb)
 						NSH_BASE_LENGHT_MD_TYPE_2;
 	nsh->md_type 	= NSH_MD_TYPE_2;
 	nsh->next_proto = NSH_NEXT_PROTO_ETHER;
-	nsh->serv_path 	= bpf_htonl(cls->sph);
+
+    // No need for htonl. We add the entry in the map
+    // using big endian notation.
+    nsh->serv_path 	= cls->sph;
 
 	// Set extra bytes to 0
 	// To understand why these are needed, check adjust()
