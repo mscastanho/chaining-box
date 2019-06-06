@@ -15,7 +15,7 @@ function load_sf {
 
     # Load decap XDP code
     ip -force link set dev $DEV xdp \
-        obj $BPFOBJ sec decap
+        obj $BPFOBJ sec xdp/decap
 
     # Load encap code
     # Headroom = sizeof(Ethernet) + sizeof(NSH) = 14 + 8 = 22
@@ -28,7 +28,7 @@ function load_sf {
     tc qdisc add dev $DEV clsact 2> /dev/null
     tc filter del dev $DEV egress 2> /dev/null
     tc filter add dev $DEV egress bpf da obj $BPFOBJ \
-        sec forward
+        sec action/forward
 }
 
 function load_classifier {
