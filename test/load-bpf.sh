@@ -36,8 +36,14 @@ function load_classifier {
     DEV="$2"
 
     # Load decap XDP code
-    ip -force link set dev $DEV xdp \
-        obj $BPFOBJ sec classify
+    #ip -force link set dev $DEV xdp \
+    #    obj $BPFOBJ sec action/classify
+
+    tc qdisc add dev $DEV clsact 2> /dev/null
+    tc filter del dev $DEV egress 2> /dev/null
+    tc filter add dev $DEV egress bpf da obj $BPFOBJ \
+        sec action/classify
+
 }
 
 PROG="$1"

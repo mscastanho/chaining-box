@@ -3,30 +3,35 @@
 # Script to start and configure host for SFC
 # using ChainingBox
 
-if [ -z "$1" ] || [ -z "$2" ]; then
-    echo "Usage: $0 <node-type> <interface>"
+if [ $# -lt 2 ]; then
+    echo "Usage: $0 <node-type> <interface> [src-path]"
     echo "node-type: [ sf | cls ]"
     exit 1 
+else
+    node_type="$1"
+    iface="$2"
 fi
 
-CBDIR="~/chaining-box"
+# Grab path to chaining-box from user or set default otherwise
+if [ -n "$3" ]; then
+    CBDIR="$3"
+else
+    CBDIR="/home/$USER/chaining-box"
+fi
+
 CBOBJ="sfc_stages_kern.o"
 
-node_type="$1"
-iface="$2"
-
-cd $CBDIR
+cd $CBDIR/src
 
 # Compile code if needed
 if [ ! -f "$CBOBJ" ]; then
-    cd src
     make
     cd -
 fi
 
 # Load stages into the kernel
 cd test
-bash load-bpf.sh $CBDIR/src/$CBOBJ $node_type $iface
+bash load-bpf.sh $CBDIR/src/$CBOBJ $iface $node_type
 
 # Load hardcoded rules
 bash hardcoded-rules.sh

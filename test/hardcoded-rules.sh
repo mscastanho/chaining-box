@@ -6,8 +6,8 @@ host=$(hostname)
 if [ $host == "sfc0" ]; then
 
     bpftool map update pinned /sys/fs/bpf/tc/globals/cls_table \
-    key hex 0a 00 00 01 0a 00 00 02 03 e8 07 d0 06 \
-    value hex 00 02 02 03 00 00 01 ff 00 00 00 00 00 0b any
+    key hex 0a 0a 0a 0a 0a 0a 0a 0d 03 e8 07 d0 11 \
+    value hex 00 00 01 ff 00 00 00 00 00 0b any
 
     bpftool map update pinned /sys/fs/bpf/tc/globals/src_mac \
     key hex 00 \

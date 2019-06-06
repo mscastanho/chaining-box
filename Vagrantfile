@@ -5,7 +5,7 @@
 # Number of VMs to provision
 # If N > 245, the script mus be modified
 # See IP and MAC values configured below
-N = 3
+N = 4
 
 Vagrant.configure("2") do |config|
 
