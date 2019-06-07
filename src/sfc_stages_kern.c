@@ -20,9 +20,16 @@
 #define FWD_STAGE 2
 
 #define EXTRA_BYTES 6
-
-#define BPF_END_CHAIN 100
 #define VLAN_TCI 0x000A
+
+
+// Internal return codes
+enum cb_ret {
+    CB_OK,
+    CB_END_CHAIN,
+    CB_PASS,
+    CB_DROP,
+};
 
 struct bpf_elf_map SEC("maps") cls_table = {
 	.type = BPF_MAP_TYPE_HASH,
@@ -278,7 +285,7 @@ int classify_tc(struct __sk_buff *skb)
 		printk("[CLASSIFY] Bounds check #1 failed.\n");
 		#endif /* DEBUG */
 
-		return XDP_DROP;
+		return TC_ACT_OK;
 	}
 
 	eth = data;
@@ -298,7 +305,7 @@ int classify_tc(struct __sk_buff *skb)
 		printk("[CLASSIFY] get_tuple() failed: %d\n",ret);
 		#endif /* DEBUG */
 
-		return TC_ACT_SHOT;
+		return TC_ACT_OK;
 	}
 
 	cls = bpf_map_lookup_elem(&cls_table,&key);
@@ -339,7 +346,7 @@ int classify_tc(struct __sk_buff *skb)
 			printk("[ADJUST]: Failed to add extra room: %d\n", ret);
 			#endif /* DEBUG */
 
-			return BPF_DROP;
+			return TC_ACT_SHOT;
 		}
 	}
 
@@ -356,7 +363,7 @@ int classify_tc(struct __sk_buff *skb)
 		#ifdef DEBUG
 		printk("[CLASSIFY] Bounds check #2 failed.\n");
 		#endif /* DEBUG */
-		return TC_ACT_SHOT;
+		return TC_ACT_OK;
 	}
 
 	oeth = data;
@@ -382,9 +389,9 @@ int classify_tc(struct __sk_buff *skb)
 	// vlan->h_vlan_encapsulated_proto = bpf_htons(ETH_P_NSH);
 	// vlan->h_vlan_TCI = bpf_htons(VLAN_TCI);
 
-	nsh->basic_info = ((uint16_t) 0) 		|
-						NSH_TTL_DEFAULT 	|
-						NSH_BASE_LENGHT_MD_TYPE_2;
+	nsh->basic_info = bpf_htons( ((uint16_t) 0)     |
+						         NSH_TTL_DEFAULT 	|
+						         NSH_BASE_LENGHT_MD_TYPE_2);
 	nsh->md_type 	= NSH_MD_TYPE_2;
 	nsh->next_proto = NSH_NEXT_PROTO_ETHER;
 
@@ -421,7 +428,7 @@ int decap_nsh(struct xdp_md *ctx)
 	eth = data;
 
 	if(data + sizeof(struct ethhdr) > data_end)
-		return XDP_DROP;
+		return XDP_PASS;
 
 	smac = bpf_map_lookup_elem(&src_mac,&zero);
 	if(smac == NULL){
@@ -429,22 +436,27 @@ int decap_nsh(struct xdp_md *ctx)
 		printk("[DECAP]: No source MAC configured\n");
 		#endif /* DEBUG */
 
-		return XDP_DROP;
+		return XDP_PASS;
 	}
 
-	// Hack to compare MAC address
-	// At the time of writing, __builtin_memcmp()
-	// was not working.
 	char* mymac = (char*) smac;
 	char* dstmac = (char*) data;
 
-	// TODO: If broadcast, pass
-	#pragma clang loop unroll(full)
+	// If broadcast or multicast, pass
+    if(dstmac[0] & 1)
+        return XDP_PASS;
+
+	// Hack to compare MAC addresses
+	// At the time of writing, __builtin_memcmp()
+	// was not working.
+    #pragma clang loop unroll(full)
 	for(int i = 5 ; i >= 0 ; i--){
 		if(mymac[i] ^ dstmac[i]){
 			#ifdef DEBUG
-			printk("[DECAP] Not for me. Dropping.\n");
-			#endif /* DEBUG */
+			printk("[DECAP] Not for me. Dropping. (1/2)\n");
+			printk("[DECAP] MAC: %02x %02x %02x", dstmac[5], dstmac[4], dstmac[3]);
+			printk(" %02x %02x %02x\n (2/2)", dstmac[2], dstmac[1], dstmac[0]);
+            #endif /* DEBUG */
 
 			return XDP_DROP;
 		}
@@ -554,11 +566,15 @@ int adjust_nsh(struct __sk_buff *skb)
 		printk("[ADJUST]: Bounds check failed\n");
 		#endif /* DEBUG */
 
-		return TC_ACT_SHOT;
+		return CB_PASS;
 	}
+ 
+    // Check if frame contains IP
+	oeth = data;
+    if(oeth->h_proto != bpf_htons(ETH_P_IP))
+        return CB_PASS;
 
-	// TODO: Check EtherType indeed corresponds to IP
-	ip = data + sizeof(struct ethhdr);
+    ip = data + sizeof(struct ethhdr);
 
 	ret = get_tuple(ip,data_end,&key);
 	if (ret < 0) {
@@ -566,17 +582,17 @@ int adjust_nsh(struct __sk_buff *skb)
 		printk("[ADJUST]: get_tuple() failed: %d\n", ret);
 		#endif /* DEBUG */
 
-		return TC_ACT_SHOT;
+		return CB_PASS;
 	}
 
-	// Check if we have a correponding NSH saved
+	// Check if we have a corresponding NSH saved
     prev_nsh = bpf_map_lookup_elem(&nsh_data,&key);
 	if(prev_nsh == NULL){
 		#ifdef DEBUG
 		printk("[ADJUST] NSH header not found in table.\n");
 		#endif /* DEBUG */
 		// bpf_map_update_elem(&not_found, &key, &nop2, BPF_ANY);
-		return TC_ACT_SHOT;
+		return CB_PASS;
 	}
 
 	#ifdef DEBUG
@@ -594,7 +610,7 @@ int adjust_nsh(struct __sk_buff *skb)
 		#ifdef DEBUG
 		printk("[ADJUST]: Anomalous SI number. Dropping packet.\n");
 		#endif /* DEBUG */
-		return TC_ACT_SHOT;
+		return CB_DROP;
 	}
 
 	// Update the SI this way is safe because we
@@ -615,7 +631,7 @@ int adjust_nsh(struct __sk_buff *skb)
 		#ifdef DEBUG
 		printk("[ADJUST]: End of chain 1! SPH = 0x%x\n",sph);
 		#endif /* DEBUG */
-		return BPF_END_CHAIN;
+		return CB_END_CHAIN;
 	}
 
 	// Save previous EtherType before it is overwritten
@@ -646,7 +662,7 @@ int adjust_nsh(struct __sk_buff *skb)
 			#ifdef DEBUG
 			printk("[ADJUST]: Failed to add extra room: %d\n", ret);
 			#endif /* DEBUG */
-			return TC_ACT_SHOT;
+			return CB_DROP;
 		}
 	}
 
@@ -659,7 +675,7 @@ int adjust_nsh(struct __sk_buff *skb)
 		#ifdef DEBUG
 		printk("[ADJUST]: Bounds check failed.\n");
 		#endif /* DEBUG */
-		return TC_ACT_SHOT;
+		return CB_DROP;
 	}
 
 	oeth = data;
@@ -669,7 +685,9 @@ int adjust_nsh(struct __sk_buff *skb)
 
 	// Original Ethernet is outside, let's copy it to the inside
 	__builtin_memcpy(ieth,oeth,sizeof(struct ethhdr));
-	// __builtin_memset(oeth,0,2*sizeof(struct ethhdr) + sizeof(struct nshhdr) + EXTRA_BYTES);
+
+    // Zero out extra bytes
+    __builtin_memset(nsh,0,EXTRA_BYTES);
 	// __builtin_memset(oeth,0,sizeof(struct ethhdr));
 
 	oeth->h_proto = bpf_ntohs(ETH_P_NSH);
@@ -687,7 +705,7 @@ int adjust_nsh(struct __sk_buff *skb)
 
 	// With the tail call, this is unreachable code.
 	// It's here just to be safe.
-	return TC_ACT_OK;
+	return CB_OK;
 
 }
 
@@ -704,12 +722,16 @@ int sfc_forwarding(struct __sk_buff *skb)
 	// TODO: The link between these two progs
 	// 		 should be a tail call instead
 	ret = adjust_nsh(skb);
-	if(ret == TC_ACT_SHOT){
-		return TC_ACT_SHOT;
-	}else if(ret == BPF_END_CHAIN){
-		// Nothing else to do, just send to network
-		return TC_ACT_OK;
-	}
+    switch(ret){
+        case CB_OK:
+            break;              // Continue execution
+        case CB_DROP:
+            return TC_ACT_SHOT; // Drop packet
+        case CB_PASS:
+        case CB_END_CHAIN:
+        default:
+            return TC_ACT_OK;   // Send packet rightaway
+    }
 
 	// We can only make these attributions here since
 	// adjust_nsh() changes the packet, making previous
