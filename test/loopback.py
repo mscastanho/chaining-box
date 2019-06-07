@@ -12,7 +12,10 @@ def signal_handler(signal, frame):
 
 signal.signal(signal.SIGINT, signal_handler)
 
+iface = sys.argv[1]
+
 rawSocket=socket.socket(socket.AF_PACKET,socket.SOCK_RAW,socket.htons(0x0800))
+rawSocket.bind((iface,0))
 sendSocket=socket.socket(socket.AF_PACKET,socket.SOCK_RAW,socket.htons(0x0800))
 
 # print 'Buffer size: ' + str(rawSocket.getsockopt(socket.SOL_SOCKET,socket.SO_RCVBUF)) 
