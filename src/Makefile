@@ -17,11 +17,11 @@ UTILS_SRC = ${wildcard ${UTILSDIR}/*.c}
 UTILS = ${UTILS_SRC:.c=.o}
 
 # Add libbpf
-LIBBPF_DIR = ../libbpf/src
+LIBBPF_DIR = ./libbpf/src
 OBJECT_LIBBPF = $(LIBBPF_DIR)/libbpf.a
 
 CFLAGS ?= -I$(LIBBPF_DIR)/root/usr/include/
-CFLAGS += -I../headers/ -Iutils/
+CFLAGS += -Iheaders/ -Iutils/
 LDFLAGS ?= -L$(LIBBPF_DIR)
 
 LIBS = -lbpf -lelf
