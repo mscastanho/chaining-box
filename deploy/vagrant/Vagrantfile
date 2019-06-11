@@ -29,6 +29,7 @@ Vagrant.configure("2") do |config|
           ip: "10.10.10.#{10+machine_id}",
           mac: "00:00:00:00:00:#{"%02x" % (machine_id+10)}", # Must be lowercase
           nic_type: "virtio",
+          libvirt__network_name: "sfcnet",
           libvirt__driver_name: "vhost",
           libvirt__driver_queues: "8"
 

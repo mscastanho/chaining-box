@@ -32,6 +32,3 @@ fi
 # Load stages into the kernel
 cd test
 bash load-bpf.sh $CBDIR/src/$CBOBJ $iface $node_type
-
-# Load hardcoded rules
-bash hardcoded-rules.sh
