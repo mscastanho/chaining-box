@@ -1,11 +1,11 @@
 # Do all VM creation in series.
 # Parallel actions seem to break things.
-#ENV['VAGRANT_NO_PARALLEL'] = 'yes'
+ENV['VAGRANT_NO_PARALLEL'] = 'yes'
 
 # Number of VMs to provision
 # If N > 245, the script mus be modified
 # See IP and MAC values configured below
-N = 4
+N = 2
 
 Vagrant.configure("2") do |config|
 
@@ -40,15 +40,21 @@ Vagrant.configure("2") do |config|
       machine.ssh.forward_x11 = true
 
       # Configure synced folders
-      machine.vm.synced_folder "headers/", "/home/vagrant/chaining-box/headers", type: "rsync", rsync__chown: true
-      machine.vm.synced_folder "src/", "/home/vagrant/chaining-box/src", type: "rsync", rsync__chown: true
-      machine.vm.synced_folder "test/", "/home/vagrant/chaining-box/test", type: "rsync", rsync__chown: true
-      machine.vm.synced_folder "libbpf/", "/home/vagrant/chaining-box/libbpf", type: "rsync", rsync__chown: true
+      machine.vm.synced_folder "../../src/", "/home/vagrant/chaining-box/src", type: "rsync", rsync__chown: true
+      machine.vm.synced_folder "../../test/", "/home/vagrant/chaining-box/test", type: "rsync", rsync__chown: true
       machine.vm.synced_folder ".", "/vagrant", disabled: true
 
       # Re-create machine-id file to allow correct DHCP leasing by dnsmasq
       machine.vm.provision "shell",
-        inline: "sudo rm /etc/machine-id && systemd-machine-id-setup"
+        inline: "sudo rm /etc/machine-id; sudo systemd-machine-id-setup; sudo dhclient eth1; sudo dhclient eth0"
+
+#      machine.trigger.after :provision do |trigger|
+#            trigger.info = "Flag VM to apply changes..."
+#            trigger.run = {inline: "vagrant reload #{hostname}"}
+#      end
     end
   end
 end
+
+# Hack to force
+#system("vagrant reload")
