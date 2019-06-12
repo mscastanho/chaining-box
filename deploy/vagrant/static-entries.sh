@@ -5,12 +5,10 @@ if [ $EUID -ne 0 ]; then
     exit 1
 fi
 
-if [ -z "$1" ]; then
-    echo "Usage: $0 <br-name>"
-    exit 1
-fi
+# Hardcoded name defined on net definition on Vagrantfile
+netname="sfcnet"
 
-br="$1"
+br=$(virsh net-info $netname | grep Bridge | awk '{print $2}')
 
 # Disable STP on $br
 brctl stp $br off

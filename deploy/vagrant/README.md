@@ -2,10 +2,18 @@
 
 This deployment option is intended mainly for testing and development. To start the environment simpy run:
 
-    vagrant up
+    vagrant up && vagrant reload
 
-Just to make sure all VMs are correctly setup, force a reboot on all of them through vagrant:
+The reload is issued just to make sure all VMs are correctly setup. This should only be necessary after running `vagrant up` for the first time (VM creation).
 
-    vagrant reload
+Install dependencies:
 
-This should only be necessary after running `vagrant up` for the first time.
+    vagrant provision --provision-with=deps
+
+Configure bridge for communication:
+
+    sudo static-entries.sh
+
+Install code on nodes and start SFs:
+
+    run-nodes.sh

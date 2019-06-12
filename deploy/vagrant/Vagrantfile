@@ -5,7 +5,7 @@ ENV['VAGRANT_NO_PARALLEL'] = 'yes'
 # Number of VMs to provision
 # If N > 245, the script mus be modified
 # See IP and MAC values configured below
-N = 2
+N = 4
 
 Vagrant.configure("2") do |config|
 
@@ -45,10 +45,13 @@ Vagrant.configure("2") do |config|
       machine.vm.synced_folder "../../test/", "/home/vagrant/chaining-box/test", type: "rsync", rsync__chown: true
       machine.vm.synced_folder ".", "/vagrant", disabled: true
 
+      # Fix to bug where machines are getting the same IP address.
       # Re-create machine-id file to allow correct DHCP leasing by dnsmasq
+      # A `vagrant reload` is needed after this
       machine.vm.provision "shell",
         inline: "sudo rm /etc/machine-id; sudo systemd-machine-id-setup; sudo dhclient eth1; sudo dhclient eth0"
 
+      machine.vm.provision "deps", type: "shell", run: "never", path: "install-deps.sh"
 #      machine.trigger.after :provision do |trigger|
 #            trigger.info = "Flag VM to apply changes..."
 #            trigger.run = {inline: "vagrant reload #{hostname}"}

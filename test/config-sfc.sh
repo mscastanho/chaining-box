@@ -26,9 +26,8 @@ cd $CBDIR/src
 # Compile code if needed
 if [ ! -f "$CBOBJ" ]; then
     make
-    cd -
 fi
 
 # Load stages into the kernel
-cd test
+cd "$CBDIR/test"
 bash load-bpf.sh $CBDIR/src/$CBOBJ $iface $node_type
