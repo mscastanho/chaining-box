@@ -28,7 +28,7 @@ After that, you'll have the following commands at your disposal: `sshfut` and `r
 
 The nodes need a few adjustments to be ready for testing. For each node, run:
 
-    ./boostrap-host.sh <host> <chaining-box-ldir>
+    ./bootstrap-host.sh <host> <chaining-box-ldir>
 
 The second argument is the local path to the chaining-box directory, which will be copied to the remote host.
 
