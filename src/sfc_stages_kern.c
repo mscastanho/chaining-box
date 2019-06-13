@@ -569,7 +569,7 @@ int adjust_nsh(struct __sk_buff *skb)
 		return CB_PASS;
 	}
  
-    // Check if frame contains IP
+    // Check if frame contains IP. Pass along otherwise
 	oeth = data;
     if(oeth->h_proto != bpf_htons(ETH_P_IP))
         return CB_PASS;
@@ -718,19 +718,22 @@ int sfc_forwarding(struct __sk_buff *skb)
 	struct nshhdr *nsh;
 	struct fwd_entry *next_hop;
 	int ret;
+    int ready2send = 0;
 
 	// TODO: The link between these two progs
 	// 		 should be a tail call instead
 	ret = adjust_nsh(skb);
     switch(ret){
         case CB_OK:
-            break;              // Continue execution
+            break;                              // Continue execution
         case CB_DROP:
-            return TC_ACT_SHOT; // Drop packet
-        case CB_PASS:
+            return TC_ACT_SHOT;                 // Drop packet
         case CB_END_CHAIN:
+            ready2send = 1;                     // Signal pkt should be sent
+            break;                              // after MAC update
+        case CB_PASS:
         default:
-            return TC_ACT_OK;   // Send packet rightaway
+            return TC_ACT_OK;                   // Send packet rightaway
     }
 
 	// We can only make these attributions here since
@@ -749,9 +752,21 @@ int sfc_forwarding(struct __sk_buff *skb)
 		return TC_ACT_SHOT;
 	}
 
+    // Adjust source MAC and send
+    if(ready2send){
+        if(set_src_mac(eth))
+            return TC_ACT_SHOT;
+
+        return TC_ACT_OK;
+    }
+
 	// Keep regular traffic working
-	// if (eth->h_proto != bpf_htons(ETH_P_NSH))
-	// 	return TC_ACT_OK;
+	//if (eth->h_proto != bpf_htons(ETH_P_NSH)){
+	//	#ifdef DEBUG
+	//	printk("[FORWARD]: Not NSH. Passing along...\n");
+	//	#endif /* DEBUG */
+    //    return TC_ACT_OK;
+    //}
 
 	nsh = (void*) eth + sizeof(*eth);
 
