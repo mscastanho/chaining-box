@@ -10,8 +10,19 @@ host=$(hostname)
 # sfc0 (classifier) 
 if [ $host == "sfc0" ]; then
 
+    # UDP traffic
     bpftool map update pinned /sys/fs/bpf/tc/globals/cls_table \
     key hex 0a 0a 0a 0a 0a 0a 0a 0d 03 e8 07 d0 11 \
+    value hex 00 00 01 ff 00 00 00 00 00 0b any
+
+    # TCP traffic
+    bpftool map update pinned /sys/fs/bpf/tc/globals/cls_table \
+    key hex 0a 0a 0a 0a 0a 0a 0a 0d 03 e8 07 d0 06 \
+    value hex 00 00 01 ff 00 00 00 00 00 0b any
+
+    # ICMP traffic
+    bpftool map update pinned /sys/fs/bpf/tc/globals/cls_table \
+    key hex 0a 0a 0a 0a 0a 0a 0a 0d 00 00 00 00 01 \
     value hex 00 00 01 ff 00 00 00 00 00 0b any
 
     bpftool map update pinned /sys/fs/bpf/tc/globals/src_mac \
