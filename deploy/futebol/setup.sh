@@ -18,7 +18,7 @@ user="$1"
 ip link set dev ens3 mtu 1400
 
 # Install dependencies
-apt install iperf3 -y
+apt install iperf3 jq -y
 
 # Upgrade to latest iproute2
 cd ~/
