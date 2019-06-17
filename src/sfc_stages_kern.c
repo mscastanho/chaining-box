@@ -20,7 +20,7 @@
 #define FWD_STAGE 2
 
 #define EXTRA_BYTES 6
-#define VLAN_TCI 0x000A
+#define VLAN_TCI 0x0000
 
 
 // Internal return codes
