@@ -422,13 +422,17 @@ int decap_nsh(struct xdp_md *ctx)
 	struct nshhdr *nsh;
 	struct iphdr *ip;
 	struct ip_5tuple key = { }; // Verifier does not allow uninitialized keys
-	void *smac;
+	int offset = 0;
+    uint16_t h_proto = 0;
+    void *smac;
 	int ret = 0;
 	__u8 zero = 0;
 	eth = data;
 
 	if(data + sizeof(struct ethhdr) > data_end)
 		return XDP_PASS;
+
+    offset += sizeof(struct ethhdr);
 
 	smac = bpf_map_lookup_elem(&src_mac,&zero);
 	if(smac == NULL){
@@ -466,22 +470,28 @@ int decap_nsh(struct xdp_md *ctx)
 	printk("[DECAP] oeth->proto: 0x%x\n",bpf_ntohs(eth->h_proto));
 	#endif /* DEBUG */
 
-	if(bpf_ntohs(eth->h_proto) != ETH_P_8021Q)
+    // TODO: Handle other VLAN types
+	if(bpf_ntohs(eth->h_proto) == ETH_P_8021Q){
+        vlan = (void*)eth + sizeof(struct ethhdr);
+        offset += sizeof(struct vlanhdr);
+
+        if((void*)vlan + sizeof(struct vlanhdr) > data_end)
+            return XDP_DROP;
+
+        #ifdef DEBUG
+        printk("[DECAP] vlan->proto: 0x%x\n",bpf_ntohs(vlan->h_vlan_encapsulated_proto));
+        #endif /* DEBUG */
+
+        h_proto = bpf_ntohs(vlan->h_vlan_encapsulated_proto); 
+    }else{
+        h_proto = bpf_ntohs(eth->h_proto);
+    }
+
+	if(h_proto != ETH_P_NSH)
 		return XDP_PASS;
 
-	vlan = (void*)eth + sizeof(struct ethhdr);
-
-	if((void*)vlan + sizeof(struct vlanhdr) > data_end)
-		return XDP_DROP;
-
-	#ifdef DEBUG
-	printk("[DECAP] vlan->proto: 0x%x\n",bpf_ntohs(vlan->h_vlan_encapsulated_proto));
-	#endif /* DEBUG */
-
-	if(bpf_ntohs(vlan->h_vlan_encapsulated_proto) != ETH_P_NSH)
-		return XDP_PASS;
-
-	nsh = (void*)vlan + sizeof(struct vlanhdr);
+	nsh = data + offset;
+    offset += sizeof(struct nshhdr);
 
 	// Check if we can access NSH
 	if ((void*) nsh + sizeof(struct nshhdr) > data_end)
@@ -490,7 +500,8 @@ int decap_nsh(struct xdp_md *ctx)
 	#ifdef DEBUG
 	printk("[DECAP] SPH: 0x%x\n",bpf_ntohl(nsh->serv_path));
 	#endif /* DEBUG */
-	// Check if next protocol is Ethernet
+
+    // Check if next protocol is Ethernet
 	if(nsh->next_proto != NSH_NEXT_PROTO_ETHER)
 		return XDP_DROP;
 
@@ -501,6 +512,7 @@ int decap_nsh(struct xdp_md *ctx)
 	// printk("[DECAP] \n");
 
 	ip = (void*)nsh + sizeof(struct nshhdr) + EXTRA_BYTES + sizeof(struct ethhdr);
+    offset += EXTRA_BYTES;
 
 	// Retrieve IP 5-tuple
 	ret = get_tuple(ip,data_end,&key);
@@ -524,8 +536,8 @@ int decap_nsh(struct xdp_md *ctx)
 	printk("[DECAP] Previous size: %d\n",data_end-data);
 	#endif /* DEBUG */
 
-	// Remove outer Ethernet + NSH headers
-	bpf_xdp_adjust_head(ctx, (int)(sizeof(struct ethhdr) + sizeof(struct vlanhdr) + sizeof(struct nshhdr) + EXTRA_BYTES));
+	// Remove outer encapsulation
+	bpf_xdp_adjust_head(ctx, (int)(offset));
 
 	data_end = (void *)(long)ctx->data_end;
 	data = (void *)(long)ctx->data;
