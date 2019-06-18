@@ -14,7 +14,7 @@ fi
 
 user="$1"
 
-# Configure MTU
+# Configure MTU to access the Internet
 ip link set dev ens3 mtu 1400
 
 # Install dependencies
@@ -32,3 +32,6 @@ mkdir chaining-box
 
 # Change owner of all files in the home dir
 chown -R $user /home/$user/
+
+# Set MTU back to default to avoid interfering with experiments
+ip link set dev ens3 mtu 1500
