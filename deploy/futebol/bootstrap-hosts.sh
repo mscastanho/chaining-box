@@ -4,7 +4,7 @@
 # FUTEBOL nodes before starting the experiment
 
 if [ $# -ne 1 ]; then
-    echo "Usage: $0 <host> <chaining-box-ldir>"
+    echo "Usage: $0 <chaining-box-ldir>"
     exit 1
 fi
 
@@ -32,7 +32,7 @@ destdir="/home/${FUTUSER}"
 
 for host in $FUTHOSTS; do
     
-    echo "Bootstraping $host..."
+    echo -e "\nBootstraping $host..."
     # If the host was exported by the previous
     # script, then there should be a var with the
     # corresponding name
