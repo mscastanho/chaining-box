@@ -67,5 +67,5 @@ function sshfut {
 }
 
 function rsyncfut {
-    ssh -e "ssh -F $FUTCFG" $@
+    rsync -e "ssh -F $FUTCFG" $@
 }
