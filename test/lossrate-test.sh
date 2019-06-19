@@ -17,13 +17,14 @@ tmpfile="/tmp/out_iperf.json"
 
 # iperf parameters
 serverip="$1"
-delay=5
+delay=7
 rounds=3
-duration=30
+duration=55
 interval=1
-sport=1000
-dport=2000
+sport=10000 
+dport=20000
 length=1400
+omit=2 # Omit x seconds of warmup from results
 
 rate_min=50
 rate_step=50
@@ -60,7 +61,7 @@ for rate in `seq $rate_min $rate_step $rate_max`; do
         outfile="round$i.json"
 
         echo "$i out of $rounds"
-        iperf3 -c $serverip --cport $sport -p $dport -l $length -u -b $rateM -t $duration -i $interval -J > $outfile
+        iperf3 -c $serverip --cport $dport -p $sport -l $length -u -b $rateM -t $duration -i $interval -O $omit -R -J > $outfile
         line+=";$(jq '.end.streams[0].udp.lost_percent' < $outfile)"
         sleep $delay
     done

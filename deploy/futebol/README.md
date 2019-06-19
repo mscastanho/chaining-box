@@ -14,21 +14,29 @@ Create a local temp dir to hold the information for each host:
 
     mkdir /tmp/futhosts
 
-When all nodes turn green, double-click on each of them and copy the SSH command that shows up at the top of the terminal pop-up window. Paste the contents on a text file on the directory just created (`/tmp/futhosts`) with the name you want for that node (ex: `fut01.txt`). The name of each file (without the extension) will represent the name of this node from now on.
+When all nodes turn green, double-click on each of them and copy the SSH command that shows up at the top of the terminal pop-up window. Paste the contents on a .txt file on the directory just created (`/tmp/futhosts`) with the name you want for that node (ex: `fut01.txt`). The name of each file (without the extension) will represent the name of this node from now on.
 
 Repeat the process for all nodes allocated (using different names).
 
 Then, on a terminal, run:
 
-    source export-hosts.sh
+    source setup-ssh.sh
 
-This command will configure the current terminal to access the nodes without the GUI. This should be done for all terminals you intend to use.
+This command will configure the current terminal to access the nodes without the GUI. This should be done for all terminals you intend to use. All SSH access is done using the user you used to allocate the hosts on jFed.
 
-After that, you'll have the following commands at your disposal: `sshfut` and `rsyncfut`. Please read the comments on `export-hosts.sh` for instructions on how to use them.
+After that, you'll have the following commands at your disposal: `sshfut`, `scpfut` and `rsyncfut`. They handle the SSH configuration for you. You should be able to use them in the same way as their standard counterparts. Ex:
 
-The nodes need a few adjustments to be ready for testing. For each node, run:
+Ex: Copy file `myfile.txt` to node `node0`:
 
-    ./bootstrap-host.sh <host> <chaining-box-ldir>
+    scpfut ./myfile.txt node0:<dest-dir>
 
-The second argument is the local path to the chaining-box directory, which will be copied to the remote host.
+Ex: Access node `fut20`:
+
+    sshfut fut20
+
+After setting up SSH access, the nodes need a few adjustments to be ready for testing. Simply run:
+
+    ./bootstrap-hosts.sh <chaining-box-ldir>
+
+The argument is the local path to the chaining-box directory, which will be copied to the remote host.
 

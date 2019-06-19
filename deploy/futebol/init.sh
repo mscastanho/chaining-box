@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Script to setup a FUTEBOL node for ChainingBox
+# Script to setup a FUTEBOL node for ChainingBox testing
 # Matheus Castanho, 2019
 
 if [ "$EUID" -ne 0 ]; then

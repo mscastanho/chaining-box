@@ -11,17 +11,17 @@ function echob {
 }
 
 # Run script to set FUTEBOL env vars
-source export-hosts.sh
+source setup-ssh.sh
 
 # Create directory for temp files
 tmp="/tmp/cb-vagrant"
 mkdir -p $tmp
 
 # Get list of hosts. FUTHOSTS is and environment variable
-# created by the export-hosts.sh
+# created by setup-ssh.sh
 hosts=($FUTHOSTS)
 
-echo -n "Total of ${#hosts[@]} hosts detected. Continue? (y/n) "
+echo -en "Total of ${#hosts[@]} hosts detected: ${hosts[@]}\n~> Continue? (y/n) "
 read ans
 
 if [ "$ans" != "y" ]; then
@@ -29,11 +29,12 @@ if [ "$ans" != "y" ]; then
     exit 0
 fi
 
-# Define vars and commands to beu sed
+echo ""
+
+# Define vars and commands to be used
 home="/home/$FUTUSER"
 cfgcmd="sudo $home/chaining-box/test/config-sfc.sh"
 rscmd="rsyncfut"
-rulcmd="sudo $home/hardcoded-rules.sh"
 sshcmd="sshfut"
 iface="ens3"
 killcmd="for p in \$(pgrep loopback); do sudo kill -9 \$p; done"
@@ -44,14 +45,14 @@ declare -A addresses
 
 echob "~~> Retrieving hosts info"
 for h in ${hosts[@]}; do
-    mac=$($sshcmd $h "ip link show $iface | grep ether | awk {'print \$2'}")
-    ip=$($sshcmd $h "ip addr show ens3 | grep 'inet ' | head -n1 | awk '{print \$2}'")
+    mac=$(sshfut $h "ip link show $iface | grep ether | awk {'print \$2'}")
+    ip=$(sshfut $h "ip addr show ens3 | grep 'inet ' | head -n1 | awk '{print \$2}'")
     ip=${ip:0:-3} # Remove netmask
     
     # Save on hash table for later
     addresses[$h]="$mac/$ip"
 
-    #echo -e "  [$h]\n   MAC -> $mac\n   IP  -> $ip\n
+    # echo -e "  [$h]\n   MAC -> $mac\n   IP  -> $ip\n"
 done
 
 # The first vm in the list will be our source and the last our
@@ -64,24 +65,22 @@ unset hosts[-1]
 #### Load and config stages on each host ####
 
 # src - needs classifier
-echob "~~> Configuring classifier ($src)..."
-$rscmd $src ./hardcoded-rules.sh "$home" &> /dev/null
-remote_cmd="$cfgcmd cls $iface $home/chaining-box && $rulcmd"
-$sshcmd $src \'$remote_cmd\'
+echob "~~> Configuring classifier ($src)"
+remote_cmd="$cfgcmd cls $iface $home/chaining-box"
+sshfut $src "$cfgcmd cls $iface $home/chaining-box"
 
 # sf - needs all stages    
 for h in ${hosts[@]}; do 
-    echob "~~> Configuring stages ($h)..."
+    echob "~~> Configuring stages ($h)"
     
-    echo "  - Installing BPF stages..."
-    $sshcmd $h \'"$cfgcmd sf $iface $home/chaining-box && $rulcmd"\' 
+    echo "  - Installing BPF stages"
+    sshfut $h "$cfgcmd sf $iface $home/chaining-box" 
     
-    echo "  - Killing previous SF processes..."
-    #echo "todo: $killcmd; $loopcmd"
-    #$sshcmd 
-    $sshcmd $h \'$killcmd\'
-#    echo "  - Starting loopback.py"
-#    $sshcmd $h \'$loopcmd\'
+    echo "  - Killing previous SF processes"
+    sshfut $h "for p in \$(ps aux | grep loopback | awk '{print \$2}'); do sudo kill -9 \$p; done"
+    
+    echo "  - Starting loopback.py"
+    sshfut $h "sudo nohup $home/chaining-box/test/loopback.py $iface > /dev/null 2>&1 &"
 done
 
 # dst - no configuration to be done
@@ -158,8 +157,8 @@ function install_rule {
 
 IPSRC=$(echo ${addresses[$src]} | cut -d'/' -f2)
 IPDST=$(echo ${addresses[$dst]} | cut -d'/' -f2)
-SPORT=1000
-DPORT=2000
+SPORT=10000
+DPORT=20000
 
 UDP_FLOW="$(tuple_to_hex $IPSRC $IPDST $SPORT $DPORT 17)"
 TCP_FLOW="$(tuple_to_hex $IPSRC $IPDST $SPORT $DPORT 6)"

@@ -18,13 +18,13 @@ function run_n_check {
     $@ &> /dev/null
 
     if [ $? -ne 0 ]; then
-        echo "Failed to executed command: $1 $2 $3..."
+        echo "Failed to executed command: $@"
         exit 1
     fi
 }
 
 # Export vars and funcs to access nodes
-. export-hosts.sh
+. setup-ssh.sh
 
 #host="$1"
 cbldir="$1"
@@ -32,29 +32,29 @@ destdir="/home/${FUTUSER}"
 
 for host in $FUTHOSTS; do
     
-    echo -e "\nBootstraping $host..."
+    echo -e "\nBootstraping $host"
     # If the host was exported by the previous
     # script, then there should be a var with the
     # corresponding name
-    if [ -z "${!host}" ]; then
-        echo "Host $1 not found. Exiting..."
-        exit 1    
+    if [ -z "$host" ]; then
+        echo "Host not found. Exiting..."
+        exit 1
     fi
 
     # Change hostname
-    echom "Setting hostname..."
+    echom "Setting hostname"
     run_n_check sshfut $host "sudo hostnamectl set-hostname $host"
 
     # Copy configuration script to host
-    echom "Copying configuration script to host..."
-    run_n_check rsyncfut $host ./setup.sh $destdir
+    echom "Copying configuration script to host"
+    run_n_check rsyncfut -azvh ./init.sh $host:$destdir
 
     # Run script remotely.
-    echom "Running setup.sh on the host..."
-    run_n_check sshfut $host 'sudo $destdir/setup.sh $FUTUSER'
+    echom "Running init script on the host"
+    run_n_check sshfut $host "sudo $destdir/init.sh $FUTUSER"
 
     # Copy ChainingBox source code
-    echom "Copying ChainingBox source code..."
-    run_n_check rsyncfut $host $cbldir $destdir/chaining-box --exclude='.git*'
+    echom "Copying ChainingBox source code"
+    run_n_check rsyncfut -azvh $cbldir $host:$destdir/chaining-box --exclude='.git*'
 
 done

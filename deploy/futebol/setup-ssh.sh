@@ -48,7 +48,7 @@ for f in $(ls $hostsdir | grep -e ".txt"); do
     fi
     
     if [ -z "${FUTUSER}" ]; then
-        export FUTUSER="$(echo $address | cut -d'@' -f1)"
+        export FUTUSER="$user"
     fi
 
     # Add host to list of hosts
@@ -68,4 +68,8 @@ function sshfut {
 
 function rsyncfut {
     rsync -e "ssh -F $FUTCFG" $@
+}
+
+function scpfut {
+    scp -F $FUTCFG $@
 }
