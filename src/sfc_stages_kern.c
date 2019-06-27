@@ -19,7 +19,7 @@
 #define ADJ_STAGE 1
 #define FWD_STAGE 2
 
-#define EXTRA_BYTES 6
+#define EXTRA_BYTES 0
 #define VLAN_TCI 0x0000
 
 
@@ -338,19 +338,30 @@ int classify_tc(struct __sk_buff *skb)
 	// XDP is dropping packets if the new addition is not multiple
 	// of 8 bytes. So we'll add 8 tags (32 bytes) and try to
 	// deal with the extra 6 bytes.
- 	#pragma clang loop unroll(full)
-	for(int i = 0 ; i < 8 ; i++){
-		ret = bpf_skb_vlan_push(skb,bpf_ntohs(ETH_P_8021Q),VLAN_TCI);
-		if (ret < 0) {
-			#ifdef DEBUG
-			printk("[ADJUST]: Failed to add extra room: %d\n", ret);
-			#endif /* DEBUG */
+// 	#pragma clang loop unroll(full)
+//	for(int i = 0 ; i < 8 ; i++){
+//		ret = bpf_skb_vlan_push(skb,bpf_ntohs(ETH_P_8021Q),VLAN_TCI);
+//		if (ret < 0) {
+//			#ifdef DEBUG
+//			printk("[ADJUST]: Failed to add extra room: %d\n", ret);
+//			#endif /* DEBUG */
+//
+//			return TC_ACT_SHOT;
+//		}
+//	}
+    
+    // Add outer encapsulation
+    ret = bpf_skb_adjust_room(skb,sizeof(struct ethhdr) + sizeof(struct nshhdr),BPF_ADJ_ROOM_MAC,0);
+	
+    if (ret < 0) {
+		#ifdef DEBUG
+		printk("[ADJUST]: Failed to add extra room: %d\n", ret);
+		#endif /* DEBUG */
 
-			return TC_ACT_SHOT;
-		}
-	}
-
-	data = (void *)(long)skb->data;
+		return TC_ACT_SHOT;
+    }
+    
+    data = (void *)(long)skb->data;
 	data_end = (void *)(long)skb->data_end;
 
 	#ifdef DEBUG
