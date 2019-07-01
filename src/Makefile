@@ -26,10 +26,17 @@ LDFLAGS ?= -L$(LIBBPF_DIR)
 
 LIBS = -lbpf -lelf
 
-all: test llvm-check $(KERN_OBJECTS) utils agent
+# Add libs from kernel source. This is needed since
+# we might use features not available on the standard
+# headers present on the current kernel. This is an attempt
+# to avoid installing updated headers system wide.
+# 
+# KDIR is checked by kdir-check target, and should be provided
+# when calling `make`.
+# 	ex: make ~/devel/kernels/linux-5.1
+CFLAGS += -I$(KDIR)/usr/include
 
-test:
-	@echo ${UTILS}
+all: llvm-check kdir-check $(KERN_OBJECTS) utils agent
 
 .PHONY: clean $(CLANG) $(LLC) all utils debug
 
@@ -50,6 +57,17 @@ llvm-check: $(CLANG) $(LLC)
 		else true; fi; \
 	done
 
+kdir-check:
+	@if [ -z $(KDIR) ]; then \
+		echo "Error: KDIR is not set. Check README for more info"; \
+		exit 1; \
+	fi
+	@if [ ! -d $(KDIR)/usr/include ]; then \
+		echo "Error: Directory $(KDIR)/usr/include doesn't exist."; \
+		echo "Maybe run 'make kernel_headers' from $(KDIR)?"; \
+		exit 1; \
+	fi
+
 $(OBJECT_LIBBPF):
 	@if [ ! -d $(LIBBPF_DIR) ]; then \
 		echo "Error: Need libbpf submodule"; \
@@ -67,7 +85,7 @@ $(KERN_OBJECTS): %.o: %.c
 	    -Wno-unused-value \
 	    -Wno-pointer-sign \
 	    -Wno-compare-distinct-pointer-types \
-	    -Werror \
+		-Werror \
 	    -O2 -emit-llvm -c -g $<
 	$(LLC) -march=bpf -filetype=obj -o $@ ${@:.o=.ll}
 
