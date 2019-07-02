@@ -152,6 +152,9 @@ static inline int get_tuple(void* ip_data, void* data_end, struct ip_5tuple *t){
 			t->sport = 0;
 			break;
 		default:
+            #ifdef DEBUG
+            printk("get_tuple(): Unrecognized L4 protocol: %d\n",ip->protocol);
+            #endif /* DEBUG */
 			return -1;
 	}
 
@@ -329,33 +332,12 @@ int classify_tc(struct __sk_buff *skb)
 	printk("[CLASS-TC] Size before: %d\n",data_end-data);
 	#endif /* DEBUG */
 
-	// Hack to add space for NSH + Outer Ethernet
-	// The only way we found to add bytes to packet
-	// was using vlan_push. Not at all ideal.
-	// vlan_push adds 4 bytes (802.1q header)
-	// We need to add 26 bytes, which is not possible using
-	// vlan tags. Ideally we would add 28 bytes, but apparently
-	// XDP is dropping packets if the new addition is not multiple
-	// of 8 bytes. So we'll add 8 tags (32 bytes) and try to
-	// deal with the extra 6 bytes.
-// 	#pragma clang loop unroll(full)
-//	for(int i = 0 ; i < 8 ; i++){
-//		ret = bpf_skb_vlan_push(skb,bpf_ntohs(ETH_P_8021Q),VLAN_TCI);
-//		if (ret < 0) {
-//			#ifdef DEBUG
-//			printk("[ADJUST]: Failed to add extra room: %d\n", ret);
-//			#endif /* DEBUG */
-//
-//			return TC_ACT_SHOT;
-//		}
-//	}
-    
     // Add outer encapsulation
     ret = bpf_skb_adjust_room(skb,sizeof(struct ethhdr) + sizeof(struct nshhdr),BPF_ADJ_ROOM_MAC,0);
-	
+
     if (ret < 0) {
 		#ifdef DEBUG
-		printk("[ADJUST]: Failed to add extra room: %d\n", ret);
+		printk("[CLASSIFY]: Failed to add extra room: %d\n", ret);
 		#endif /* DEBUG */
 
 		return TC_ACT_SHOT;
@@ -661,33 +643,16 @@ int adjust_nsh(struct __sk_buff *skb)
 	ieth = data;
 	prev_proto = ieth->h_proto;
 
-	// // printk("[ADJUST]: skb_max_len = %x\n", skb->dev->mtu + skb->dev->hard_header_len);
-	// if(ieth+1 > data_end){
-	// 	return BPF_DROP;
-	// }
+    // Add outer encapsulation
+    ret = bpf_skb_adjust_room(skb,sizeof(struct ethhdr) + sizeof(struct nshhdr),BPF_ADJ_ROOM_MAC,0);
 
-	// __be16 proto = skb->protocol;
-	// printk("[ADJUST]: skb->protocol = 0x%x ; eth->h_proto = 0x%x ; ETH_P_IP = 0x%x\n", proto,bpf_htons(ieth->h_proto),bpf_htons(ETH_P_IP));
+    if (ret < 0) {
+		#ifdef DEBUG
+		printk("[ADJUST]: Failed to add extra room: %d\n", ret);
+		#endif /* DEBUG */
 
-	// Hack to add space for NSH + Outer Ethernet
-	// The only way we found to add bytes to packet
-	// was using vlan_push. Not at all ideal.
-	// vlan_push adds 4 bytes (802.1q header)
-	// We need to add 26 bytes, which is not possible using
-	// vlan tags. Ideally we would add 28 bytes, but apparently
-	// XDP is dropping packets if the new addition is not multiple
-	// of 8 bytes. So we'll add 8 tags (32 bytes) and try to
-	// deal with the extra 6 bytes.
- 	#pragma clang loop unroll(full)
-	for(int i = 0 ; i < 8 ; i++){
-		ret = bpf_skb_vlan_push(skb,bpf_ntohs(ETH_P_8021Q),VLAN_TCI);
-		if (ret < 0) {
-			#ifdef DEBUG
-			printk("[ADJUST]: Failed to add extra room: %d\n", ret);
-			#endif /* DEBUG */
-			return CB_DROP;
-		}
-	}
+		return TC_ACT_SHOT;
+    }
 
 	data = (void *)(long)skb->data;
 	data_end = (void *)(long)skb->data_end;
