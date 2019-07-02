@@ -5,3 +5,7 @@
 *.out
 __pycache__*
 *.o
+*.ll
+*.deb
+*.tar.gz
+*.zip
