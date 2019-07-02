@@ -19,7 +19,11 @@ else
     CBDIR="/home/$USER/chaining-box"
 fi
 
-CBOBJ="sfc_stages_kern.o"
+if [ $node_type == "cls" ]; then
+    CBOBJ="sfc_classifier_kern.o"
+else
+    CBOBJ="sfc_stages_kern.o"
+fi
 
 cd $CBDIR/src
 

@@ -1,4 +1,5 @@
 TARGETS = sfc_stages_kern
+TARGETS += sfc_classifier_kern
 TARGETS += sfc_agent_user
 
 # Generate file name-scheme based on TARGETS
@@ -36,7 +37,7 @@ LIBS = -lbpf -lelf
 # 	ex: make ~/devel/kernels/linux-5.1
 CFLAGS += -I$(KDIR)/usr/include
 
-all: llvm-check kdir-check $(KERN_OBJECTS) utils agent
+all: llvm-check kdir-check $(KERN_OBJECTS) utils cb_agent
 
 .PHONY: clean $(CLANG) $(LLC) all utils debug
 
@@ -48,6 +49,7 @@ clean:
 	cd $(UTILSDIR) && $(MAKE) clean;
 	rm -f *.ll
 	rm -f *.o
+	rm -f cb_agent
 
 llvm-check: $(CLANG) $(LLC)
 	@for TOOL in $^ ; do \
@@ -92,5 +94,5 @@ $(KERN_OBJECTS): %.o: %.c
 utils:
 	$(MAKE) -C $(UTILSDIR)
 
-agent: sfc_agent_user.c $(OBJECT_LIBBPF) utils Makefile
+cb_agent: sfc_agent_user.c $(OBJECT_LIBBPF) utils Makefile
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $< $(UTILS) $(LIBS)
