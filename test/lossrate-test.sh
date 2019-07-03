@@ -60,9 +60,12 @@ for rate in `seq $rate_min $rate_step $rate_max`; do
     for i in $(seq 1 $rounds); do
         outfile="round$i.json"
 
-        echo "$i out of $rounds"
+        echo -n "(${i}/${rounds}) : "
         iperf3 -c $serverip --cport $dport -p $sport -l $length -u -b $rateM -t $duration -i $interval -O $omit -R -J > $outfile
-        line+=";$(jq '.end.streams[0].udp.lost_percent' < $outfile)"
+        result="$(jq '.end.streams[0].udp.lost_percent' < $outfile)"
+        line+=";$result"
+        echo "$result"
+        
         sleep $delay
     done
 

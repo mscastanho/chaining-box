@@ -50,7 +50,7 @@ for host in $FUTHOSTS; do
     run_n_check rsyncfut -azvh ./init.sh $host:$destdir
 
     # Run script remotely.
-    echom "Running init script on the host"
+    echom "Running script init.sh on the host (this may take a while)"
     run_n_check sshfut $host "sudo $destdir/init.sh $FUTUSER"
 
     # Copy ChainingBox source code

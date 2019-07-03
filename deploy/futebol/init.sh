@@ -10,6 +10,7 @@ fi
 
 if [ -z "$1" ]; then
     echo "Usage: $0 <user>"
+    exit 1
 fi 
 
 user="$1"
@@ -33,5 +34,18 @@ mkdir chaining-box
 # Change owner of all files in the home dir
 chown -R $user /home/$user/
 
+# Copy kernel source to hosts
+kversion="5.2-rc6"
+tarfile="linux-${kversion}.tar.gz"
+wget -P ~/ https://git.kernel.org/torvalds/t/$tarfile
+
+# Compiling kernel headers
+cd ~/
+tar -xf ~/$tarfile
+cd ~/linux-${kversion}
+make headers_install
+rm -f ~/$tarfile
+
 # Set MTU back to default to avoid interfering with experiments
+# THIS SHOULD BE THE LAST COMMAND!!!
 ip link set dev ens3 mtu 1500
