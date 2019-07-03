@@ -38,7 +38,6 @@ rscmd="rsyncfut"
 sshcmd="sshfut"
 iface="ens3"
 killcmd="for p in \$(pgrep loopback); do sudo kill -9 \$p; done"
-loopcmd="sudo nohup $home/chaining-box/test/loopback.py $iface > /dev/null 2>&1 &"
 
 # Get MAC and IP addresses for all hosts
 declare -A addresses
@@ -52,7 +51,7 @@ for h in ${hosts[@]}; do
     # Save on hash table for later
     addresses[$h]="$mac/$ip"
 
-    # echo -e "  [$h]\n   MAC -> $mac\n   IP  -> $ip\n"
+     echo -e "  [$h]\n   MAC -> $mac\n   IP  -> $ip\n"
 done
 
 # The first vm in the list will be our source and the last our
@@ -80,7 +79,8 @@ for h in ${hosts[@]}; do
     sshfut $h "for p in \$(ps aux | grep loopback | awk '{print \$2}'); do sudo kill -9 \$p; done"
     
     echo "  - Starting loopback.py"
-    sshfut $h "sudo nohup $home/chaining-box/test/loopback.py $iface > /dev/null 2>&1 &"
+    srcip="$(echo ${addresses[$src]} | cut -d'/' -f2)"
+    sshfut $h "sudo nohup $home/chaining-box/test/loopback.py $iface $srcip > /dev/null 2>&1 &"
 done
 
 # dst - no configuration to be done
@@ -187,7 +187,7 @@ done
 for i in ${!hosts[@]}; do
     # Get host name
     h=${hosts[$i]}
-    echob "~~> Configuring SF rules ($h)..."
+    echob "~~> Configuring SF rules ($h)"
 
     # Install src_mac rule
     MAC="$(echo ${addresses[$h]} | cut -d'/' -f1)"
@@ -201,7 +201,7 @@ for i in ${!hosts[@]}; do
     if [ $i -eq ${#hosts[@]} ]; then
         NEXT_MAC="00:00:00:00:00:00" # End of chain. Placeholder MAC.
     else
-        echo "   WARNING: Configuration for intermediate SF not implemented!"
+        NEXT_MAC="$( echo ${addresses[${hosts[$((i+1))]}]}  | cut -d'/' -f1)"
     fi
 
     # Install SFC forwarding rule
