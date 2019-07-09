@@ -21,6 +21,9 @@ ip link set dev ens3 mtu 1400
 # Install dependencies
 apt install iperf3 jq -y
 
+# Disable cloud-init network configuration
+echo "network: {config: disabled}" > /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg
+
 # Upgrade to latest iproute2
 cd ~/
 git clone https://git.kernel.org/pub/scm/network/iproute2/iproute2-next.git 
