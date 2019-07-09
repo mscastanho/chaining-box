@@ -180,3 +180,4 @@ int classify_tc(struct __sk_buff *skb)
 	// redirecting the packet to another interface
 	return TC_ACT_OK;
 }
+char _license[] SEC("license") = "GPL";
