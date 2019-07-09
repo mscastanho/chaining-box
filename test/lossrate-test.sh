@@ -29,6 +29,8 @@ omit=2 # Omit x seconds of warmup from results
 rate_min=50
 rate_step=50
 rate_max=950
+
+max_retries=2
 # Create dir to store test data
 mkdir -p $outdir
 
@@ -57,14 +59,35 @@ for rate in `seq $rate_min $rate_step $rate_max`; do
     rateM=$(printf "%dM" $rate)
     echo "Starting to send at ${rateM}bps..."
     
-    for i in $(seq 1 $rounds); do
+    i=1
+    retries=0
+    while [ $i -le $rounds ]; do
         outfile="round$i.json"
 
         echo -n "(${i}/${rounds}) : "
         iperf3 -c $serverip --cport $dport -p $sport -l $length -u -b $rateM -t $duration -i $interval -O $omit -R -J > $outfile
         result="$(jq '.end.streams[0].udp.lost_percent' < $outfile)"
-        line+=";$result"
-        echo "$result"
+        echo -n "$result"
+
+        if [ "$result" = "null" ] || [ $result -lt 0 ] ; then
+            echo " <- Weird result, retrying... "
+            retries=$((retries + 1))
+
+            # Save error output with error for debugging purposes
+            mkdir -o "error"
+            mv $outfile "error/round$i-e${retries}.json"
+
+            if [ $retries -gt $max_retries ]; then
+                echo -e "\n\nFAIL: Retried too many times already. Exiting..."
+                exit 1
+            fi
+        else
+            echo ""
+            retries=0
+            i=$((i+1))
+            line+=";$result"
+
+        fi
         
         sleep $delay
     done
