@@ -4,7 +4,7 @@
 # FUTEBOL nodes before starting the experiment
 
 if [ $# -ne 1 ]; then
-    echo "Usage: $0 <chaining-box-ldir>"
+    echo "Usage: $0 <kernel-img-path>"
     exit 1
 fi
 
@@ -26,8 +26,15 @@ function run_n_check {
 # Export vars and funcs to access nodes
 . setup-ssh.sh
 
-#host="$1"
-cbldir="$1"
+# Parse kernel image argument
+kimgpath="$1"
+kimgfile="$(basename $kimgpath)"
+if [[ $kimgfile != *.deb ]]; then
+    echo "First arg should be a .deb package to install specific kernel"
+    exit 1
+fi
+
+cbldir="$( cd "$(dirname $0)" ; pwd -P)/../.." # chaining-box dir
 destdir="/home/${FUTUSER}"
 
 for host in $FUTHOSTS; do
@@ -57,4 +64,12 @@ for host in $FUTHOSTS; do
     echom "Copying ChainingBox source code"
     run_n_check rsyncfut -azvh $cbldir $host:$destdir/chaining-box --exclude='.git*'
 
+    # Install custom kernel
+    echom "Installing custom kernel from file '$kimgpath'"
+    run_n_check scpfut $kimgpath $host:$destdir
+    run_n_check sshfut $host "sudo dpkg -i $destdir/$(echo $kimgfile)"
+
+    # Rebooting host
+    echom "Reboot issued. Moving on..."
+    sshfut $host "sudo reboot" &> /dev/null
 done
