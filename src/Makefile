@@ -1,12 +1,16 @@
 TARGETS = sfc_stages_kern
 TARGETS += sfc_classifier_kern
 TARGETS += sfc_agent_user
+TARGETS += ../test/tc_redirect/tc_bench01_redirect_kern
+#TARGETS += ../test/tc_redirect/tc_bench01_redirect_user
 
 # Generate file name-scheme based on TARGETS
 KERN = $(filter %_kern, $(TARGETS))
-USER = $(filter %_user, $(TARGETS))
 KERN_SOURCES = ${KERN:=.c}
 KERN_OBJECTS = ${KERN_SOURCES:.c=.o}
+
+USER = $(filter %_user, $(TARGETS))
+USER_OBJECTS = ${USER:=.o}
 
 LLC ?= llc
 CLANG ?= clang
@@ -37,7 +41,7 @@ LIBS = -lbpf -lelf
 # 	ex: make ~/devel/kernels/linux-5.1
 CFLAGS += -I$(KDIR)/usr/include
 
-all: llvm-check kdir-check $(KERN_OBJECTS) utils cb_agent
+all: llvm-check kdir-check $(KERN_OBJECTS) $(USER_OBJECTS) utils
 
 .PHONY: clean $(CLANG) $(LLC) all utils debug
 
@@ -88,11 +92,11 @@ $(KERN_OBJECTS): %.o: %.c
 	    -Wno-pointer-sign \
 	    -Wno-compare-distinct-pointer-types \
 		-Werror \
-	    -O2 -emit-llvm -c -g $<
+		-O2 -emit-llvm -c -g $< -o ${@:.o=.ll}
 	$(LLC) -march=bpf -filetype=obj -o $@ ${@:.o=.ll}
 
 utils:
 	$(MAKE) -C $(UTILSDIR)
 
-cb_agent: sfc_agent_user.c $(OBJECT_LIBBPF) utils Makefile
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $< $(UTILS) $(LIBS)
+$(USER_OBJECTS): %.o: %.c $(OBJECT_LIBBPF) utils Makefile
+	$(CC) $(CFLAGS) $(LDFLAGS) -o ${@:.o=} $< $(UTILS) $(LIBS)

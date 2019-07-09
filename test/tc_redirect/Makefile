@@ -19,11 +19,12 @@ OBJECT_LIBBPF = $(LIBBPF_DIR)/libbpf.a
 
 CFLAGS ?= -I$(LIBBPF_DIR)/root/usr/include/
 CFLAGS += -I../../src/headers/ 
+CFLAGS += -I$(KDIR)/usr/include
 LDFLAGS ?= -L$(LIBBPF_DIR)
 
 LIBS = -lbpf -lelf
 
-all: test llvm-check $(KERN_OBJECTS) $(USER_OBJECTS)
+all: test kdir-check llvm-check $(KERN_OBJECTS) $(USER_OBJECTS)
 
 test:
 	@echo ${UTILS}
@@ -46,6 +47,17 @@ llvm-check: $(CLANG) $(LLC)
 			exit 1; \
 		else true; fi; \
 	done
+
+kdir-check:
+	@if [ -z $(KDIR) ]; then \
+		echo "Error: KDIR is not set. Check README for more info"; \
+		exit 1; \
+	fi
+	@if [ ! -d $(KDIR)/usr/include ]; then \
+		echo "Error: Directory $(KDIR)/usr/include doesn't exist."; \
+		echo "Maybe run 'make kernel_headers' from $(KDIR)?"; \
+		exit 1; \
+	fi
 
 $(OBJECT_LIBBPF):
 	@if [ ! -d $(LIBBPF_DIR) ]; then \

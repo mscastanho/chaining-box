@@ -19,6 +19,7 @@
 
 #include "bpf_endian.h"
 #include "bpf_helpers.h"
+#include "common.h"
 
 /* Notice: TC and iproute2 bpf-loader uses another elf map layout */
 struct bpf_elf_map {
@@ -39,6 +40,14 @@ struct bpf_elf_map {
 #define PIN_GLOBAL_NS	2
 
 struct bpf_elf_map SEC("maps") egress_ifindex = {
+	.type = BPF_MAP_TYPE_ARRAY,
+	.size_key = sizeof(int),
+	.size_value = sizeof(int),
+	.pinning = PIN_GLOBAL_NS,
+	.max_elem = 1,
+};
+
+struct bpf_elf_map SEC("maps") srcip = {
 	.type = BPF_MAP_TYPE_ARRAY,
 	.size_key = sizeof(int),
 	.size_value = sizeof(int),
@@ -80,6 +89,7 @@ int _ingress_redirect(struct __sk_buff *skb)
 	void *data_end = (void *)(long)skb->data_end;
 	struct ethhdr *eth = data;
 	int key = 0, *ifindex;
+    __u32 *sip;
 
 	if (data + sizeof(*eth) > data_end)
 		return TC_ACT_OK;
@@ -99,7 +109,37 @@ int _ingress_redirect(struct __sk_buff *skb)
 	if (*ifindex == 42)  /* Hack: use ifindex==42 as DROP switch */
 		return TC_ACT_SHOT;
 
-	/* Swap src and dst mac-addr if ingress==egress
+    #ifdef DEBUG
+    printk("ifi OK. Checking sip...\n");
+    #endif /* DEBUG */
+
+    struct iphdr *ip = (struct iphdr*)(data + sizeof(struct ethhdr));
+    if((void*)ip + sizeof(struct iphdr) > data_end)
+        return TC_ACT_OK;
+
+    sip = bpf_map_lookup_elem(&srcip, &key);
+	if (!sip)
+        return TC_ACT_OK;
+
+    if(ip->protocol == 1){
+        #ifdef DEBUG
+        printk("IT'S A PING!!!\n");
+        #endif /* DEBUG */
+    }
+
+    if(*sip != ip->saddr){
+        #ifdef DEBUG
+        printk("sip check failed. Passing along... %x != %x\n",*sip,ip->saddr);
+        #endif /* DEBUG */
+
+        return TC_ACT_OK;
+    }else{
+        #ifdef DEBUG
+        printk("IT'S A MATCH!!!\n");
+        #endif /* DEBUG */
+    }
+
+     /* Swap src and dst mac-addr if ingress==egress
 	 * --------------------------------------------
 	 * If bouncing packet out ingress device, we need to update
 	 * MAC-addr, as some NIC HW will drop such bounced frames
