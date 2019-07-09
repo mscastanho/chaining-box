@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Run the config script in the current shell
-. config-cb.sh
+. config-cb.sh $1
 
 # Run SSH config script
 . setup-ssh.sh

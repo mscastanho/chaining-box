@@ -16,7 +16,7 @@ declare -a hosts
 # Erase and create config file
 echo -n "" > $sshcfg
 
-for f in $(ls $hostsdir | grep -e ".txt"); do
+for f in $(ls $hostsdir | grep -e ".txt$"); do
     
     # Get SSH connection params from command
     cmd="$(cat $hostsdir/$f | tail -n+2)"

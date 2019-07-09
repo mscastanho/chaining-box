@@ -30,7 +30,6 @@ while True:
 
     ipHeader=receivedPacket[14:34]
     ipHdr=struct.unpack("!12s4s4s",ipHeader)
-    destinationIP=socket.inet_ntoa(ipHdr[2])
     sourceIP=socket.inet_ntoa(ipHdr[1])
 
     if sourceIP != ipsrc:

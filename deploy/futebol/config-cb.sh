@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 # Script to configure ChainingBox hosts for testing
 
+if [ "$1" == "redir" ]; then
+    tc_redir="true"
+
+    echo -e "\n=========================="
+    echo " tc_redirect mode enabled"
+    echo -e "==========================\n"
+fi
+
 # Vars to set output text mode
 b=$(tput bold) # bold
 n=$(tput sgr0) # normal
@@ -33,6 +41,7 @@ echo ""
 
 # Define vars and commands to be used
 home="/home/$FUTUSER"
+ksrcdir="$home/linux-5.2-rc6"
 cfgcmd="sudo $home/chaining-box/test/config-sfc.sh"
 rscmd="rsyncfut"
 sshcmd="sshfut"
@@ -65,22 +74,29 @@ unset hosts[-1]
 
 # src - needs classifier
 echob "~~> Configuring classifier ($src)"
-remote_cmd="$cfgcmd cls $iface $home/chaining-box"
-sshfut $src "$cfgcmd cls $iface $home/chaining-box"
+sshfut $src "$cfgcmd cls $iface $ksrcdir $home/chaining-box"
 
 # sf - needs all stages    
 for h in ${hosts[@]}; do 
     echob "~~> Configuring stages ($h)"
     
     echo "  - Installing BPF stages"
-    sshfut $h "$cfgcmd sf $iface $home/chaining-box" 
-    
+    sshfut $h "$cfgcmd sf $iface $ksrcdir $home/chaining-box"
+
     echo "  - Killing previous SF processes"
     sshfut $h "for p in \$(ps aux | grep loopback | awk '{print \$2}'); do sudo kill -9 \$p; done"
-    
-    echo "  - Starting loopback.py"
+    sshfut $h "sudo tc filter del dev $iface ingress"
+
     srcip="$(echo ${addresses[$src]} | cut -d'/' -f2)"
-    sshfut $h "sudo nohup $home/chaining-box/test/loopback.py $iface $srcip > /dev/null 2>&1 &"
+
+    if [ "$tc_redir" == "true" ]; then
+        echo "  - Starting tc_redirect"
+        sshfut $h "$cfgcmd redir $iface $ksrcdir $home/chaining-box"
+    else
+        echo "  - Starting loopback.py"
+        sshfut $h "sudo nohup $home/chaining-box/test/loopback.py $iface $srcip > /dev/null 2>&1 &"
+    fi
+
 done
 
 # dst - no configuration to be done
@@ -133,11 +149,19 @@ function tuple_to_hex {
     echo "${IPSRC}${IPDST}${SPORT}${DPORT}${PROTO}"
 }
 
+# Reverse space-separated strings
+function reverse_bytes {
+    PAIRS="$@"
+    echo -n "$PAIRS " | tac -s ' '
+}
+
 function install_rule {
     LAYER="$1" # TC, XDP...
     MAP="$2"
     KEY="$3"
     VALUE="$4"
+    REVKEY="$5"
+    REVVAL="$6"
 
     # Account for odd sized strings
     KEY=$(turn_even $KEY)
@@ -146,8 +170,8 @@ function install_rule {
     KEY=$(split_string $KEY)
     VALUE=$(split_string $VALUE)
 
-    # echo "$SPLITTED_KEY"
-    # echo "$SPLITTED_VALUE"
+    if [ "$REVKEY" = "1" ]; then KEY=$(reverse_bytes $KEY); fi
+    if [ "$REVVAL" = "1" ]; then VALUE=$(reverse_bytes $VALUE); fi
 
     echo "bpftool map update pinned /sys/fs/bpf/$LAYER/globals/$MAP key hex $KEY value hex $VALUE any"
 }
@@ -196,6 +220,20 @@ for i in ${!hosts[@]}; do
     cmd="$(install_rule tc src_mac $KEY $VALUE)"
     #$sshcmd "$cmd"
     $sshcmd $h "sudo $cmd"
+
+    # Install redirect rules, if necessary
+    if [ "$tc_redir" == "true" ]; then
+
+        # Get $iface ifindex to configure tc_redirect prog
+        ifindex=$($sshcmd $h "ip link show $iface | head -n1 | awk  -F ':' '{print \$1}'")
+        KEY="00000000"
+        VALUE="$(number_to_hex $ifindex 8)"
+        $sshcmd $h "sudo $(install_rule tc egress_ifindex $KEY $VALUE 0 1)"
+
+        KEY="00000000"
+        VALUE="$(ip_to_hex $srcip)"
+        $sshcmd $h "sudo $(install_rule tc srcip $KEY $VALUE)"
+    fi
 
     # If last SF, end of chain
     if [ $i -eq ${#hosts[@]} ]; then

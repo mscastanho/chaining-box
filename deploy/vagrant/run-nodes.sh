@@ -29,18 +29,20 @@ vagrant ssh-config > $sshcfg
 
 #### Load and config stages on each host ####
 home="/home/vagrant"
+ksrcdir="$home/linux-5.2-rc6"
 cfgcmd="sudo $home/chaining-box/test/config-sfc.sh"
 scpcmd="scp -F $sshcfg"
 rulcmd="sudo $home/hardcoded-rules.sh"
 sshcmd="ssh -F $sshcfg"
 killcmd="for p in \$(ps aux | grep loopback.py | awk '{print \$2}'); do sudo kill -9 \$p; done"
-loopcmd="sudo nohup $home/chaining-box/test/loopback.py eth1 > /dev/null 2>&1 &"
+srcip="10.10.10.10"
+loopcmd="sudo nohup $home/chaining-box/test/loopback.py eth1 $srcip > /dev/null 2>&1 &"
 
 
 # src - needs classifier
 echo "~~> Configuring classifier ($src)..."
 $scpcmd ./hardcoded-rules.sh $src:~/ &> /dev/null
-$sshcmd $src "$cfgcmd cls eth1 $home/chaining-box && $rulcmd"
+$sshcmd $src "$cfgcmd cls eth1 $ksrcdir $home/chaining-box && $rulcmd"
 
 # sf - needs all stages    
 for h in ${hosts[@]}; do 
@@ -48,8 +50,8 @@ for h in ${hosts[@]}; do
     
     echo "  - Installing BPF stages..."
     $scpcmd ./hardcoded-rules.sh $h:~/ &> /dev/null
-    $sshcmd $h "$cfgcmd sf eth1 $home/chaining-box && $rulcmd" 
-    
+    $sshcmd $h "$cfgcmd sf eth1 $ksrcdir $home/chaining-box && $rulcmd"
+
     echo "  - Killing previous SF processes..."
     #echo "todo: $killcmd; $loopcmd"
     $sshcmd $h "$killcmd"
