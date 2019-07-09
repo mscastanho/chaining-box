@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#include "bpf_helpers.h"
 #include "common.h"
 
 static inline int get_tuple(void* ip_data, void* data_end, struct ip_5tuple *t){
