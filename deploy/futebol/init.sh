@@ -22,7 +22,7 @@ ip link set dev ens3 mtu 1400
 apt install iperf3 jq -y
 
 # Disable cloud-init network configuration
-echo "network: {config: disabled}" > /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg
+#echo "network: {config: disabled}" > /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg
 
 # Upgrade to latest iproute2
 cd ~/
@@ -38,16 +38,26 @@ mkdir chaining-box
 chown -R $user /home/$user/
 
 # Copy kernel source to hosts
-kversion="5.2-rc6"
+kversion="5.3"
 tarfile="linux-${kversion}.tar.gz"
 wget -P ~/ https://git.kernel.org/torvalds/t/$tarfile
 
-# Compiling kernel headers
+# Compiling kernel headers and perf
 cd ~/
 tar -xf ~/$tarfile
 cd ~/linux-${kversion}
 make headers_install
+cd tools/perf
+idestdir="/usr/local"
+make DESTDIR=$idestdir
+make DESTDIR=$idestdir install
 rm -f ~/$tarfile
+
+# Download and install kernel 5.3
+kversion="5.3.0" # The script needs an extra .x to work
+kinstall="/tmp/install-kernel.sh"
+wget https://raw.githubusercontent.com/pimlie/ubuntu-mainline-kernel.sh/master/ubuntu-mainline-kernel.sh -O $kinstall
+bash $kinstall -i $kversion
 
 # Set MTU back to default to avoid interfering with experiments
 # THIS SHOULD BE THE LAST COMMAND!!!

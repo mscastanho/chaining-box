@@ -18,7 +18,7 @@ tmpfile="/tmp/out_iperf.json"
 # iperf parameters
 serverip="$1"
 delay=7
-rounds=3
+rounds=10
 duration=55
 interval=1
 sport=10000 
@@ -69,12 +69,13 @@ for rate in `seq $rate_min $rate_step $rate_max`; do
         result="$(jq '.end.streams[0].udp.lost_percent' < $outfile)"
         echo -n "$result"
 
-        if [ "$result" = "null" ] || [ $result -lt 0 ] ; then
+        # Check if measurement failed (== null or < 0)
+        if [ "$result" = "null" ] || [ $(echo "$result < 0" | bc) == "1" ] ; then
             echo " <- Weird result, retrying... "
             retries=$((retries + 1))
 
             # Save error output with error for debugging purposes
-            mkdir -o "error"
+            mkdir -p "error"
             mv $outfile "error/round$i-e${retries}.json"
 
             if [ $retries -gt $max_retries ]; then

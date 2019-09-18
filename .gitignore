@@ -9,3 +9,4 @@ __pycache__*
 *.deb
 *.tar.gz
 *.zip
+*.swp

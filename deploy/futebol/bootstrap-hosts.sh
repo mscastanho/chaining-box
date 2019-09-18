@@ -3,11 +3,6 @@
 # Script to perform all necessary configurations on
 # FUTEBOL nodes before starting the experiment
 
-if [ $# -ne 1 ]; then
-    echo "Usage: $0 <kernel-img-path>"
-    exit 1
-fi
-
 # Echo message with pretty prefix
 function echom {
     echo "~~> $@"
@@ -26,14 +21,6 @@ function run_n_check {
 # Export vars and funcs to access nodes
 . setup-ssh.sh
 
-# Parse kernel image argument
-kimgpath="$1"
-kimgfile="$(basename $kimgpath)"
-if [[ $kimgfile != *.deb ]]; then
-    echo "First arg should be a .deb package to install specific kernel"
-    exit 1
-fi
-
 cbldir="$( cd "$(dirname $0)" ; pwd -P)/../.." # chaining-box dir
 destdir="/home/${FUTUSER}"
 
@@ -48,7 +35,7 @@ for host in $FUTHOSTS; do
         exit 1
     fi
 
-    # Change hostname
+    # Set hostname
     echom "Setting hostname"
     run_n_check sshfut $host "sudo hostnamectl set-hostname $host"
 
@@ -63,11 +50,6 @@ for host in $FUTHOSTS; do
     # Copy ChainingBox source code
     echom "Copying ChainingBox source code"
     run_n_check rsyncfut -azvh $cbldir $host:$destdir/chaining-box --exclude='.git*'
-
-    # Install custom kernel
-    echom "Installing custom kernel from file '$kimgpath'"
-    run_n_check scpfut $kimgpath $host:$destdir
-    run_n_check sshfut $host "sudo dpkg -i $destdir/$(echo $kimgfile)"
 
     # Rebooting host
     echom "Reboot issued. Moving on..."

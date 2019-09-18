@@ -1,0 +1,36 @@
+#!/usr/bin/env bpftrace
+
+
+/* On TC, cls_bpf_classify is the function that
+ * actually runs eBPF programs loaded to it. So
+ * attaching this program to this kprobe can give
+ * us an estimative of how long the program took.
+ * However, the result will also include processing
+ * time for other tasks done by this func.
+ *
+ * Check: $KERNEL/net/sched/cls_bpf.c */
+
+BEGIN
+{
+    printf("Analyzing FWD stage...\n");
+}
+
+kprobe:cls_bpf_classify
+{
+    @ncalls = count();
+    @start = nsecs;
+}
+
+kretprobe:cls_bpf_classify
+{
+    @time_taken = hist(nsecs - @start);
+}
+
+// Clear var to avoid print on program exit
+END
+{
+    printf("# calls to cls_bpf_classify():\n");
+    print(@ncalls);
+    clear(@ncalls);
+    clear(@start);
+}

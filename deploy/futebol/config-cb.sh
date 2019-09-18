@@ -1,13 +1,26 @@
 #!/usr/bin/env bash
 # Script to configure ChainingBox hosts for testing
 
-if [ "$1" == "redir" ]; then
-    tc_redir="true"
+# SF to execute on hosts
+sf="$1"
 
-    echo -e "\n=========================="
-    echo " tc_redirect mode enabled"
-    echo -e "==========================\n"
-fi
+case "$1" in
+    none)
+        ;&
+    redir)
+        ;&
+    loopy)
+        ;&
+    cloop)
+        echo -e "\n=========================="
+        echo " $sf mode enabled"
+        echo -e "==========================\n"
+        ;;
+    *)
+        echo "ERROR: Unknown mode '$sf'"
+        echo "Usage: $0 [redir | loopy | cloop]"
+        exit 1
+esac
 
 # Vars to set output text mode
 b=$(tput bold) # bold
@@ -17,92 +30,6 @@ n=$(tput sgr0) # normal
 function echob {
     echo "${b}${@}${n}"
 }
-
-# Run script to set FUTEBOL env vars
-source setup-ssh.sh
-
-# Create directory for temp files
-tmp="/tmp/cb-vagrant"
-mkdir -p $tmp
-
-# Get list of hosts. FUTHOSTS is and environment variable
-# created by setup-ssh.sh
-hosts=($FUTHOSTS)
-
-echo -en "Total of ${#hosts[@]} hosts detected: ${hosts[@]}\n~> Continue? (y/n) "
-read ans
-
-if [ "$ans" != "y" ]; then
-    echo "Exiting..."
-    exit 0
-fi
-
-echo ""
-
-# Define vars and commands to be used
-home="/home/$FUTUSER"
-ksrcdir="$home/linux-5.2-rc6"
-cfgcmd="sudo $home/chaining-box/test/config-sfc.sh"
-rscmd="rsyncfut"
-sshcmd="sshfut"
-iface="ens3"
-killcmd="for p in \$(pgrep loopback); do sudo kill -9 \$p; done"
-
-# Get MAC and IP addresses for all hosts
-declare -A addresses
-
-echob "~~> Retrieving hosts info"
-for h in ${hosts[@]}; do
-    mac=$(sshfut $h "ip link show $iface | grep ether | awk {'print \$2'}")
-    ip=$(sshfut $h "ip addr show ens3 | grep 'inet ' | head -n1 | awk '{print \$2}'")
-    ip=${ip:0:-3} # Remove netmask
-    
-    # Save on hash table for later
-    addresses[$h]="$mac/$ip"
-
-     echo -e "  [$h]\n   MAC -> $mac\n   IP  -> $ip\n"
-done
-
-# The first vm in the list will be our source and the last our
-# destination during tests. All the others will be SFs
-src=${hosts[0]} 
-dst=${hosts[-1]}
-unset hosts[0]
-unset hosts[-1]
-
-#### Load and config stages on each host ####
-
-# src - needs classifier
-echob "~~> Configuring classifier ($src)"
-sshfut $src "$cfgcmd cls $iface $ksrcdir $home/chaining-box"
-
-# sf - needs all stages    
-for h in ${hosts[@]}; do 
-    echob "~~> Configuring stages ($h)"
-    
-    echo "  - Installing BPF stages"
-    sshfut $h "$cfgcmd sf $iface $ksrcdir $home/chaining-box"
-
-    echo "  - Killing previous SF processes"
-    sshfut $h "for p in \$(ps aux | grep loopback | awk '{print \$2}'); do sudo kill -9 \$p; done"
-    sshfut $h "sudo tc filter del dev $iface ingress"
-
-    srcip="$(echo ${addresses[$src]} | cut -d'/' -f2)"
-
-    if [ "$tc_redir" == "true" ]; then
-        echo "  - Starting tc_redirect"
-        sshfut $h "$cfgcmd redir $iface $ksrcdir $home/chaining-box"
-    else
-        echo "  - Starting loopback.py"
-        sshfut $h "sudo nohup $home/chaining-box/test/loopback.py $iface $srcip > /dev/null 2>&1 &"
-    fi
-
-done
-
-# dst - no configuration to be done
-
-
-#### Configure SFC rules
 
 function turn_even {
     KEY="$1"
@@ -176,79 +103,179 @@ function install_rule {
     echo "bpftool map update pinned /sys/fs/bpf/$LAYER/globals/$MAP key hex $KEY value hex $VALUE any"
 }
 
+# Run script to set FUTEBOL env vars
+source setup-ssh.sh
 
-# Flow definitions
+# Create directory for temp files
+tmp="/tmp/cb-vagrant"
+mkdir -p $tmp
 
-IPSRC=$(echo ${addresses[$src]} | cut -d'/' -f2)
-IPDST=$(echo ${addresses[$dst]} | cut -d'/' -f2)
-SPORT=10000
-DPORT=20000
+# Get list of hosts. FUTHOSTS is and environment variable
+# created by setup-ssh.sh
+hosts=($FUTHOSTS)
 
-UDP_FLOW="$(tuple_to_hex $IPSRC $IPDST $SPORT $DPORT 17)"
-TCP_FLOW="$(tuple_to_hex $IPSRC $IPDST $SPORT $DPORT 6)"
-ICMP_FLOW="$(tuple_to_hex $IPSRC $IPDST 0 0 1)"
+echo -en "Total of ${#hosts[@]} hosts detected: ${hosts[@]}\n~> Continue? (y/n) "
+read ans
 
-SPI="1" # Same SPI for all flows
+if [ "$ans" != "y" ]; then
+    echo "Exiting..."
+    exit 0
+fi
 
-#echo -e "TCP FLOW: \n $TCP_FLOW\nUDP FLOW:\n $UDP_FLOW\nICMP_FLOW:\n $ICMP_FLOW"
+echo ""
 
-# Install rules on classifier
-echob "~~> Configuring cls rules ($src)"
+# Define vars and commands to be used
+home="/home/$FUTUSER"
+ksrcdir="$home/linux-5.2-rc6"
+cfgcmd="sudo $home/chaining-box/test/config-sfc.sh"
+rscmd="rsyncfut"
+sshcmd="sshfut"
+iface="ens3"
+killcmd="for p in \$(pgrep loopback); do sudo kill -9 \$p; done"
+funcsdir="$home/chaining-box/deploy/functions/"
 
-MAC="$(echo ${addresses[$src]} | cut -d'/' -f1)"
-cmd="$(install_rule tc src_mac '00' ${MAC//:/})"
-$sshcmd $src "sudo $cmd"
+# Get MAC and IP addresses for all hosts
+declare -A addresses
 
-for flow in $UDP_FLOW $TCP_FLOW $ICMP_FLOW; do
+echob "~~> Retrieving hosts info"
+for h in ${hosts[@]}; do
+    mac=$(sshfut $h "ip link show $iface | grep ether | awk {'print \$2'}")
+    ip=$(sshfut $h "ip addr show ens3 | grep 'inet ' | head -n1 | awk '{print \$2}'")
+    ip=${ip:0:-3} # Remove netmask
+ 
+    # Save on hash table for later
+    addresses[$h]="$mac/$ip"
 
-    NMAC="$(echo ${addresses[${hosts[1]}]} | cut -d'/' -f1)"
-    cmd=$(install_rule tc cls_table $flow "$(printf '%06x%02x' $SPI 255)${NMAC//:/}")
+     echo -e "  [$h]\n   MAC -> $mac\n   IP  -> $ip\n"
+done
+
+# The first vm in the list will be our source and the last our
+# destination during tests. All the others will be SFs
+src=${hosts[0]}
+dst=${hosts[-1]}
+unset hosts[0]
+unset hosts[-1]
+
+# Configuration not necessary
+if [ "$sf" == "none" ]; then
+    echob "~~> Not performing any configuration"
+else
+
+
+    #### Load and config stages on each host ####
+
+    # src - needs classifier
+    echob "~~> Configuring classifier ($src)"
+    sshfut $src "$cfgcmd cls $iface $ksrcdir $home/chaining-box"
+
+    # sf - needs all stages
+    for h in ${hosts[@]}; do
+        echob "~~> Configuring stages ($h)"
+
+        echo "  - Installing BPF stages"
+        sshfut $h "$cfgcmd sf $iface $ksrcdir $home/chaining-box"
+
+        echo "  - Killing previous SF processes"
+        sshfut $h "for p in \$(ps aux | grep loopback | awk '{print \$2}'); do sudo kill -9 \$p; done"
+        sshfut $h "sudo tc filter del dev $iface ingress"
+        sshfut $h "sudo $funcsdir/cloop.sh undo"
+
+        srcip="$(echo ${addresses[$src]} | cut -d'/' -f2)"
+
+        case "$sf" in
+            redir)
+                echo "  - Starting tc_redirect"
+                sshfut $h "$cfgcmd redir $iface $ksrcdir $home/chaining-box"
+                ;;
+            loopy)
+                echo "  - Starting loopback.py"
+                sshfut $h "sudo nohup $home/chaining-box/test/loopback.py $iface $srcip > /dev/null 2>&1 &"
+                ;;
+            cloop)
+                echo "  - Starting cloop"
+                sshfut $h "sudo $funcsdir/cloop.sh do daemon $iface $srcip"
+                ;;
+        esac
+    done
+
+    # dst - no configuration to be done
+
+
+    #### Configure SFC rules
+
+    # Flow definitions
+
+    IPSRC=$(echo ${addresses[$src]} | cut -d'/' -f2)
+    IPDST=$(echo ${addresses[$dst]} | cut -d'/' -f2)
+    SPORT=10000
+    DPORT=20000
+
+    UDP_FLOW="$(tuple_to_hex $IPSRC $IPDST $SPORT $DPORT 17)"
+    TCP_FLOW="$(tuple_to_hex $IPSRC $IPDST $SPORT $DPORT 6)"
+    ICMP_FLOW="$(tuple_to_hex $IPSRC $IPDST 0 0 1)"
+
+    SPI="1" # Same SPI for all flows
+
+    #echo -e "TCP FLOW: \n $TCP_FLOW\nUDP FLOW:\n $UDP_FLOW\nICMP_FLOW:\n $ICMP_FLOW"
+
+    # Install rules on classifier
+    echob "~~> Configuring cls rules ($src)"
+
+    MAC="$(echo ${addresses[$src]} | cut -d'/' -f1)"
+    cmd="$(install_rule tc src_mac '00' ${MAC//:/})"
     $sshcmd $src "sudo $cmd"
 
-done
+    for flow in $UDP_FLOW $TCP_FLOW $ICMP_FLOW; do
 
-# Install rules on SFs
-for i in ${!hosts[@]}; do
-    # Get host name
-    h=${hosts[$i]}
-    echob "~~> Configuring SF rules ($h)"
+        NMAC="$(echo ${addresses[${hosts[1]}]} | cut -d'/' -f1)"
+        cmd=$(install_rule tc cls_table $flow "$(printf '%06x%02x' $SPI 255)${NMAC//:/}")
+        $sshcmd $src "sudo $cmd"
 
-    # Install src_mac rule
-    MAC="$(echo ${addresses[$h]} | cut -d'/' -f1)"
-    KEY="00"
-    VALUE="${MAC//:/}" # Remove colons from MAC"
-    cmd="$(install_rule tc src_mac $KEY $VALUE)"
-    #$sshcmd "$cmd"
-    $sshcmd $h "sudo $cmd"
+    done
 
-    # Install redirect rules, if necessary
-    if [ "$tc_redir" == "true" ]; then
+    # Install rules on SFs
+    for i in ${!hosts[@]}; do
+        # Get host name
+        h=${hosts[$i]}
+        echob "~~> Configuring SF rules ($h)"
 
-        # Get $iface ifindex to configure tc_redirect prog
-        ifindex=$($sshcmd $h "ip link show $iface | head -n1 | awk  -F ':' '{print \$1}'")
-        KEY="00000000"
-        VALUE="$(number_to_hex $ifindex 8)"
-        $sshcmd $h "sudo $(install_rule tc egress_ifindex $KEY $VALUE 0 1)"
+        # Install src_mac rule
+        MAC="$(echo ${addresses[$h]} | cut -d'/' -f1)"
+        KEY="00"
+        VALUE="${MAC//:/}" # Remove colons from MAC"
+        cmd="$(install_rule tc src_mac $KEY $VALUE)"
+        #$sshcmd "$cmd"
+        $sshcmd $h "sudo $cmd"
 
-        KEY="00000000"
-        VALUE="$(ip_to_hex $srcip)"
-        $sshcmd $h "sudo $(install_rule tc srcip $KEY $VALUE)"
-    fi
+        # Install redirect rules, if necessary
+        if [ "$sf" == "redir" ]; then
 
-    # If last SF, end of chain
-    if [ $i -eq ${#hosts[@]} ]; then
-        NEXT_MAC="00:00:00:00:00:00" # End of chain. Placeholder MAC.
-    else
-        NEXT_MAC="$( echo ${addresses[${hosts[$((i+1))]}]}  | cut -d'/' -f1)"
-    fi
+            # Get $iface ifindex to configure tc_redirect prog
+            ifindex=$($sshcmd $h "ip link show $iface | head -n1 | awk  -F ':' '{print \$1}'")
+            KEY="00000000"
+            VALUE="$(number_to_hex $ifindex 8)"
+            $sshcmd $h "sudo $(install_rule tc egress_ifindex $KEY $VALUE 0 1)"
 
-    # Install SFC forwarding rule
-    SI="$((255-$i))"
-    [[ $i = ${#hosts[@]} ]] && END_OF_CHAIN="01" || END_OF_CHAIN="00"
-    KEY="$(number_to_hex $SPI 6)$(number_to_hex $SI 2)"
-    VALUE="${END_OF_CHAIN}${NEXT_MAC//:/}" # Remove colons from MAC"
+            KEY="00000000"
+            VALUE="$(ip_to_hex $srcip)"
+            $sshcmd $h "sudo $(install_rule tc srcip $KEY $VALUE)"
+        fi
 
-    cmd="$(install_rule tc fwd_table $KEY $VALUE)"
-    $sshcmd $h "sudo $cmd"
+        # If last SF, end of chain
+        if [ $i -eq ${#hosts[@]} ]; then
+            NEXT_MAC="00:00:00:00:00:00" # End of chain. Placeholder MAC.
+        else
+            NEXT_MAC="$( echo ${addresses[${hosts[$((i+1))]}]}  | cut -d'/' -f1)"
+        fi
 
-done
+        # Install SFC forwarding rule
+        SI="$((255-$i))"
+        [[ $i = ${#hosts[@]} ]] && END_OF_CHAIN="01" || END_OF_CHAIN="00"
+        KEY="$(number_to_hex $SPI 6)$(number_to_hex $SI 2)"
+        VALUE="${END_OF_CHAIN}${NEXT_MAC//:/}" # Remove colons from MAC"
+
+        cmd="$(install_rule tc fwd_table $KEY $VALUE)"
+        $sshcmd $h "sudo $cmd"
+
+    done
+fi

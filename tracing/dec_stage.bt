@@ -1,0 +1,13 @@
+#!/usr/bin/env bpftrace
+
+// This script contains bpftrace programs to
+// trace the performance of the Dec stage
+
+
+BEGIN
+{
+    @npkts = 0;
+}
+
+
+//sudo bpftrace -e 'kprobe:bpf_xdp_adjust_head { @start = nsecs; } kretprobe:bpf_xdp_adjust_head { @time_taken = hist(nsecs - @start); }'
