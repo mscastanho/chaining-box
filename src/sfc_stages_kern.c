@@ -11,6 +11,7 @@
 
 #include "bpf_endian.h"
 #include "bpf_helpers.h"
+#include "bpf_custom.h"
 #include "bpf_elf.h"
 #include "common.h"
 #include "nsh.h"
@@ -26,29 +27,14 @@ enum cb_ret {
     CB_DROP,
 };
 
-struct bpf_elf_map SEC("maps") nsh_data = {
-	.type = BPF_MAP_TYPE_HASH,
-	.size_key = sizeof(struct ip_5tuple),
-	.size_value = sizeof(struct nshhdr),
-	.max_elem = 2048,
-	.pinning = PIN_GLOBAL_NS,
-};
+MAP(nsh_data, BPF_MAP_TYPE_HASH, sizeof(struct ip_5tuple),
+    sizeof(struct nshhdr), 2048, PIN_GLOBAL_NS);
 
-struct bpf_elf_map SEC("maps") src_mac = {
-	.type = BPF_MAP_TYPE_HASH,
-	.size_key = sizeof(__u8),
-	.size_value = ETH_ALEN,
-	.max_elem = 1,
-	.pinning = PIN_GLOBAL_NS,
-};
+MAP(src_mac, BPF_MAP_TYPE_HASH, sizeof(__u8),
+    ETH_ALEN, 1, PIN_GLOBAL_NS);
 
-struct bpf_elf_map SEC("maps") fwd_table = {
-	.type = BPF_MAP_TYPE_HASH,
-	.size_key = sizeof(__u32), // Key is SPH (SPI + SI) -> 4 Bytes
-	.size_value = sizeof(struct fwd_entry), // Value is MAC address + end byte
-	.max_elem = 2048,
-	.pinning = PIN_GLOBAL_NS,
-};
+MAP(fwd_table, BPF_MAP_TYPE_HASH, sizeof(__u32),
+    sizeof(struct fwd_entry), 2048, PIN_GLOBAL_NS);
 
 // The pointer passed to this function must have been
 // bounds checked already

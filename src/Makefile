@@ -1,7 +1,7 @@
 TARGETS = sfc_stages_kern
 TARGETS += sfc_classifier_kern
 TARGETS += sfc_agent_user
-TARGETS += ../test/tc_redirect/tc_bench01_redirect_kern
+# TARGETS += ../test/tc_redirect/tc_bench01_redirect_kern
 #TARGETS += ../test/tc_redirect/tc_bench01_redirect_user
 
 # Generate file name-scheme based on TARGETS
@@ -9,8 +9,8 @@ KERN = $(filter %_kern, $(TARGETS))
 KERN_SOURCES = ${KERN:=.c}
 KERN_OBJECTS = ${KERN_SOURCES:.c=.o}
 
-USER = $(filter %_user, $(TARGETS))
-USER_OBJECTS = ${USER:=.o}
+USR = $(filter %_user, $(TARGETS))
+USER_OBJECTS = ${USR:=.o}
 
 LLC ?= llc
 CLANG ?= clang
@@ -29,6 +29,9 @@ CFLAGS += -I$(LIBBPF_DIR)/root/usr/include/
 CFLAGS += -Iheaders/ -Iutils/
 LDFLAGS ?= -L$(LIBBPF_DIR)
 
+BPFTMPDIR=/sys/fs/bpf/tmp
+JITEDOUTDIR=jited-output
+
 LIBS = -lbpf -lelf
 
 # Add libs from kernel source. This is needed since
@@ -43,17 +46,32 @@ CFLAGS += -I$(KDIR)/usr/include
 
 all: llvm-check kdir-check $(KERN_OBJECTS) $(USER_OBJECTS) utils
 
-.PHONY: clean $(CLANG) $(LLC) all utils debug
+.PHONY: clean $(CLANG) $(LLC) all utils debug jited-out
 
 debug: CFLAGS += -DDEBUG
 debug: all
+
+jited-out:
+	# TODO: Add statement to check if it is root
+	sudo mkdir -p ${BPFTMPDIR}
+	mkdir -p ${JITEDOUTDIR};
+	CFLAGS="-DBPFMAPDEF" $(MAKE) ${KERN_OBJECTS}
+	@for prog in ${KERN} ; do \
+		sudo bpftool prog loadall $${prog}.o ${BPFTMPDIR}; \
+	done
+	@for loaded in $$(sudo ls ${BPFTMPDIR}) ; do \
+		sudo bpftool prog dump jited pinned ${BPFTMPDIR}/$${loaded} linum > ${JITEDOUTDIR}/$${loaded}.jout; \
+	done
+	sudo chown -R ${USER} ${JITEDOUTDIR}
+	sudo rm -rdf ${KERN_OBJECTS} ${BPFTMPDIR}
 
 clean:
 	cd $(LIBBPF_DIR) && $(MAKE) clean;
 	cd $(UTILSDIR) && $(MAKE) clean;
 	rm -f *.ll
 	rm -f *.o
-	rm -f cb_agent
+	rm -f sfc_agent_user
+	rm -rdf ${JITEDOUTDIR}
 
 llvm-check: $(CLANG) $(LLC)
 	@for TOOL in $^ ; do \
@@ -95,9 +113,10 @@ $(OBJECT_LIBBPF):
 #     -O2 -emit-llvm -c -g $< -o ${@:.o=.ll}
 #   $(LLC) -march=bpf -filetype=obj -o $@ ${@:.o=.ll}
 $(KERN_OBJECTS): %.o: %.c
-	$(CLANG) -O2 -g -Wall $(CFLAGS) -target bpf -emit-llvm -c $< -o ${@:.o=.bc}
-	$(LLC) ${@:.o=.bc} -march=bpf -mattr=dwarfris -filetype=obj -o $@
-	pahole -J $@
+	($(CLANG) -O2 -g -Wall $(CFLAGS) -target bpf -emit-llvm \
+		-c $< -o - || echo "clang failed") | \
+	$(LLC) -march=bpf -mcpu=probe  -filetype=obj -o $@
+	#pahole -J $@
 
 utils:
 	$(MAKE) -C $(UTILSDIR)

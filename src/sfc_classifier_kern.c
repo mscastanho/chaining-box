@@ -11,27 +11,17 @@
 #include <stdlib.h>
 
 #include "bpf_endian.h"
-#include "bpf_custom.h"     // get_tuple()
+#include "bpf_custom.h"
 #include "bpf_helpers.h"
 #include "bpf_elf.h"
 #include "common.h"
 #include "nsh.h"
 
-struct bpf_elf_map SEC("maps") cls_table = {
-	.type = BPF_MAP_TYPE_HASH,
-	.size_key = sizeof(struct ip_5tuple),
-	.size_value = sizeof(struct cls_entry), // Value is sph + MAC address
-	.max_elem = 2048,
-	.pinning = PIN_GLOBAL_NS,
-};
+MAP(cls_table, BPF_MAP_TYPE_HASH, sizeof(struct ip_5tuple),
+    sizeof(struct cls_entry), 2048, PIN_GLOBAL_NS);
 
-struct bpf_elf_map SEC("maps") src_mac = {
-	.type = BPF_MAP_TYPE_HASH,
-	.size_key = sizeof(__u8),
-	.size_value = ETH_ALEN,
-	.max_elem = 1,
-	.pinning = PIN_GLOBAL_NS,
-};
+MAP(src_mac, BPF_MAP_TYPE_HASH, sizeof(__u8),
+    ETH_ALEN, 1, PIN_GLOBAL_NS);
 
 static inline int set_src_mac(struct ethhdr *eth){
 	void* smac;
@@ -173,7 +163,7 @@ int classify_tc(struct __sk_buff *skb)
     nsh->serv_path 	= cls->sph;
 
 	#ifdef DEBUG
-	printk("[CLASSIFY] NSH added.\n");
+	bpf_printk("[CLASSIFY] NSH added.\n");
 	#endif /* DEBUG */
 
 	// TODO: This should be bpf_redirect_map(), to allow

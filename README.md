@@ -58,3 +58,11 @@ Now you're ready to compile the code:
     make KDIR=~/devel/linux
 
 `KDIR` is needed to point to the updated kernel headers, instead of the ones offered by the system (which might be outdated).
+
+### Compiling the JITed output
+
+The current build system also supports generating the JITed output for each program, facilitate program debugging.
+
+    sudo make jited-out KDIR=~/devel/linux-5.3/
+
+where `KDIR` can have a different value. `sudo` is needed since we need to use bpftool under the hood. The output will be on `jited-output/`
