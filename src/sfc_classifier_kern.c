@@ -41,7 +41,7 @@ static inline int set_src_mac(struct ethhdr *eth){
 	smac = bpf_map_lookup_elem(&src_mac,&zero);
 	if(smac == NULL){
 		#ifdef DEBUG
-		printk("[FORWARD]: No source MAC configured\n");
+		bpf_printk("[FORWARD]: No source MAC configured\n");
 		#endif /* DEBUG */
 		return -1;
 	}
@@ -67,7 +67,7 @@ int classify_tc(struct __sk_buff *skb)
 
 	if(data + sizeof(struct ethhdr) + sizeof(struct iphdr) > data_end){
 		#ifdef DEBUG
-		printk("[CLASSIFY] Bounds check #1 failed.\n");
+		bpf_printk("[CLASSIFY] Bounds check #1 failed.\n");
 		#endif /* DEBUG */
 
 		return TC_ACT_OK;
@@ -78,7 +78,7 @@ int classify_tc(struct __sk_buff *skb)
 
 	if(bpf_ntohs(eth->h_proto) != ETH_P_IP){
 		#ifdef DEBUG
-		printk("[CLASSIFY] Not an IPv4 packet, passing along.\n");
+		bpf_printk("[CLASSIFY] Not an IPv4 packet, passing along.\n");
 		#endif /* DEBUG */
 
 		return TC_ACT_OK;
@@ -87,7 +87,7 @@ int classify_tc(struct __sk_buff *skb)
 	ret = get_tuple(ip,data_end,&key);
 	if (ret < 0){
 		#ifdef DEBUG
-		printk("[CLASSIFY] get_tuple() failed: %d\n",ret);
+		bpf_printk("[CLASSIFY] get_tuple() failed: %d\n",ret);
 		#endif /* DEBUG */
 
 		return TC_ACT_OK;
@@ -96,14 +96,14 @@ int classify_tc(struct __sk_buff *skb)
 	cls = bpf_map_lookup_elem(&cls_table,&key);
 	if(cls == NULL){
 		#ifdef DEBUG
-		printk("[CLASSIFY] No rule for packet.\n");
+		bpf_printk("[CLASSIFY] No rule for packet.\n");
 		#endif /* DEBUG */
 
 		return TC_ACT_OK;
 	}
 
 	#ifdef DEBUG
-	printk("[CLASSIFY] Matched packet flow.\n");
+	bpf_printk("[CLASSIFY] Matched packet flow.\n");
 	#endif /* DEBUG */
 
 	// Save previous proto
@@ -111,7 +111,7 @@ int classify_tc(struct __sk_buff *skb)
 	prev_proto = ieth->h_proto;
 
 	#ifdef DEBUG
-	printk("[CLASS-TC] Size before: %d\n",data_end-data);
+	bpf_printk("[CLASS-TC] Size before: %d\n",data_end-data);
 	#endif /* DEBUG */
 
     // Add outer encapsulation
@@ -119,7 +119,7 @@ int classify_tc(struct __sk_buff *skb)
 
     if (ret < 0) {
 		#ifdef DEBUG
-		printk("[CLASSIFY]: Failed to add extra room: %d\n", ret);
+		bpf_printk("[CLASSIFY]: Failed to add extra room: %d\n", ret);
 		#endif /* DEBUG */
 
 		return TC_ACT_SHOT;
@@ -129,13 +129,13 @@ int classify_tc(struct __sk_buff *skb)
 	data_end = (void *)(long)skb->data_end;
 
 	#ifdef DEBUG
-	printk("[CLASS-TC] Size after: %d\n",data_end-data);
+	bpf_printk("[CLASS-TC] Size after: %d\n",data_end-data);
 	#endif /* DEBUG */
 
 	// Bounds check to please the verifier
     if(data + 2*sizeof(struct ethhdr) + sizeof(struct nshhdr) > data_end){
 		#ifdef DEBUG
-		printk("[CLASSIFY] Bounds check #2 failed.\n");
+		bpf_printk("[CLASSIFY] Bounds check #2 failed.\n");
 		#endif /* DEBUG */
 		return TC_ACT_OK;
 	}

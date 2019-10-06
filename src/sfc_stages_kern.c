@@ -10,7 +10,6 @@
 #include <stdlib.h>
 
 #include "bpf_endian.h"
-#include "bpf_custom.h"
 #include "bpf_helpers.h"
 #include "bpf_elf.h"
 #include "common.h"
@@ -61,7 +60,7 @@ static inline int set_src_mac(struct ethhdr *eth){
 	smac = bpf_map_lookup_elem(&src_mac,&zero);
 	if(smac == NULL){
 		#ifdef DEBUG
-		printk("[SET_SRC_MAC]: No source MAC configured\n");
+		bpf_printk("[SET_SRC_MAC]: No source MAC configured\n");
 		#endif /* DEBUG */
 		return -1;
 	}
@@ -96,7 +95,7 @@ int decap_nsh(struct xdp_md *ctx)
 	smac = bpf_map_lookup_elem(&src_mac,&zero);
 	if(smac == NULL){
 		#ifdef DEBUG
-		printk("[DECAP]: No source MAC configured\n");
+		bpf_printk("[DECAP]: No source MAC configured\n");
 		#endif /* DEBUG */
 
 		return XDP_PASS;
@@ -116,9 +115,9 @@ int decap_nsh(struct xdp_md *ctx)
 	for(int i = 5 ; i >= 0 ; i--){
 		if(mymac[i] ^ dstmac[i]){
 			#ifdef DEBUG
-			printk("[DECAP] Not for me. Dropping. (1/2)\n");
-			printk("[DECAP] MAC: %02x %02x %02x", dstmac[5], dstmac[4], dstmac[3]);
-			printk(" %02x %02x %02x\n (2/2)", dstmac[2], dstmac[1], dstmac[0]);
+			bpf_printk("[DECAP] Not for me. Dropping. (1/2)\n");
+			bpf_printk("[DECAP] MAC: %02x %02x %02x", dstmac[5], dstmac[4], dstmac[3]);
+			bpf_printk(" %02x %02x %02x\n (2/2)", dstmac[2], dstmac[1], dstmac[0]);
             #endif /* DEBUG */
 
 			return XDP_DROP;
@@ -126,7 +125,7 @@ int decap_nsh(struct xdp_md *ctx)
 	}
 
 	#ifdef DEBUG
-	printk("[DECAP] oeth->proto: 0x%x\n",bpf_ntohs(eth->h_proto));
+	bpf_printk("[DECAP] oeth->proto: 0x%x\n",bpf_ntohs(eth->h_proto));
 	#endif /* DEBUG */
 
     // TODO: Handle other VLAN types
@@ -138,7 +137,7 @@ int decap_nsh(struct xdp_md *ctx)
             return XDP_DROP;
 
         #ifdef DEBUG
-        printk("[DECAP] vlan->proto: 0x%x\n",bpf_ntohs(vlan->h_vlan_encapsulated_proto));
+        bpf_printk("[DECAP] vlan->proto: 0x%x\n",bpf_ntohs(vlan->h_vlan_encapsulated_proto));
         #endif /* DEBUG */
 
         h_proto = bpf_ntohs(vlan->h_vlan_encapsulated_proto); 
@@ -157,7 +156,7 @@ int decap_nsh(struct xdp_md *ctx)
 		return XDP_DROP;
 
 	#ifdef DEBUG
-	printk("[DECAP] SPH: 0x%x\n",bpf_ntohl(nsh->serv_path));
+	bpf_printk("[DECAP] SPH: 0x%x\n",bpf_ntohl(nsh->serv_path));
 	#endif /* DEBUG */
 
     // Check if next protocol is Ethernet
@@ -168,7 +167,7 @@ int decap_nsh(struct xdp_md *ctx)
 	if((void*)nsh + sizeof(struct nshhdr) + sizeof(struct ethhdr) + sizeof(struct iphdr) > data_end)
 		return XDP_DROP;
 
-	// printk("[DECAP] \n");
+	// bpf_printk("[DECAP] \n");
 
 	ip = (void*)nsh + sizeof(struct nshhdr) + sizeof(struct ethhdr);
 
@@ -176,7 +175,7 @@ int decap_nsh(struct xdp_md *ctx)
 	ret = get_tuple(ip,data_end,&key);
 	if(ret){
 		#ifdef DEBUG
-		printk("[DECAP] get_tuple() failed.\n");
+		bpf_printk("[DECAP] get_tuple() failed.\n");
 		#endif /* DEBUG */
 
 		return XDP_DROP;
@@ -186,12 +185,12 @@ int decap_nsh(struct xdp_md *ctx)
 	ret = bpf_map_update_elem(&nsh_data, &key, nsh, BPF_ANY);
 	if(ret == 0){
 		#ifdef DEBUG
-		printk("[DECAP] Stored NSH in table.\n");
+		bpf_printk("[DECAP] Stored NSH in table.\n");
 		#endif /* DEBUG */
 	}
 
 	#ifdef DEBUG
-	printk("[DECAP] Previous size: %d\n",data_end-data);
+	bpf_printk("[DECAP] Previous size: %d\n",data_end-data);
 	#endif /* DEBUG */
 
 	// Remove outer encapsulation
@@ -202,12 +201,12 @@ int decap_nsh(struct xdp_md *ctx)
 
 	// eth = data;
 	// if(eth + sizeof(*eth) > data_end){
-	// 	printk("[DECAP] Weird error, dropping...\n");
+	// 	bpf_printk("[DECAP] Weird error, dropping...\n");
 	// 	return XDP_DROP;
 	// }
 
 	#ifdef DEBUG
-	printk("[DECAP] Decapsulated packet; Size after: %d\n",data_end-data);
+	bpf_printk("[DECAP] Decapsulated packet; Size after: %d\n",data_end-data);
 	#endif /* DEBUG */
 
 	return XDP_PASS;
@@ -233,7 +232,7 @@ int adjust_nsh(struct __sk_buff *skb)
 
 	if(data + sizeof(struct ethhdr) + sizeof(struct iphdr) > data_end){
 		#ifdef DEBUG
-		printk("[ADJUST]: Bounds check failed\n");
+		bpf_printk("[ADJUST]: Bounds check failed\n");
 		#endif /* DEBUG */
 
 		return CB_PASS;
@@ -249,7 +248,7 @@ int adjust_nsh(struct __sk_buff *skb)
 	ret = get_tuple(ip,data_end,&key);
 	if (ret < 0) {
 		#ifdef DEBUG
-		printk("[ADJUST]: get_tuple() failed: %d\n", ret);
+		bpf_printk("[ADJUST]: get_tuple() failed: %d\n", ret);
 		#endif /* DEBUG */
 
 		return CB_PASS;
@@ -259,26 +258,26 @@ int adjust_nsh(struct __sk_buff *skb)
     prev_nsh = bpf_map_lookup_elem(&nsh_data,&key);
 	if(prev_nsh == NULL){
 		#ifdef DEBUG
-		printk("[ADJUST] NSH header not found in table.\n");
+		bpf_printk("[ADJUST] NSH header not found in table.\n");
 		#endif /* DEBUG */
 		// bpf_map_update_elem(&not_found, &key, &nop2, BPF_ANY);
 		return CB_PASS;
 	}
 
 	#ifdef DEBUG
-	printk("[ADJUST]: First look: SPH = 0x%x\n",bpf_ntohl(prev_nsh->serv_path));
+	bpf_printk("[ADJUST]: First look: SPH = 0x%x\n",bpf_ntohl(prev_nsh->serv_path));
 	#endif /* DEBUG */
 
 	sph = bpf_ntohl(prev_nsh->serv_path);
 	spi = sph & 0xFFFFFF00;
 	si = sph & 0x000000FF;
 	#ifdef DEBUG
-	printk("[ADJUST]: SPH = 0x%x ; SPI = 0x%x ; SI = 0x%x \n",sph,spi>>8,si);
+	bpf_printk("[ADJUST]: SPH = 0x%x ; SPI = 0x%x ; SI = 0x%x \n",sph,spi>>8,si);
 	#endif /* DEBUG */
 
 	if(si == 0){
 		#ifdef DEBUG
-		printk("[ADJUST]: Anomalous SI number. Dropping packet.\n");
+		bpf_printk("[ADJUST]: Anomalous SI number. Dropping packet.\n");
 		#endif /* DEBUG */
 		return CB_DROP;
 	}
@@ -292,14 +291,14 @@ int adjust_nsh(struct __sk_buff *skb)
 	// TODO: This lookup is repeated in FWD stage.
 	// 		 Ideally, this should only be done once
 	#ifdef DEBUG
-	printk("[ADJUST]: Pre-lookup: SPH = 0x%x\n",sph);
+	bpf_printk("[ADJUST]: Pre-lookup: SPH = 0x%x\n",sph);
 	#endif /* DEBUG */
 
 	__u32 fkey = bpf_htonl(sph);
 	next_hop = bpf_map_lookup_elem(&fwd_table,&fkey);
 	if(likely(next_hop) && (next_hop->flags & 0x1)){
 		#ifdef DEBUG
-		printk("[ADJUST]: End of chain 1! SPH = 0x%x\n",sph);
+		bpf_printk("[ADJUST]: End of chain 1! SPH = 0x%x\n",sph);
 		#endif /* DEBUG */
 		return CB_END_CHAIN;
 	}
@@ -313,7 +312,7 @@ int adjust_nsh(struct __sk_buff *skb)
 
     if (ret < 0) {
 		#ifdef DEBUG
-		printk("[ADJUST]: Failed to add extra room: %d\n", ret);
+		bpf_printk("[ADJUST]: Failed to add extra room: %d\n", ret);
 		#endif /* DEBUG */
 
 		return TC_ACT_SHOT;
@@ -325,7 +324,7 @@ int adjust_nsh(struct __sk_buff *skb)
 	// Bounds check to please the verifier
 	if(data + 2*sizeof(struct ethhdr) + sizeof(struct nshhdr) > data_end){
 		#ifdef DEBUG
-		printk("[ADJUST]: Bounds check failed.\n");
+		bpf_printk("[ADJUST]: Bounds check failed.\n");
 		#endif /* DEBUG */
 		return CB_DROP;
 	}
@@ -346,7 +345,7 @@ int adjust_nsh(struct __sk_buff *skb)
 	__builtin_memcpy(nsh,prev_nsh,sizeof(struct nshhdr));
 	nsh->serv_path = bpf_htonl(sph);
 	#ifdef DEBUG
-	printk("[ADJUST] Re-added NSH header!\n");
+	bpf_printk("[ADJUST] Re-added NSH header!\n");
 	#endif /* DEBUG */
 
 	// bpf_tail_call(skb, &jmp_table, FWD_STAGE);
@@ -395,7 +394,7 @@ int sfc_forwarding(struct __sk_buff *skb)
 
 	if (data + sizeof(*eth) > data_end){
 		#ifdef DEBUG
-		printk("[FORWARD]: Bounds check failed.\n");
+		bpf_printk("[FORWARD]: Bounds check failed.\n");
 		#endif /* DEBUG */
 		return TC_ACT_SHOT;
 	}
@@ -411,7 +410,7 @@ int sfc_forwarding(struct __sk_buff *skb)
 	// Keep regular traffic working
 	//if (eth->h_proto != bpf_htons(ETH_P_NSH)){
 	//	#ifdef DEBUG
-	//	printk("[FORWARD]: Not NSH. Passing along...\n");
+	//	bpf_printk("[FORWARD]: Not NSH. Passing along...\n");
 	//	#endif /* DEBUG */
     //    return TC_ACT_OK;
     //}
@@ -420,28 +419,28 @@ int sfc_forwarding(struct __sk_buff *skb)
 
 	if ((void*) nsh + sizeof(*nsh) > data_end){
 		#ifdef DEBUG
-		printk("[FORWARD]: Bounds check failed.\n");
+		bpf_printk("[FORWARD]: Bounds check failed.\n");
 		#endif /* DEBUG */
 		return TC_ACT_SHOT;
 	}
 
-	// printk("[FORWARD] SPH = 0x%x\n",sph);
+	// bpf_printk("[FORWARD] SPH = 0x%x\n",sph);
 	next_hop = bpf_map_lookup_elem(&fwd_table,&nsh->serv_path);
 	if(likely(next_hop)){
 
 		// Check if is end of chain
 		if(next_hop->flags & 0x1){
-			// printk("[FORWARD] Size before: %d ; EtherType = 0x%x\n",data_end-data,bpf_ntohs(eth->h_proto));
+			// bpf_printk("[FORWARD] Size before: %d ; EtherType = 0x%x\n",data_end-data,bpf_ntohs(eth->h_proto));
 			#ifdef DEBUG
 			__u32 sph = bpf_ntohl(nsh->serv_path);
-			printk("[FORWARD]: End of chain 2! SPH = 0x%x\n",sph);
+			bpf_printk("[FORWARD]: End of chain 2! SPH = 0x%x\n",sph);
 			#endif /* DEBUG */
 
 			// #pragma clang loop unroll(full)
 			// for(int i = 0 ; i < 8 ; i++){
 			// 	ret = bpf_skb_vlan_pop(skb);
 			// 	if (ret < 0) {
-			// 		printk("[ADJUST]: Failed to add extra room: %d\n", ret);
+			// 		bpf_printk("[ADJUST]: Failed to add extra room: %d\n", ret);
 			// 		return BPF_DROP;
 			// 	}
 			// }
@@ -453,12 +452,12 @@ int sfc_forwarding(struct __sk_buff *skb)
 			// if(eth+sizeof(*eth) > data_end)
 			// 	return BPF_DROP;
 
-			// printk("[FORWARD] Size after: %d ; EtherType = 0x%x\n",data_end-data,bpf_ntohs(eth->h_proto));
+			// bpf_printk("[FORWARD] Size after: %d ; EtherType = 0x%x\n",data_end-data,bpf_ntohs(eth->h_proto));
 			return TC_ACT_OK; //TODO: Change this
 			// Remove external encapsulation
 		}else{
 			#ifdef DEBUG
-			printk("[FORWARD]: Updating next hop info\n");
+			bpf_printk("[FORWARD]: Updating next hop info\n");
 			#endif /* DEBUG */
 			// Update MAC addresses
 			if(set_src_mac(eth)) return BPF_DROP;
@@ -467,14 +466,14 @@ int sfc_forwarding(struct __sk_buff *skb)
 	}else{
 		#ifdef DEBUG
 		__u32 sph = bpf_ntohl(nsh->serv_path);
-		printk("[FORWARD]: No corresponding rule. SPH = 0x%x\n",sph);
+		bpf_printk("[FORWARD]: No corresponding rule. SPH = 0x%x\n",sph);
 		#endif /* DEBUG */
 		// No corresponding rule. Drop the packet.
 		return TC_ACT_SHOT;
 	}
 
 	#ifdef DEBUG
-	printk("[FORWARD]: Successfully forwarded the pkt!\n");
+	bpf_printk("[FORWARD]: Successfully forwarded the pkt!\n");
 	#endif /* DEBUG */
 	return TC_ACT_OK;
 }

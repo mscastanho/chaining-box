@@ -1,18 +1,37 @@
 #ifndef COMMON_H_
 #define COMMON_H_
 
+#include <linux/in.h>
 #include <linux/if_ether.h>
+#include <linux/ip.h>
+#include <linux/tcp.h>
+#include <linux/udp.h>
+
+#include <stdint.h>
+#include <stdlib.h>
 
 #define likely(x)       __builtin_expect(!!(x), 1)
 #define unlikely(x)     __builtin_expect(!!(x), 0)
 
-// Nicer way to call bpf_trace_printk()
-#define printk(fmt, ...)						\
-		({							\
-			char ____fmt[] = fmt;				\
-			bpf_trace_printk(____fmt, sizeof(____fmt),	\
-				     ##__VA_ARGS__);			\
-		})
+#ifdef BPFMAPDEF /* Use bpf_map_def struct to declare map */
+#define MAP(NAME,TYPE,KEYSZ,VALSZ,MAXE,PIN) \
+    struct bpf_map_def SEC("maps") NAME = { \
+      .type = TYPE, \
+      .key_size = KEYSZ, \
+      .value_size = VALSZ, \
+      .max_entries = MAXE, \
+    };
+#else /* Use iproute2 map struct */
+#define MAP(NAME,TYPE,KEYSZ,VALSZ,MAXE,PIN) \
+    struct bpf_elf_map SEC("maps") NAME = { \
+      .type = TYPE, \
+      .size_key = KEYSZ, \
+      .size_value = VALSZ, \
+      .max_elem = MAXE, \
+      .pinning = PIN, \
+    };
+#endif /* BPFMAPDEF */
+
 struct fwd_entry {
     // Flags:
     // Bit 0 : is end of chain
