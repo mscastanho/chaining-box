@@ -23,6 +23,10 @@ MAP(cls_table, BPF_MAP_TYPE_HASH, sizeof(struct ip_5tuple),
 MAP(src_mac, BPF_MAP_TYPE_HASH, sizeof(__u8),
     ETH_ALEN, 1, PIN_GLOBAL_NS);
 
+#ifdef ENABLE_STATS
+STATSMAP();
+#endif /* ENABLE_STATS */
+
 static inline int set_src_mac(struct ethhdr *eth){
 	void* smac;
 	__u8 zero = 0;

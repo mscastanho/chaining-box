@@ -10,6 +10,12 @@
 #include "bpf_helpers.h"
 #include "common.h"
 
+#ifdef BPFMAPDEF
+extern struct bpf_map_def prog_stats;
+#else
+extern struct bpf_elf_map prog_stats;
+#endif /* BPFMAPDEF */
+
 static inline int get_tuple(void* ip_data, void* data_end, struct ip_5tuple *t){
 	struct iphdr *ip;
 	struct udphdr *udp;
@@ -51,7 +57,6 @@ static inline int get_tuple(void* ip_data, void* data_end, struct ip_5tuple *t){
 				#ifdef DEBUG
 				bpf_printk("get_tuple(): Error accessing TCP hdr\n");
 				#endif /* DEBUG */
-				
 
 				return -1;
 			}
@@ -72,3 +77,54 @@ static inline int get_tuple(void* ip_data, void* data_end, struct ip_5tuple *t){
 
 	return 0;
 };
+
+/* Mark beginning of program */
+static inline void bpf_mark_init(void){
+#ifdef ENABLE_STATS
+  uint8_t zero = 0;
+  uint64_t ts = bpf_ktime_get_ns();
+  struct stats *s = bpf_map_lookup_elem(&prog_stats, &zero);
+
+  if(s) s->init_ts = ts;
+#endif /* ENABLE_STATS */
+
+  /* Do nothing */
+}
+
+/* Return with OK status */
+static inline int bpf_retok(int code){
+#ifdef ENABLE_STATS
+  uint8_t zero = 0;
+  uint64_t ts = bpf_ktime_get_ns();
+  struct stats *s = bpf_map_lookup_elem(&prog_stats, &zero);
+
+  if(s){
+    lock_xadd(&s->tx, 1);
+    lock_xadd(&s->lat_avg_sum,ts - s->init_ts);
+  }
+#endif /* ENABLE_STATS */
+
+  return code;
+}
+
+/* Return dropping packet */
+static inline int bpf_retdrop(int code){
+#ifdef ENABLE_STATS
+  uint8_t zero = 0;
+  struct stats *s = bpf_map_lookup_elem(&prog_stats, &zero);
+  if(s) lock_xadd(&s->dropped, 1);
+#endif /* ENABLE_STATS */
+
+  return code;
+}
+
+/* Return with error */
+static inline int bpf_reterr(int code){
+#ifdef ENABLE_STATS
+  uint8_t zero = 0;
+  struct stats *s = bpf_map_lookup_elem(&prog_stats, &zero);
+  if(s) lock_xadd(&s->error, 1);
+#endif /* ENABLE_STATS */
+
+  return code;
+}

@@ -13,6 +13,11 @@
 #define likely(x)       __builtin_expect(!!(x), 1)
 #define unlikely(x)     __builtin_expect(!!(x), 0)
 
+#ifndef lock_xadd
+# define lock_xadd(ptr, val)              \
+   ((void)__sync_fetch_and_add(ptr, val))
+#endif
+
 #ifdef BPFMAPDEF /* Use bpf_map_def struct to declare map */
 #define MAP(NAME,TYPE,KEYSZ,VALSZ,MAXE,PIN) \
     struct bpf_map_def SEC("maps") NAME = { \
@@ -31,6 +36,22 @@
       .pinning = PIN, \
     };
 #endif /* BPFMAPDEF */
+
+#ifdef ENABLE_STATS
+
+#define STATSMAP() MAP(prog_stats, BPF_MAP_TYPE_HASH, sizeof(__u8), \
+    sizeof(struct stats), 1, PIN_GLOBAL_NS);
+
+struct stats {
+  uint32_t rx;
+  uint32_t tx;
+  uint32_t dropped;
+  uint32_t error;
+  uint64_t lat_avg_sum;
+  uint64_t init_ts;
+};
+
+#endif /* ENABLE_STATS */
 
 struct fwd_entry {
     // Flags:

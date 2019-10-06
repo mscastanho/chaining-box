@@ -36,6 +36,10 @@ MAP(src_mac, BPF_MAP_TYPE_HASH, sizeof(__u8),
 MAP(fwd_table, BPF_MAP_TYPE_HASH, sizeof(__u32),
     sizeof(struct fwd_entry), 2048, PIN_GLOBAL_NS);
 
+#ifdef ENABLE_STATS
+STATSMAP();
+#endif /* ENABLE_STATS */
+
 // The pointer passed to this function must have been
 // bounds checked already
 static inline int set_src_mac(struct ethhdr *eth){
