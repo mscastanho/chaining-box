@@ -88,7 +88,7 @@ int decap_nsh(struct xdp_md *ctx)
 		bpf_printk("[DECAP]: No source MAC configured\n");
 		#endif /* DEBUG */
 
-		return XDP_PASS;
+		return bpf_reterr(XDP_PASS);
 	}
 
 	char* mymac = (char*) smac;
@@ -124,7 +124,7 @@ int decap_nsh(struct xdp_md *ctx)
         offset += sizeof(struct vlanhdr);
 
         if((void*)vlan + sizeof(struct vlanhdr) > data_end)
-            return XDP_DROP;
+            return bpf_reterr(XDP_DROP);
 
         #ifdef DEBUG
         bpf_printk("[DECAP] vlan->proto: 0x%x\n",bpf_ntohs(vlan->h_vlan_encapsulated_proto));
@@ -143,7 +143,7 @@ int decap_nsh(struct xdp_md *ctx)
 
 	// Check if we can access NSH
 	if ((void*) nsh + sizeof(struct nshhdr) > data_end)
-		return XDP_DROP;
+		return bpf_reterr(XDP_DROP);
 
 	#ifdef DEBUG
 	bpf_printk("[DECAP] SPH: 0x%x\n",bpf_ntohl(nsh->serv_path));
@@ -151,11 +151,11 @@ int decap_nsh(struct xdp_md *ctx)
 
     // Check if next protocol is Ethernet
 	if(nsh->next_proto != NSH_NEXT_PROTO_ETHER)
-		return XDP_DROP;
+		return bpf_reterr(XDP_DROP);
 
 	// Single check for Inner Ether + IP
 	if((void*)nsh + sizeof(struct nshhdr) + sizeof(struct ethhdr) + sizeof(struct iphdr) > data_end)
-		return XDP_DROP;
+		return bpf_reterr(XDP_DROP);
 
 	// bpf_printk("[DECAP] \n");
 
@@ -168,7 +168,7 @@ int decap_nsh(struct xdp_md *ctx)
 		bpf_printk("[DECAP] get_tuple() failed.\n");
 		#endif /* DEBUG */
 
-		return XDP_DROP;
+		return bpf_reterr(XDP_DROP);
 	}
 
 	// Save NSH data
@@ -199,7 +199,7 @@ int decap_nsh(struct xdp_md *ctx)
 	bpf_printk("[DECAP] Decapsulated packet; Size after: %d\n",data_end-data);
 	#endif /* DEBUG */
 
-	return XDP_PASS;
+	return bpf_retok(XDP_PASS);
 }
 
 //SEC("adjust")
@@ -364,7 +364,7 @@ int sfc_forwarding(struct __sk_buff *skb)
         case CB_OK:
             break;                              // Continue execution
         case CB_DROP:
-            return TC_ACT_SHOT;                 // Drop packet
+            return bpf_retdrop(TC_ACT_SHOT);                 // Drop packet
         case CB_END_CHAIN:
             ready2send = 1;                     // Signal pkt should be sent
             break;                              // after MAC update
@@ -386,15 +386,15 @@ int sfc_forwarding(struct __sk_buff *skb)
 		#ifdef DEBUG
 		bpf_printk("[FORWARD]: Bounds check failed.\n");
 		#endif /* DEBUG */
-		return TC_ACT_SHOT;
+		return bpf_reterr(TC_ACT_SHOT);
 	}
 
     // Adjust source MAC and send
     if(ready2send){
         if(set_src_mac(eth))
-            return TC_ACT_SHOT;
+            return bpf_reterr(TC_ACT_SHOT);
 
-        return TC_ACT_OK;
+        return bpf_retok(TC_ACT_OK);
     }
 
 	// Keep regular traffic working
@@ -411,7 +411,7 @@ int sfc_forwarding(struct __sk_buff *skb)
 		#ifdef DEBUG
 		bpf_printk("[FORWARD]: Bounds check failed.\n");
 		#endif /* DEBUG */
-		return TC_ACT_SHOT;
+		return bpf_reterr(TC_ACT_SHOT);
 	}
 
 	// bpf_printk("[FORWARD] SPH = 0x%x\n",sph);
@@ -443,14 +443,14 @@ int sfc_forwarding(struct __sk_buff *skb)
 			// 	return BPF_DROP;
 
 			// bpf_printk("[FORWARD] Size after: %d ; EtherType = 0x%x\n",data_end-data,bpf_ntohs(eth->h_proto));
-			return TC_ACT_OK; //TODO: Change this
+			return bpf_retok(TC_ACT_OK); //TODO: Change this
 			// Remove external encapsulation
 		}else{
 			#ifdef DEBUG
 			bpf_printk("[FORWARD]: Updating next hop info\n");
 			#endif /* DEBUG */
 			// Update MAC addresses
-			if(set_src_mac(eth)) return BPF_DROP;
+			if(set_src_mac(eth)) return bpf_reterr(BPF_DROP);
 			__builtin_memmove(eth->h_dest,next_hop->address,ETH_ALEN);
 		}
 	}else{
@@ -459,13 +459,13 @@ int sfc_forwarding(struct __sk_buff *skb)
 		bpf_printk("[FORWARD]: No corresponding rule. SPH = 0x%x\n",sph);
 		#endif /* DEBUG */
 		// No corresponding rule. Drop the packet.
-		return TC_ACT_SHOT;
+		return bpf_reterr(TC_ACT_SHOT);
 	}
 
 	#ifdef DEBUG
 	bpf_printk("[FORWARD]: Successfully forwarded the pkt!\n");
 	#endif /* DEBUG */
-	return TC_ACT_OK;
+	return bpf_retok(TC_ACT_OK);
 }
 
 char _license[] SEC("license") = "GPL";
