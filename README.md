@@ -66,3 +66,13 @@ The current build system also supports generating the JITed output for each prog
     sudo make jited-out KDIR=~/devel/linux-5.3/
 
 where `KDIR` can have a different value. `sudo` is needed since we need to use bpftool under the hood. The output will be on `jited-output/`
+
+## Running loss rate test
+On the destination:
+
+    iperf3 -s -p 20000
+
+On the origin:
+
+    cd ~/chaining-box/test
+    ./lossrate-test <dest-IP> <local-iface>

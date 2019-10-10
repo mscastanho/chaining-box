@@ -29,7 +29,7 @@ vagrant ssh-config > $sshcfg
 
 #### Load and config stages on each host ####
 home="/home/vagrant"
-ksrcdir="$home/linux-5.2-rc6"
+ksrcdir="$home/linux-5.3"
 cfgcmd="sudo $home/chaining-box/test/config-sfc.sh"
 scpcmd="scp -F $sshcfg"
 rulcmd="sudo $home/hardcoded-rules.sh"

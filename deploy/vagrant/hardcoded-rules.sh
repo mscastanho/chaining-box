@@ -12,12 +12,12 @@ if [ $host == "sfc0" ]; then
 
     # UDP traffic
     bpftool map update pinned /sys/fs/bpf/tc/globals/cls_table \
-    key hex 0a 0a 0a 0a 0a 0a 0a 0d 03 e8 07 d0 11 \
+    key hex 0a 0a 0a 0a 0a 0a 0a 0d 27 10 4e 20 11 \
     value hex 00 00 01 ff 00 00 00 00 00 0b any
 
     # TCP traffic
     bpftool map update pinned /sys/fs/bpf/tc/globals/cls_table \
-    key hex 0a 0a 0a 0a 0a 0a 0a 0d 03 e8 07 d0 06 \
+    key hex 0a 0a 0a 0a 0a 0a 0a 0d 27 10 4e 20 06 \
     value hex 00 00 01 ff 00 00 00 00 00 0b any
 
     # ICMP traffic
