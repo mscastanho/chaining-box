@@ -1,6 +1,7 @@
 TARGETS = sfc_stages_kern
 TARGETS += sfc_classifier_kern
 TARGETS += sfc_agent_user
+TARGETS += map_inspector_user
 # TARGETS += ../test/tc_redirect/tc_bench01_redirect_kern
 #TARGETS += ../test/tc_redirect/tc_bench01_redirect_user
 
