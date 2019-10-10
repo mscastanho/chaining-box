@@ -31,7 +31,7 @@ fi
 # Compile code if needed
 if [ ! -f "$CBOBJ" ]; then
     cd $CBDIR/src
-    make KDIR=${KERNELDIR}
+    make clean && CFLAGS="$CFLAGS" make KDIR=${KERNELDIR}
 fi
 
 # Load stages into the kernel
