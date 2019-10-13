@@ -26,10 +26,9 @@
         - clang
         - elfutils
         - libmnl-dev
+        - libdw-dev
         - bison
         - flex
-        - ifupdown
-        - python-netifaces
         - binutils-dev
         - hping3
         - net-tools
@@ -38,29 +37,25 @@
         - libtool
         - unzip
         - curl
-        - protobuf-compiler
-        - protobuf-c-compiler
-        - libprotobuf-c-dev
         - vim
-        - python-protobuf
       tags: install
-    - name: Clone prototype-kernel project
-      git:
-        repo: https://github.com/netoptimizer/prototype-kernel.git
-        dest: /home/ebpf/prototype-kernel
-      ignore_errors: yes
-      tags: clone
     - name: Clone linux kernel net-next tree
       git:
         repo: https://git.kernel.org/pub/scm/linux/kernel/git/davem/net-next.git
-        dest: /home/ebpf/net-next
-        version: v5.0
+        dest: "{{ home }}/{{ kernel-dir }}"
+        version: v5.3
         depth: 1 # Reduce commit history to download faster
       ignore_errors: yes
       tags: clone
     - name: Install bpftool
       shell: make && make install
       args:
-        chdir: /home/ebpf/net-next/tools/bpf/bpftool
+        chdir: "{{ home }}/{{ kernel-dir }}/tools/bpf/bpftool"
+      ignore_errors: yes
+      tags: kernel
+    - name: Install perf
+      shell: make && make install
+      args:
+        chdir: "{{ home }}/{{ kernel-dir }}/tools/perf"
       ignore_errors: yes
       tags: kernel
