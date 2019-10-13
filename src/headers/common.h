@@ -40,13 +40,12 @@
 #ifdef ENABLE_STATS
 
 #define STATSMAP() MAP(prog_stats, BPF_MAP_TYPE_HASH, sizeof(__u8), \
-    sizeof(struct stats), 1, PIN_GLOBAL_NS);
+    sizeof(struct stats), 1, PIN_NONE);
 
 struct stats {
   uint32_t rx;
   uint32_t tx;
-  uint32_t dropped;
-  uint32_t error;
+  uint32_t tx_other; /* Exited for another purpose */
   uint64_t lat_avg_sum;
   uint64_t init_ts;
 };

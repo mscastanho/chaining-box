@@ -63,7 +63,10 @@ static inline int set_src_mac(struct ethhdr *eth){
 SEC("xdp/decap")
 int decap_nsh(struct xdp_md *ctx)
 {
-	void *data_end = (void *)(long)ctx->data_end;
+    /* Start timestamps for statistics (if enabled) */
+    bpf_mark_init();
+
+    void *data_end = (void *)(long)ctx->data_end;
 	void *data = (void *)(long)ctx->data;
 	struct ethhdr *eth;
 	struct vlanhdr *vlan;
@@ -78,7 +81,7 @@ int decap_nsh(struct xdp_md *ctx)
 	eth = data;
 
 	if(data + sizeof(struct ethhdr) > data_end)
-		return XDP_PASS;
+		return bpf_retother(XDP_PASS);
 
     offset += sizeof(struct ethhdr);
 
@@ -88,7 +91,7 @@ int decap_nsh(struct xdp_md *ctx)
 		bpf_printk("[DECAP]: No source MAC configured\n");
 		#endif /* DEBUG */
 
-		return bpf_reterr(XDP_PASS);
+		return bpf_retother(XDP_PASS);
 	}
 
 	char* mymac = (char*) smac;
@@ -96,7 +99,7 @@ int decap_nsh(struct xdp_md *ctx)
 
 	// If broadcast or multicast, pass
     if(dstmac[0] & 1)
-        return XDP_PASS;
+        return bpf_retother(XDP_PASS);
 
 	// Hack to compare MAC addresses
 	// At the time of writing, __builtin_memcmp()
@@ -110,7 +113,7 @@ int decap_nsh(struct xdp_md *ctx)
 			bpf_printk(" %02x %02x %02x\n (2/2)", dstmac[2], dstmac[1], dstmac[0]);
             #endif /* DEBUG */
 
-			return XDP_DROP;
+			return bpf_retother(XDP_DROP);
 		}
 	}
 
@@ -124,7 +127,7 @@ int decap_nsh(struct xdp_md *ctx)
         offset += sizeof(struct vlanhdr);
 
         if((void*)vlan + sizeof(struct vlanhdr) > data_end)
-            return bpf_reterr(XDP_DROP);
+            return bpf_retother(XDP_DROP);
 
         #ifdef DEBUG
         bpf_printk("[DECAP] vlan->proto: 0x%x\n",bpf_ntohs(vlan->h_vlan_encapsulated_proto));
@@ -136,14 +139,14 @@ int decap_nsh(struct xdp_md *ctx)
     }
 
 	if(h_proto != ETH_P_NSH)
-		return XDP_PASS;
+		return bpf_retother(XDP_PASS);
 
 	nsh = data + offset;
     offset += sizeof(struct nshhdr);
 
 	// Check if we can access NSH
 	if ((void*) nsh + sizeof(struct nshhdr) > data_end)
-		return bpf_reterr(XDP_DROP);
+		return bpf_retother(XDP_DROP);
 
 	#ifdef DEBUG
 	bpf_printk("[DECAP] SPH: 0x%x\n",bpf_ntohl(nsh->serv_path));
@@ -151,11 +154,11 @@ int decap_nsh(struct xdp_md *ctx)
 
     // Check if next protocol is Ethernet
 	if(nsh->next_proto != NSH_NEXT_PROTO_ETHER)
-		return bpf_reterr(XDP_DROP);
+		return bpf_retother(XDP_DROP);
 
 	// Single check for Inner Ether + IP
 	if((void*)nsh + sizeof(struct nshhdr) + sizeof(struct ethhdr) + sizeof(struct iphdr) > data_end)
-		return bpf_reterr(XDP_DROP);
+		return bpf_retother(XDP_DROP);
 
 	// bpf_printk("[DECAP] \n");
 
@@ -168,7 +171,7 @@ int decap_nsh(struct xdp_md *ctx)
 		bpf_printk("[DECAP] get_tuple() failed.\n");
 		#endif /* DEBUG */
 
-		return bpf_reterr(XDP_DROP);
+		return bpf_retother(XDP_DROP);
 	}
 
 	// Save NSH data
@@ -188,12 +191,6 @@ int decap_nsh(struct xdp_md *ctx)
 
 	data_end = (void *)(long)ctx->data_end;
 	data = (void *)(long)ctx->data;
-
-	// eth = data;
-	// if(eth + sizeof(*eth) > data_end){
-	// 	bpf_printk("[DECAP] Weird error, dropping...\n");
-	// 	return XDP_DROP;
-	// }
 
 	#ifdef DEBUG
 	bpf_printk("[DECAP] Decapsulated packet; Size after: %d\n",data_end-data);
@@ -215,10 +212,6 @@ int adjust_nsh(struct __sk_buff *skb)
 	__u16 prev_proto;
 	__be32 sph, spi, si;
 	struct fwd_entry *next_hop;
-
-
-	// __u32 prev_len = data_end - data;
-	// struct nshhdr nop2 = {0,0,0,0};
 
 	if(data + sizeof(struct ethhdr) + sizeof(struct iphdr) > data_end){
 		#ifdef DEBUG
@@ -305,7 +298,7 @@ int adjust_nsh(struct __sk_buff *skb)
 		bpf_printk("[ADJUST]: Failed to add extra room: %d\n", ret);
 		#endif /* DEBUG */
 
-		return TC_ACT_SHOT;
+		return CB_DROP;
     }
 
 	data = (void *)(long)skb->data;
@@ -349,7 +342,10 @@ int adjust_nsh(struct __sk_buff *skb)
 SEC("action/forward")
 int sfc_forwarding(struct __sk_buff *skb)
 {
-	void *data;
+    /* Start timestamps for statistics (if enabled) */
+    bpf_mark_init();
+
+    void *data;
 	void *data_end;
 	struct ethhdr *eth;
 	struct nshhdr *nsh;
@@ -364,13 +360,13 @@ int sfc_forwarding(struct __sk_buff *skb)
         case CB_OK:
             break;                              // Continue execution
         case CB_DROP:
-            return bpf_retdrop(TC_ACT_SHOT);                 // Drop packet
+            return bpf_retother(TC_ACT_SHOT);                 // Drop packet
         case CB_END_CHAIN:
             ready2send = 1;                     // Signal pkt should be sent
             break;                              // after MAC update
         case CB_PASS:
         default:
-            return TC_ACT_OK;                   // Send packet rightaway
+            return bpf_retother(TC_ACT_OK);                   // Send packet rightaway
     }
 
 	// We can only make these attributions here since
@@ -386,13 +382,13 @@ int sfc_forwarding(struct __sk_buff *skb)
 		#ifdef DEBUG
 		bpf_printk("[FORWARD]: Bounds check failed.\n");
 		#endif /* DEBUG */
-		return bpf_reterr(TC_ACT_SHOT);
+		return bpf_retother(TC_ACT_SHOT);
 	}
 
     // Adjust source MAC and send
     if(ready2send){
         if(set_src_mac(eth))
-            return bpf_reterr(TC_ACT_SHOT);
+            return bpf_retother(TC_ACT_SHOT);
 
         return bpf_retok(TC_ACT_OK);
     }
@@ -411,7 +407,7 @@ int sfc_forwarding(struct __sk_buff *skb)
 		#ifdef DEBUG
 		bpf_printk("[FORWARD]: Bounds check failed.\n");
 		#endif /* DEBUG */
-		return bpf_reterr(TC_ACT_SHOT);
+		return bpf_retother(TC_ACT_SHOT);
 	}
 
 	// bpf_printk("[FORWARD] SPH = 0x%x\n",sph);
@@ -450,7 +446,7 @@ int sfc_forwarding(struct __sk_buff *skb)
 			bpf_printk("[FORWARD]: Updating next hop info\n");
 			#endif /* DEBUG */
 			// Update MAC addresses
-			if(set_src_mac(eth)) return bpf_reterr(BPF_DROP);
+			if(set_src_mac(eth)) return bpf_retother(BPF_DROP);
 			__builtin_memmove(eth->h_dest,next_hop->address,ETH_ALEN);
 		}
 	}else{
@@ -459,7 +455,7 @@ int sfc_forwarding(struct __sk_buff *skb)
 		bpf_printk("[FORWARD]: No corresponding rule. SPH = 0x%x\n",sph);
 		#endif /* DEBUG */
 		// No corresponding rule. Drop the packet.
-		return bpf_reterr(TC_ACT_SHOT);
+		return bpf_retother(TC_ACT_SHOT);
 	}
 
 	#ifdef DEBUG

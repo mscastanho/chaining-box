@@ -82,22 +82,24 @@ static inline int get_tuple(void* ip_data, void* data_end, struct ip_5tuple *t){
 static inline void bpf_mark_init(void){
 #ifdef ENABLE_STATS
   uint8_t zero = 0;
-  struct stats init_stats = {0,0,0,0,0,0};
+  struct stats init_stats = {0,0,0,0,0};
   uint64_t ts = bpf_ktime_get_ns();
   struct stats *s = bpf_map_lookup_elem(&prog_stats, &zero);
 
-  if(s) s->init_ts = ts;
-  else bpf_map_update_elem(&prog_stats, &zero, &init_stats, BPF_NOEXIST);
+  if(s){
+      lock_xadd(&s->rx, 1);
+      s->init_ts = ts;
+  } else bpf_map_update_elem(&prog_stats, &zero, &init_stats, BPF_NOEXIST);
 #endif /* ENABLE_STATS */
 
   /* Do nothing */
 }
 
-/* Return with OK status */
+/* Return and count as OK */
 static inline int bpf_retok(int code){
 #ifdef ENABLE_STATS
   uint8_t zero = 0;
-  struct stats init_stats = {0,0,0,0,0,0};
+  struct stats init_stats = {0,0,0,0,0};
   uint64_t ts = bpf_ktime_get_ns();
   struct stats *s = bpf_map_lookup_elem(&prog_stats, &zero);
 
@@ -112,28 +114,15 @@ static inline int bpf_retok(int code){
   return code;
 }
 
-/* Return dropping packet */
-static inline int bpf_retdrop(int code){
+/* Return and count as exited for 'other' purpose */
+static inline int bpf_retother(int code){
 #ifdef ENABLE_STATS
   uint8_t zero = 0;
-  struct stats init_stats = {0,0,0,0,0,0};
+  struct stats init_stats = {0,0,0,0,0};
   struct stats *s = bpf_map_lookup_elem(&prog_stats, &zero);
-  if(s) lock_xadd(&s->dropped, 1);
-  else bpf_map_update_elem(&prog_stats, &zero, &init_stats, BPF_NOEXIST);
-#endif /* ENABLE_STATS */
-
-  return code;
-}
-
-/* Return with error */
-static inline int bpf_reterr(int code){
-#ifdef ENABLE_STATS
-  uint8_t zero = 0;
-  struct stats init_stats = {0,0,0,0,0,0};
-  struct stats *s = bpf_map_lookup_elem(&prog_stats, &zero);
-  bpf_printk("stats *s is %d\n", s == NULL);
-  if(s) lock_xadd(&s->error, 1);
-  else bpf_map_update_elem(&prog_stats, &zero, &init_stats, BPF_NOEXIST);
+  if(s) {
+    lock_xadd(&s->tx_other, 1);
+  }else bpf_map_update_elem(&prog_stats, &zero, &init_stats, BPF_NOEXIST);
 #endif /* ENABLE_STATS */
 
   return code;

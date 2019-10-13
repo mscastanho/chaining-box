@@ -47,6 +47,9 @@ static inline int set_src_mac(struct ethhdr *eth){
 SEC("action/classify")
 int classify_tc(struct __sk_buff *skb)
 {
+  /* Start timestamps for statistics (if enabled) */
+  bpf_mark_init();
+
 	void *data_end = (void *)(long)skb->data_end;
 	void *data = (void *)(long)skb->data;
 	struct nshhdr *nsh;
@@ -64,7 +67,7 @@ int classify_tc(struct __sk_buff *skb)
 		bpf_printk("[CLASSIFY] Bounds check #1 failed.\n");
 		#endif /* DEBUG */
 
-		return TC_ACT_OK;
+		return bpf_retother(TC_ACT_OK);
 	}
 
 	eth = data;
@@ -75,7 +78,7 @@ int classify_tc(struct __sk_buff *skb)
 		bpf_printk("[CLASSIFY] Not an IPv4 packet, passing along.\n");
 		#endif /* DEBUG */
 
-		return TC_ACT_OK;
+		return bpf_retother(TC_ACT_OK);
 	}
 
 	ret = get_tuple(ip,data_end,&key);
@@ -84,7 +87,7 @@ int classify_tc(struct __sk_buff *skb)
 		bpf_printk("[CLASSIFY] get_tuple() failed: %d\n",ret);
 		#endif /* DEBUG */
 
-		return TC_ACT_OK;
+		return bpf_retother(TC_ACT_OK);
 	}
 
 	cls = bpf_map_lookup_elem(&cls_table,&key);
@@ -93,7 +96,7 @@ int classify_tc(struct __sk_buff *skb)
 		bpf_printk("[CLASSIFY] No rule for packet.\n");
 		#endif /* DEBUG */
 
-		return TC_ACT_OK;
+		return bpf_retother(TC_ACT_OK);
 	}
 
 	#ifdef DEBUG
@@ -116,7 +119,7 @@ int classify_tc(struct __sk_buff *skb)
 		bpf_printk("[CLASSIFY]: Failed to add extra room: %d\n", ret);
 		#endif /* DEBUG */
 
-		return TC_ACT_SHOT;
+      return bpf_retother(TC_ACT_SHOT);
     }
     
     data = (void *)(long)skb->data;
@@ -131,7 +134,7 @@ int classify_tc(struct __sk_buff *skb)
 		#ifdef DEBUG
 		bpf_printk("[CLASSIFY] Bounds check #2 failed.\n");
 		#endif /* DEBUG */
-		return TC_ACT_OK;
+		return bpf_retother(TC_ACT_OK);
 	}
 
 	oeth = data;
@@ -149,7 +152,7 @@ int classify_tc(struct __sk_buff *skb)
 	ieth->h_proto = prev_proto;
 	// oeth->h_dest and oeth->h_src will be set by fwd stage
 
-	if(set_src_mac(oeth)) return TC_ACT_SHOT;
+	if(set_src_mac(oeth)) return bpf_retother(TC_ACT_SHOT);
 	__builtin_memmove(oeth->h_dest,cls->next_hop,ETH_ALEN);
 
 	// oeth->h_proto = bpf_htons(ETH_P_8021Q);
@@ -172,6 +175,6 @@ int classify_tc(struct __sk_buff *skb)
 
 	// TODO: This should be bpf_redirect_map(), to allow
 	// redirecting the packet to another interface
-	return TC_ACT_OK;
+	return bpf_retok(TC_ACT_OK);
 }
 char _license[] SEC("license") = "GPL";
