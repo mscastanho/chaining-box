@@ -71,7 +71,7 @@ clean:
 	cd $(UTILSDIR) && $(MAKE) clean;
 	rm -f *.ll
 	rm -f *.o
-	rm -f sfc_agent_user
+	rm -f *_user
 	rm -rdf ${JITEDOUTDIR}
 
 llvm-check: $(CLANG) $(LLC)
