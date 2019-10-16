@@ -11,9 +11,9 @@
 
 #include "bpf_endian.h"
 #include "bpf_helpers.h"
-#include "bpf_custom.h"
+#include "cb_helpers.h"
 #include "bpf_elf.h"
-#include "common.h"
+#include "cb_common.h"
 #include "nsh.h"
 
 #define ADJ_STAGE 1

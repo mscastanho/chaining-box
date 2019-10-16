@@ -22,7 +22,7 @@
 
 #include "tc_helpers.h"
 #include "sys_helpers.h"
-#include "common.h"
+#include "cb_common.h"
 #include "nsh.h"
 
 static const struct _bpf_files {

@@ -1,3 +1,6 @@
+#ifndef CB_HELPERS_H
+#define CB_HELPERS_H
+
 #include <linux/in.h>
 #include <linux/if_ether.h>
 #include <linux/ip.h>
@@ -8,7 +11,7 @@
 #include <stdlib.h>
 
 #include "bpf_helpers.h"
-#include "common.h"
+#include "cb_common.h"
 
 #ifdef BPFMAPDEF
 extern struct bpf_map_def prog_stats;
@@ -127,3 +130,5 @@ static inline int bpf_retother(int code){
 
   return code;
 }
+
+#endif /* CB_HELPERS_H */

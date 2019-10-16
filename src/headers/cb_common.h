@@ -1,5 +1,5 @@
-#ifndef COMMON_H_
-#define COMMON_H_
+#ifndef CB_COMMON_H_
+#define CB_COMMON_H_
 
 #include <linux/in.h>
 #include <linux/if_ether.h>
@@ -78,4 +78,4 @@ struct vlanhdr {
 	__be16 h_vlan_encapsulated_proto;
 };
 
-#endif /* COMMON_H_ */
+#endif /* CB_COMMON_H_ */
