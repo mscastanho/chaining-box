@@ -19,6 +19,12 @@ extern struct bpf_map_def prog_stats;
 extern struct bpf_elf_map prog_stats;
 #endif /* BPFMAPDEF */
 
+#ifdef DEBUG
+#define cb_debug(...) bpf_printk(__VA_ARGS__)
+#else
+#define cb_debug(...) do{;}while(0) /* Do nothing */
+#endif
+
 static inline int get_tuple(void* ip_data, void* data_end, struct ip_5tuple *t){
 	struct iphdr *ip;
 	struct udphdr *udp;
@@ -82,7 +88,7 @@ static inline int get_tuple(void* ip_data, void* data_end, struct ip_5tuple *t){
 };
 
 /* Mark beginning of program */
-static inline void bpf_mark_init(void){
+static inline void cb_mark_init(void){
 #ifdef ENABLE_STATS
   uint8_t zero = 0;
   struct stats init_stats = {0,0,0,0,0};
@@ -99,7 +105,7 @@ static inline void bpf_mark_init(void){
 }
 
 /* Return and count as OK */
-static inline int bpf_retok(int code){
+static inline int cb_retok(int code){
 #ifdef ENABLE_STATS
   uint8_t zero = 0;
   struct stats init_stats = {0,0,0,0,0};
@@ -118,7 +124,7 @@ static inline int bpf_retok(int code){
 }
 
 /* Return and count as exited for 'other' purpose */
-static inline int bpf_retother(int code){
+static inline int cb_retother(int code){
 #ifdef ENABLE_STATS
   uint8_t zero = 0;
   struct stats init_stats = {0,0,0,0,0};

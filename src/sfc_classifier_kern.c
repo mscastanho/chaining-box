@@ -34,9 +34,7 @@ static inline int set_src_mac(struct ethhdr *eth){
 	// Get src MAC from table. Is there a better way?
 	smac = bpf_map_lookup_elem(&src_mac,&zero);
 	if(smac == NULL){
-		#ifdef DEBUG
-		bpf_printk("[FORWARD]: No source MAC configured\n");
-		#endif /* DEBUG */
+		cb_debug("[FORWARD]: No source MAC configured\n");
 		return -1;
 	}
 
@@ -48,7 +46,7 @@ SEC("action/classify")
 int classify_tc(struct __sk_buff *skb)
 {
   /* Start timestamps for statistics (if enabled) */
-  bpf_mark_init();
+  cb_mark_init();
 
 	void *data_end = (void *)(long)skb->data_end;
 	void *data = (void *)(long)skb->data;
@@ -63,78 +61,55 @@ int classify_tc(struct __sk_buff *skb)
 	__u16 prev_proto;
 
 	if(data + sizeof(struct ethhdr) + sizeof(struct iphdr) > data_end){
-		#ifdef DEBUG
-		bpf_printk("[CLASSIFY] Bounds check #1 failed.\n");
-		#endif /* DEBUG */
-
-		return bpf_retother(TC_ACT_OK);
+        cb_debug("[CLASSIFY] Bounds check #1 failed.\n");
+		return cb_retother(TC_ACT_OK);
 	}
 
 	eth = data;
 	ip = (void*)eth + sizeof(struct ethhdr);
 
 	if(bpf_ntohs(eth->h_proto) != ETH_P_IP){
-		#ifdef DEBUG
-		bpf_printk("[CLASSIFY] Not an IPv4 packet, passing along.\n");
-		#endif /* DEBUG */
-
-		return bpf_retother(TC_ACT_OK);
+        cb_debug("[CLASSIFY] Not an IPv4 packet, passing along.\n");
+		return cb_retother(TC_ACT_OK);
 	}
 
 	ret = get_tuple(ip,data_end,&key);
 	if (ret < 0){
-		#ifdef DEBUG
-		bpf_printk("[CLASSIFY] get_tuple() failed: %d\n",ret);
-		#endif /* DEBUG */
-
-		return bpf_retother(TC_ACT_OK);
+        cb_debug("[CLASSIFY] get_tuple() failed: %d\n",ret);
+		return cb_retother(TC_ACT_OK);
 	}
 
 	cls = bpf_map_lookup_elem(&cls_table,&key);
 	if(cls == NULL){
-		#ifdef DEBUG
-		bpf_printk("[CLASSIFY] No rule for packet.\n");
-		#endif /* DEBUG */
-
-		return bpf_retother(TC_ACT_OK);
+        cb_debug("[CLASSIFY] No rule for packet.\n");
+		return cb_retother(TC_ACT_OK);
 	}
 
-	#ifdef DEBUG
-	bpf_printk("[CLASSIFY] Matched packet flow.\n");
-	#endif /* DEBUG */
+    cb_debug("[CLASSIFY] Matched packet flow.\n");
 
 	// Save previous proto
 	ieth = data;
 	prev_proto = ieth->h_proto;
 
-	#ifdef DEBUG
-	bpf_printk("[CLASS-TC] Size before: %d\n",data_end-data);
-	#endif /* DEBUG */
+    cb_debug("[CLASS-TC] Size before: %d\n",data_end-data);
 
     // Add outer encapsulation
     ret = bpf_skb_adjust_room(skb,sizeof(struct ethhdr) + sizeof(struct nshhdr),BPF_ADJ_ROOM_MAC,0);
 
     if (ret < 0) {
-		#ifdef DEBUG
-		bpf_printk("[CLASSIFY]: Failed to add extra room: %d\n", ret);
-		#endif /* DEBUG */
-
-      return bpf_retother(TC_ACT_SHOT);
+        cb_debug("[CLASSIFY]: Failed to add extra room: %d\n", ret);
+        return cb_retother(TC_ACT_SHOT);
     }
     
     data = (void *)(long)skb->data;
 	data_end = (void *)(long)skb->data_end;
 
-	#ifdef DEBUG
-	bpf_printk("[CLASS-TC] Size after: %d\n",data_end-data);
-	#endif /* DEBUG */
+    cb_debug("[CLASS-TC] Size after: %d\n",data_end-data);
 
 	// Bounds check to please the verifier
     if(data + 2*sizeof(struct ethhdr) + sizeof(struct nshhdr) > data_end){
-		#ifdef DEBUG
-		bpf_printk("[CLASSIFY] Bounds check #2 failed.\n");
-		#endif /* DEBUG */
-		return bpf_retother(TC_ACT_OK);
+        cb_debug("[CLASSIFY] Bounds check #2 failed.\n");
+		return cb_retother(TC_ACT_OK);
 	}
 
 	oeth = data;
@@ -152,7 +127,7 @@ int classify_tc(struct __sk_buff *skb)
 	ieth->h_proto = prev_proto;
 	// oeth->h_dest and oeth->h_src will be set by fwd stage
 
-	if(set_src_mac(oeth)) return bpf_retother(TC_ACT_SHOT);
+	if(set_src_mac(oeth)) return cb_retother(TC_ACT_SHOT);
 	__builtin_memmove(oeth->h_dest,cls->next_hop,ETH_ALEN);
 
 	// oeth->h_proto = bpf_htons(ETH_P_8021Q);
@@ -169,12 +144,10 @@ int classify_tc(struct __sk_buff *skb)
     // using big endian notation.
     nsh->serv_path 	= cls->sph;
 
-	#ifdef DEBUG
-	bpf_printk("[CLASSIFY] NSH added.\n");
-	#endif /* DEBUG */
+    cb_debug("[CLASSIFY] NSH added.\n");
 
 	// TODO: This should be bpf_redirect_map(), to allow
 	// redirecting the packet to another interface
-	return bpf_retok(TC_ACT_OK);
+	return cb_retok(TC_ACT_OK);
 }
 char _license[] SEC("license") = "GPL";
