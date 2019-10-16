@@ -37,6 +37,11 @@
     };
 #endif /* BPFMAPDEF */
 
+/* Map to hold source MAC
+ * This is the shared definition used by all programs */
+#define SRCMACMAP() MAP(src_mac, BPF_MAP_TYPE_HASH, sizeof(__u8), \
+    ETH_ALEN, 1, PIN_GLOBAL_NS);
+
 #ifdef ENABLE_STATS
 
 #define STATSMAP() MAP(prog_stats, BPF_MAP_TYPE_HASH, sizeof(__u8), \

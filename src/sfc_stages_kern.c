@@ -27,11 +27,11 @@ enum cb_ret {
     CB_DROP,
 };
 
+/* Map containing source MAC */
+SRCMACMAP();
+
 MAP(nsh_data, BPF_MAP_TYPE_HASH, sizeof(struct ip_5tuple),
     sizeof(struct nshhdr), 2048, PIN_GLOBAL_NS);
-
-MAP(src_mac, BPF_MAP_TYPE_HASH, sizeof(__u8),
-    ETH_ALEN, 1, PIN_GLOBAL_NS);
 
 MAP(fwd_table, BPF_MAP_TYPE_HASH, sizeof(__u32),
     sizeof(struct fwd_entry), 2048, PIN_GLOBAL_NS);
