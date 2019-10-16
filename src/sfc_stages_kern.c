@@ -342,12 +342,6 @@ int sfc_forwarding(struct __sk_buff *skb)
         return cb_retok(TC_ACT_OK);
     }
 
-	// Keep regular traffic working
-	//if (eth->h_proto != bpf_htons(ETH_P_NSH)){
-	//	//	cb_debug("[FORWARD]: Not NSH. Passing along...\n");
-    //    return TC_ACT_OK;
-    //}
-
 	nsh = (void*) eth + sizeof(*eth);
 
 	if ((void*) nsh + sizeof(*nsh) > data_end){
@@ -355,34 +349,13 @@ int sfc_forwarding(struct __sk_buff *skb)
 		return cb_retother(TC_ACT_SHOT);
 	}
 
-	// cb_debug("[FORWARD] SPH = 0x%x\n",sph);
 	next_hop = bpf_map_lookup_elem(&fwd_table,&nsh->serv_path);
 	if(likely(next_hop)){
 
-		// Check if is end of chain
+		// Check if it is end of chain
 		if(next_hop->flags & 0x1){
-			// cb_debug("[FORWARD] Size before: %d ; EtherType = 0x%x\n",data_end-data,bpf_ntohs(eth->h_proto));
 			cb_debug("[FORWARD]: End of chain 2! SPH = 0x%x\n", bpf_ntohl(nsh->serv_path));
-
-			// #pragma clang loop unroll(full)
-			// for(int i = 0 ; i < 8 ; i++){
-			// 	ret = bpf_skb_vlan_pop(skb);
-			// 	if (ret < 0) {
-			// 		cb_debug("[ADJUST]: Failed to add extra room: %d\n", ret);
-			// 		return BPF_DROP;
-			// 	}
-			// }
-
-			// data     = (void *)(long)skb->data;
-			// data_end = (void *)(long)skb->data_end;
-			// eth = data;
-
-			// if(eth+sizeof(*eth) > data_end)
-			// 	return BPF_DROP;
-
-			// cb_debug("[FORWARD] Size after: %d ; EtherType = 0x%x\n",data_end-data,bpf_ntohs(eth->h_proto));
 			return cb_retok(TC_ACT_OK); //TODO: Change this
-			// Remove external encapsulation
 		}else{
 			cb_debug("[FORWARD]: Updating next hop info\n");
 			// Update MAC addresses

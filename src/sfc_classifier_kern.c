@@ -1,6 +1,5 @@
 #include <linux/bpf.h>
 #include <linux/if_ether.h>
-// #include <linux/if_vlan.h>
 #include <linux/in.h>
 #include <linux/ip.h>
 #include <linux/tcp.h>
@@ -53,7 +52,6 @@ int classify_tc(struct __sk_buff *skb)
 	struct nshhdr *nsh;
 	struct cls_entry *cls;
 	struct ethhdr *eth,*ieth,*oeth;
-	// struct vlanhdr *vlan;
 	struct iphdr *ip;
 	void* extra_bytes;
 	struct ip_5tuple key = { };
@@ -113,7 +111,6 @@ int classify_tc(struct __sk_buff *skb)
 	}
 
 	oeth = data;
-	// vlan = (void*) oeth + sizeof(struct ethhdr);
 	nsh = (void*) oeth + sizeof(struct ethhdr);
 	extra_bytes = (void*) nsh + sizeof(struct nshhdr);
 	ieth = (void*) extra_bytes;
@@ -129,10 +126,6 @@ int classify_tc(struct __sk_buff *skb)
 
 	if(set_src_mac(oeth)) return cb_retother(TC_ACT_SHOT);
 	__builtin_memmove(oeth->h_dest,cls->next_hop,ETH_ALEN);
-
-	// oeth->h_proto = bpf_htons(ETH_P_8021Q);
-	// vlan->h_vlan_encapsulated_proto = bpf_htons(ETH_P_NSH);
-	// vlan->h_vlan_TCI = bpf_htons(VLAN_TCI);
 
 	nsh->basic_info = bpf_htons( ((uint16_t) 0)     |
 						         NSH_TTL_DEFAULT 	|
