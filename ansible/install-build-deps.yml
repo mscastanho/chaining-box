@@ -1,0 +1,66 @@
+---
+- name: Provision environment for BPF development
+  hosts: all
+  gather_facts: yes
+  become: yes
+  become_user: root
+  tasks:
+    - name: Install dependencies
+      apt:
+        name: "{{ item }}"
+        update_cache: yes # Run 'apt update' before install
+      loop:
+        - make
+        - gcc
+        - libssl-dev
+        - bc
+        - libelf-dev
+        - libcap-dev
+        - clang
+        - gcc-multilib
+        - llvm
+        - libncurses5-dev
+        - git
+        - pkg-config
+        - libmnl-dev
+        - bison
+        - flex
+        - graphviz
+        - elfutils
+        - libdw-dev
+        - binutils-dev
+      tags: install
+
+    - name: Clone linux kernel "{{ kernel_version }}" tree
+      git:
+        repo: https://github.com/torvalds/linux.git
+        dest: "{{ kernel_dir }}"
+        version: "{{ kernel_version }}"
+        depth: 1 # Reduce commit history to download faster
+
+    - name: Compile kernel headers
+      make:
+        chdir: "{{ kernel_dir }}"
+        target: headers_install
+
+    - name: Install bpftool
+      shell: make && make install
+      args:
+        chdir: "{{ kernel_dir }}/tools/bpf/bpftool"
+
+    - name: Install perf
+      shell: make && make install
+      args:
+        chdir: "{{ home }}/{{ kernel_dir }}/tools/perf"
+
+    - name: Clone latest iproute2
+      git:
+        repo: git://git.kernel.org/pub/scm/network/iproute2/iproute2.git
+        dest: "{{ home }}/iproute2"
+      tags: iproute2
+
+    - name: Install latest iproute2
+      shell: make && make install
+      args:
+        chdir: "{{ home }}/iproute2"
+      tags: iproute2
