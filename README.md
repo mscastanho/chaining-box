@@ -1,8 +1,10 @@
 # Disaggregated SFC architecture with eBPF
 
-First of all, you'll need to have Vagrant >= 2.1.0. Please check the [official page](https://www.vagrantup.com/docs/installation/) for instructions.
+First of all, you'll need to have Vagrant >= 2.1.0. Please check the
+[official page](https://www.vagrantup.com/docs/installat ion/) for instructions.
 
-You will also need `vagrant-libvirt` plugin for Vagrant.  To install it, please follow the instructions on the project's [GitHub page](https://github.com/vagrant-libvirt/vagrant-libvirt). 
+You will also need `vagrant-libvirt` plugin for Vagrant.  To install it, please
+follow the instructions on the project's [GitHub page](https://github.com/vagrant-libvirt/vagrant-libvirt).
 
 Next, install ansible:
 
@@ -16,9 +18,13 @@ Finally, provision all VMs with the necessary stuff:
 
     vagrant provision --provision-with ansible
 
-This might take a while, but at the end it will have created the VMs, installed kernel 4.19 and all other dependencies.
+This might take a while, but at the end it will have created the VMs, installed
+kernel 4.19 and all other dependencies.
 
-The VMs are automatically provisioned during initialization. If something goes wrong, or you want to execute the `provision.yml` manually, check [this](https://docs.ansible.com/ansible/latest/scenario_guides/guide_vagrant.html) page on the Ansible docs.
+The VMs are automatically provisioned during initialization. If something goes
+wrong, or you want to execute the `provision.yml` manually, check
+[this](https://docs.ansible.com/ansible/latest/scenario_guides/guide_vagrant.html)
+page on the Ansible docs.
 
 To access the vm run
 
@@ -37,7 +43,7 @@ Unload eBPF code:
     sudo ip link set dev <interface> xdp off
 
 ## Software versions
-    
+
   - kernel v5.3
   - clang 9.0
   - elfutils 0.176
@@ -47,7 +53,8 @@ Unload eBPF code:
 
 ## Compiling the source code
 
-Make sure to have the kernel sources downloaded somewhere (e.g.: ~/devel/linux) and install the kernel headers locally:
+Make sure to have the kernel sources downloaded somewhere (e.g.: ~/devel/linux)
+and install the kernel headers locally:
 
     cd ~/devel/linux
     make headers_install
@@ -57,15 +64,18 @@ Now you're ready to compile the code:
     cd chaining-box/src
     make KDIR=~/devel/linux
 
-`KDIR` is needed to point to the updated kernel headers, instead of the ones offered by the system (which might be outdated).
+`KDIR` is needed to point to the updated kernel headers, instead of the ones
+offered by the system (which might be outdated).
 
 ### Compiling the JITed output
 
-The current build system also supports generating the JITed output for each program, facilitate program debugging.
+The current build system also supports generating the JITed output for each
+program, facilitate program debugging.
 
     sudo make jited-out KDIR=~/devel/linux-5.3/
 
-where `KDIR` can have a different value. `sudo` is needed since we need to use bpftool under the hood. The output will be on `jited-output/`
+where `KDIR` can have a different value. `sudo` is needed since we need to use
+bpftool under the hood. The output will be on `jited-output/`
 
 ## Running loss rate test
 On the destination:
