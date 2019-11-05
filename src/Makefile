@@ -11,7 +11,7 @@ KERN_SOURCES = ${KERN:=.c}
 KERN_OBJECTS = ${KERN_SOURCES:.c=.o}
 
 USR = $(filter %_user, $(TARGETS))
-USER_OBJECTS = ${USR:=.o}
+USER_OBJECTS = ${USR}
 
 LLC ?= llc
 CLANG ?= clang
@@ -21,6 +21,9 @@ CC ?= gcc
 UTILSDIR = utils
 UTILS_SRC = ${wildcard ${UTILSDIR}/*.c}
 UTILS = ${UTILS_SRC:.c=.o}
+
+# Build dir
+BUILD_DIR = ./build
 
 # Add libbpf
 LIBBPF_DIR = ./libbpf/src
@@ -45,12 +48,15 @@ LIBS = -lbpf -lelf
 # 	ex: make ~/devel/kernels/linux-5.1
 CFLAGS += -I$(KDIR)/usr/include
 
-all: llvm-check kdir-check $(KERN_OBJECTS) $(USER_OBJECTS) utils
+all: llvm-check kdir-check build-dir $(KERN_OBJECTS) $(USER_OBJECTS) utils
 
 .PHONY: clean $(CLANG) $(LLC) all utils debug jited-out
 
 debug: CFLAGS += -DDEBUG
 debug: all
+
+build-dir:
+	mkdir -p ${BUILD_DIR}
 
 jited-out:
 	# TODO: Add statement to check if it is root
@@ -69,9 +75,7 @@ jited-out:
 clean:
 	cd $(LIBBPF_DIR) && $(MAKE) clean;
 	cd $(UTILSDIR) && $(MAKE) clean;
-	rm -f *.ll
-	rm -f *.o
-	rm -f *_user
+	rm -rdf ${BUILD_DIR}
 	rm -rdf ${JITEDOUTDIR}
 
 llvm-check: $(CLANG) $(LLC)
@@ -87,8 +91,8 @@ kdir-check:
 		echo "Error: KDIR is not set. Check README for more info"; \
 		exit 1; \
 	fi
-	@if [ ! -d $(KDIR)/usr/include ]; then \
-		echo "Error: Directory $(KDIR)/usr/include doesn't exist."; \
+	@if [ ! -d $(KDIR)/include ]; then \
+		echo "Error: Directory $(KDIR)/include doesn't exist."; \
 		echo "Maybe run 'make kernel_headers' from $(KDIR)?"; \
 		exit 1; \
 	fi
@@ -102,25 +106,16 @@ $(OBJECT_LIBBPF):
 		cd $(LIBBPF_DIR) && mkdir -p root; BUILD_STATIC_ONLY=y DESTDIR=root $(MAKE) install; \
 	fi
 
-# $(KERN_OBJECTS): %.o: %.c
-#   $(CLANG) -S \
-#       -D __BPF_TRACING__ \
-#       $(CFLAGS) \
-#       -Wall \
-#       -Wno-unused-value \
-#       -Wno-pointer-sign \
-#       -Wno-compare-distinct-pointer-types \
-#     -Werror \
-#     -O2 -emit-llvm -c -g $< -o ${@:.o=.ll}
-#   $(LLC) -march=bpf -filetype=obj -o $@ ${@:.o=.ll}
 $(KERN_OBJECTS): %.o: %.c
 	($(CLANG) -O2 -g -Wall $(CFLAGS) -target bpf -emit-llvm \
 		-c $< -o - || echo "clang failed") | \
 	$(LLC) -march=bpf -mcpu=probe  -filetype=obj -o $@
 	#pahole -J $@
+	@mv $@ ${BUILD_DIR}
 
 utils:
 	$(MAKE) -C $(UTILSDIR)
 
-$(USER_OBJECTS): %.o: %.c $(OBJECT_LIBBPF) utils Makefile
-	$(CC) $(CFLAGS) $(LDFLAGS) -o ${@:.o=} $< $(UTILS) $(LIBS)
+$(USER_OBJECTS): %: %.c $(OBJECT_LIBBPF) utils Makefile
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $< $(UTILS) $(LIBS)
+	@mv $@ ${BUILD_DIR}

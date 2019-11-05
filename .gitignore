@@ -10,3 +10,4 @@ __pycache__*
 *.tar.gz
 *.zip
 *.swp
+src/build/*
