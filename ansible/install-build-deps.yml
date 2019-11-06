@@ -6,29 +6,28 @@
   become_user: root
   tasks:
     - name: Install dependencies
-      apt:
-        name: "{{ item }}"
-        update_cache: yes # Run 'apt update' before install
-      loop:
-        - make
-        - gcc
-        - libssl-dev
-        - bc
-        - libelf-dev
-        - libcap-dev
-        - clang
-        - gcc-multilib
-        - llvm
-        - libncurses5-dev
-        - git
-        - pkg-config
-        - libmnl-dev
-        - bison
-        - flex
-        - graphviz
-        - elfutils
-        - libdw-dev
-        - binutils-dev
+      package:
+        name:
+           - make
+           - gcc
+           - libssl-dev
+           - bc
+           - libelf-dev
+           - libcap-dev
+           - clang
+           - gcc-multilib
+           - llvm
+           - libncurses5-dev
+           - git
+           - pkg-config
+           - libmnl-dev
+           - bison
+           - flex
+           - graphviz
+           - elfutils
+           - libdw-dev
+           - binutils-dev
+           - rsync
       tags: install
 
     - name: Clone linux kernel "{{ kernel_version }}" tree
@@ -39,9 +38,11 @@
         depth: 1 # Reduce commit history to download faster
 
     - name: Compile kernel headers
-      make:
+      shell: make headers_install INSTALL_HDR_PATH={{ install_path }}
+      args:
         chdir: "{{ kernel_dir }}"
-        target: headers_install
+      vars:
+        install_path: "{{ home }}/kernel-headers-{{ kernel_version }}/"
 
     - name: Install bpftool
       shell: make && make install
@@ -49,9 +50,9 @@
         chdir: "{{ kernel_dir }}/tools/bpf/bpftool"
 
     - name: Install perf
-      shell: make && make install
+      shell: make && make prefix=/usr/local install
       args:
-        chdir: "{{ home }}/{{ kernel_dir }}/tools/perf"
+        chdir: "{{ kernel_dir }}/tools/perf"
 
     - name: Clone latest iproute2
       git:
