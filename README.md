@@ -51,7 +51,21 @@ Unload eBPF code:
   - perf v5.3.g4d856f72c10e
   - pahole v1.15
 
+## Building the Docker container
+
+   cd chaining-box
+   docker build -t mscastanho/chainingbox:cb-build .
+
+You can also download it directly from  [DockerHub](https://cloud.docker.com/repository/docker/mscastanho/chainingbox/general).
+
 ## Compiling the source code
+
+The best way to compile the source code is to use the pre-built Docker image
+available from [DockerHub](https://cloud.docker.com/repository/docker/mscastanho/chainingbox/general):
+
+   TODO: ADD INSTRUCTIONS ON HOW TO USE THE IMAGE
+
+### Compiling without the Docker container
 
 Make sure to have the kernel sources downloaded somewhere (e.g.: ~/devel/linux)
 and install the kernel headers locally:

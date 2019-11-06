@@ -1,0 +1,30 @@
+FROM ubuntu:19.10
+
+ARG TARGET_DIR=/usr/src
+ARG KERNEL_VERSION=v5.3
+ARG KERNEL_DIR=$TARGET_DIR/kernel-$KERNEL_VERSION
+ARG ANSIBLE_PLAYBOOK=/tmp/install-build-deps.yml
+
+WORKDIR $TARGET_DIR
+
+# Copy necessary scripts
+COPY ./ansible/install-build-deps.yml /tmp/
+ 
+# Install ansible to run playbook
+RUN apt update -y && \
+    apt install -y --no-install-recommends ansible && \
+    ansible-playbook --connection=local --inventory 127.0.0.1, \
+		-e 'ansible_python_interpreter=/usr/bin/python3 \
+		 	 home=$TARGET_DIR \
+			 kernel_version=$KERNEL_VERSION \
+			 kernel_dir=$KERNEL_DIR' \
+      $ANSIBLE_PLAYBOOK && \
+    apt remove ansible python* --purge -y && \
+    apt autoremove -y && apt clean && \
+    rm -rf /var/lib/apt/lists/* && \
+    rm -rdf $TARGET_DIR/iproute2 && \
+    rm -rdf $KERNEL_DIR && \
+    rm -f $ANSIBLE_PLAYBOOK
+
+# Keep container alive by default
+ENTRYPOINT ["tail", "-f", "/dev/null"]
