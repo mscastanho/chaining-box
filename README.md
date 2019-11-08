@@ -61,9 +61,20 @@ You can also download it directly from  [DockerHub](https://cloud.docker.com/rep
 ## Compiling the source code
 
 The best way to compile the source code is to use the pre-built Docker image
-available from [DockerHub](https://cloud.docker.com/repository/docker/mscastanho/chainingbox/general):
+containing all build dependencies, so you don't have to install anything (besides
+Docker, of course). This is done through `compile.sh` from `src/`.
 
-   TODO: ADD INSTRUCTIONS ON HOW TO USE THE IMAGE
+    cd src/
+    ./compile.sh
+
+This will compile the source code and place the generated object files and executables
+on a `build/` directory under `src/`.
+
+That script basically calls `make` inside the container. You can pass extra arguments to
+make directly through the script:
+ 
+    cd src/
+    ./compile.sh debug
 
 ### Compiling without the Docker container
 
