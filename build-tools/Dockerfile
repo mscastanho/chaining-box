@@ -9,6 +9,7 @@ WORKDIR $TARGET_DIR
 
 # Copy necessary scripts
 COPY ./install-build-deps.yml /tmp/
+COPY ./versions.sh .
  
 # Install ansible to run playbook
 RUN apt update -y && \
