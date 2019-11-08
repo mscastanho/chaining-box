@@ -8,7 +8,7 @@ ARG ANSIBLE_PLAYBOOK=/tmp/install-build-deps.yml
 WORKDIR $TARGET_DIR
 
 # Copy necessary scripts
-COPY ./ansible/install-build-deps.yml /tmp/
+COPY ./install-build-deps.yml /tmp/
  
 # Install ansible to run playbook
 RUN apt update -y && \

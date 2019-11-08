@@ -42,7 +42,7 @@
       args:
         chdir: "{{ kernel_dir }}"
       vars:
-        install_path: "{{ home }}/kernel-headers-{{ kernel_version }}/"
+        install_path: "{{ home }}/kernel-headers/"
 
     - name: Install bpftool
       shell: make && make install
