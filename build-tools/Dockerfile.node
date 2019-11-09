@@ -1,0 +1,12 @@
+FROM calico/bpftool:v5.3-amd64 as calico
+
+FROM ubuntu:19.10
+
+RUN echo "===> Installing  tools..."  && \
+    apt-get -y update && \
+    apt-get -y install iproute2 ethtool iputils-ping tcpdump iperf3 --no-install-recommends && \
+    echo "===> Cleaning the system" && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* 
+
+COPY --from=calico /bpftool /usr/bin/bpftool

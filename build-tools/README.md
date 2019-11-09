@@ -23,3 +23,24 @@ corresponding sources.
 Where `<MACHINE-IP>` and `<USER>` should be change to the corresponding
 values you are using on the target machine. Aansible will ask for the
 password for SSH access before running the playbook.
+
+# Building the Docker images
+
+This directory contains the recipes for the two Docker images used in
+this project:
+
+- `cb-build`: Used to compile the eBPF programs and ChainingBox agents. It
+              contains all the dependencies needed for this process.
+- `cb-node`: Image to be used by ChainingBox nodes.
+
+Note that pre-built version of these images are available on [DockerHub](https://hub.docker.com/r/mscastanho/chaining-box/tags),
+so you should only need to build them if you are making changes to their
+contents (or want to build them from scratch for some other reason).
+
+Building `cb-build`:
+
+    docker build -t cb-build -f Dockerfile.build .
+
+Buildinf `cb-node`
+
+    docker build -t cb-node -f Dockerfile.node .
