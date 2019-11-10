@@ -28,6 +28,7 @@
            - libdw-dev
            - binutils-dev
            - rsync
+
       tags: install
 
     - name: Clone linux kernel "{{ kernel_version }}" tree
@@ -65,3 +66,13 @@
       args:
         chdir: "{{ home }}/iproute2"
       tags: iproute2
+
+    - name: Download golang
+      get_url:
+        url: https://dl.google.com/go/go1.13.4.linux-amd64.tar.gz
+        dest: /tmp/golang.tar.gz
+
+    - name: Install golang
+      shell: tar -C /usr/local -xf golang.tar.gz && echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.profile
+      args:
+        chdir: /tmp 

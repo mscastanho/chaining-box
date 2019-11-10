@@ -5,6 +5,8 @@ ARG KERNEL_VERSION=v5.3
 ARG KERNEL_DIR=$TARGET_DIR/kernel-$KERNEL_VERSION
 ARG ANSIBLE_PLAYBOOK=/tmp/install-build-deps.yml
 
+ENV PATH="${PATH}:/usr/local/go/bin/"
+
 WORKDIR $TARGET_DIR
 
 # Copy necessary scripts
@@ -22,10 +24,9 @@ RUN apt update -y && \
       $ANSIBLE_PLAYBOOK && \
     apt remove ansible python* --purge -y && \
     apt autoremove -y && apt clean && \
-    rm -rf /var/lib/apt/lists/* && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* && \ 
     rm -rdf $TARGET_DIR/iproute2 && \
-    rm -rdf $KERNEL_DIR && \
-    rm -f $ANSIBLE_PLAYBOOK
+    rm -rdf $KERNEL_DIR
 
 # Keep container alive by default
 ENTRYPOINT ["tail", "-f", "/dev/null"]
