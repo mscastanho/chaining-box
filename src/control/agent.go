@@ -1,9 +1,13 @@
 package main
 
 import (
+  // "bytes"
   "context"
+  "errors"
   "fmt"
+  "log"
   "os"
+  "os/exec"
 
   /* Interaction with Docker Engine */
   "github.com/docker/docker/api/types"
@@ -16,14 +20,41 @@ import (
   "control/koko"
 )
 
+type CBNodeType int
+
+const (
+  SF  CBNodeType = iota   /* Service Function */
+  CLS                     /* Classifier */
+)
+
+func (ntype CBNodeType) String() string {
+
+  names := [...]string{
+    "sf",
+    "cls",
+  }
+
+  if ntype < SF || ntype > CLS {
+    return "none"
+  }
+
+  return names[ntype]
+}
+
 /* Docker image to be used by containers */
 const default_image = "docker.io/mscastanho/chaining-box:cb-node"
 
 /* Default directory containing the eBPF programs*/
-const progs_dir = "../src/build"
+const progs_dir = "src/build"
+
+/* Base chaining-box dir */
+/* TODO: This should be configured through CLI */
+var source_dir = "/home/mscastanho/devel/chaining-box"
+var target_dir = "/usr/src/chaining-box"
 
 /* Direct Link global ID */
 var dlid = 0
+
 
 func getDirectLinkNames() (string,string) {
   l0 := fmt.Sprintf("dl%di0",dlid)
@@ -55,6 +86,7 @@ func CreateNewContainer(name string) (string, error) {
   cont, err := cli.ContainerCreate(
 		ctx,
 		&container.Config{
+      Hostname: name,
 			Image: default_image,
       /* TODO: Should be command to run the corresponding SF */
       Entrypoint: []string{"tail","-f","/dev/null"},
@@ -64,7 +96,8 @@ func CreateNewContainer(name string) (string, error) {
        * sysadmin operations from inside the container.
        *   Ex: loading BPF programs.*/
       Privileged: true,
-
+      /* Remove container when process finishes */
+      AutoRemove: true,
       /* We need to increase the memlock ulimit for containers so we can
        * create our BPF maps and programs */
       Resources: container.Resources{
@@ -77,8 +110,8 @@ func CreateNewContainer(name string) (string, error) {
           Type: mount.TypeBind,
           /* TODO: Change source to a configurable path. Maybe defined
              by a CLI flag. */
-          Source: "/home/mscastanho/devel/chaining-box",
-          Target: "/usr/src/chaining-box",
+          Source: source_dir,
+          Target: target_dir,
         },
       },
     },
@@ -96,7 +129,7 @@ func CreateNewContainer(name string) (string, error) {
   return cont.ID, nil
 }
 
-func CreateDirectLink(container1, container2 string){
+func CreateDirectLink(container1, container2 string) (string, string){
   var veth1, veth2 koko.VEth
   var err error
   checkErr := func(err error) {
@@ -116,6 +149,34 @@ func CreateDirectLink(container1, container2 string){
 
   err = koko.MakeVeth(veth1,veth2)
   checkErr(err)
+
+  return veth1.LinkName, veth2.LinkName
+}
+
+func ConfigureStages(container string, ntype CBNodeType, iface string) error {
+  var obj string
+
+  switch ntype {
+    case SF:
+      obj = "sfc_stages_kern.o"
+    case CLS:
+      obj = "sfc_classifier_kern.o"
+    default:
+      return  errors.New("Unknown type")
+  }
+
+  obj_path := fmt.Sprintf("%s/src/build/%s",target_dir,obj)
+  script_path := fmt.Sprintf("%s/test/load-bpf.sh",target_dir)
+
+  /* TODO: Too hacky. Use proper Docker SDK funcs instead. */
+  cmd := exec.Command("docker", "exec", "-t", container,
+      script_path, obj_path, iface, ntype.String())
+
+  // log.Printf("Configuring stages: %s\n", cmd.String())
+  out, _ := cmd.Output()
+  log.Printf("%s", out)
+
+  return nil
 }
 
 func main() {
@@ -135,5 +196,8 @@ func main() {
     fmt.Printf("Container %s(%s) started!\n", cname, id[:6])
   }
 
-  CreateDirectLink(clist[0],clist[1])
+  i0, i1 := CreateDirectLink(clist[0],clist[1])
+
+  ConfigureStages(clist[0],CLS,i0)
+  ConfigureStages(clist[1],SF,i1)
 }
