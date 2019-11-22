@@ -1,8 +1,8 @@
 package main
 
 // #cgo CFLAGS: -I../ -I../libbpf/src/root/usr/include/
-// #cgo LDFLAGS: -L../ -L../libbpf/src/ -lcbox -lbpf
-// #include "../cb_agent_helpers.h"
+// #cgo LDFLAGS: -L../build -L../libbpf/src/ -lcbox -lbpf
+// #include "../utils/cb_agent_helpers.h"
 import "C"
 
 import (

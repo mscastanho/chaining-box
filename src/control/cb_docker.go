@@ -47,6 +47,16 @@ type CBConfig struct {
   name2idx map[string]int
 }
 
+type Fwd_entry struct {
+  flags int8
+  address [6]byte
+}
+
+type Fwd_rule struct {
+  key uint32
+  val Fwd_entry
+}
+
 func (ntype CBNodeType) String() string {
 
   names := [...]string{
@@ -60,6 +70,19 @@ func (ntype CBNodeType) String() string {
 
   return names[ntype]
 }
+
+/* --- These should be in sync with src/headers/cb_common.h --- */
+// type Fwd_entry struct {
+  // flags uint8     `json:flags`
+  // address [6]byte `json:address`
+// }
+//
+// type cls_entry struct {
+  // sph uint32       `json:sph`
+  // next_hop [6]byte `json:next_hop`
+// }
+
+/* --- --- */
 
 /* Docker image to be used by containers */
 const default_image = "docker.io/mscastanho/chaining-box:cb-node"
@@ -216,6 +239,16 @@ func ParseChainsConfig(cfgfile string) (cfg CBConfig){
   // fmt.Printf("Chains: %v\nFunctions: %v\n", cfg.Chains, cfg.Functions)
   return cfg
 }
+
+// func GenerateRules(cfg CBConfig) string{
+  // var sph uint32
+//
+  // for _,chain := cfg.Chains {
+    // for _,node := chain {
+//
+    // }
+  // }
+// }
 
 func main() {
   /* Slice containing IDs of all containers created */

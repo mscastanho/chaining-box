@@ -19,7 +19,7 @@
 #include <bpf/bpf.h>
 #include <bpf/libbpf.h>
 
-#include "tc_helpers.h"
+#include "load_helpers.h"
 #include "sys_helpers.h"
 #include "cb_common.h"
 #include "nsh.h"
