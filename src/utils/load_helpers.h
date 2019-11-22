@@ -1,7 +1,5 @@
-#ifndef TC_HELPERS_H_
-#define TC_HELPERS_H_
-
-// #include "cmd.h"
+#ifndef LOAD_HELPERS_H_
+#define LOAD_HELPERS_H_
 
 typedef enum tc_dir_t {
     INGRESS = 0,
@@ -21,4 +19,10 @@ int tc_list_filter(const char* dev, const tc_dir dir);
 
 int tc_remove_filter(const char* dev, const tc_dir dir);
 
-#endif /* TC_HELPERS_H_ */
+/* Loads one XDP program to a specific interface */
+int xdp_add(const char* dev, const char* obj, const char* section);
+
+/* Removes ALL XDP programs from an interface */
+int xdp_remove(const char* dev);
+
+#endif /* LOAD_HELPERS_H_ */

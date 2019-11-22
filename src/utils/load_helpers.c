@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "tc_helpers.h"
+#include "load_helpers.h"
 #include "sys_helpers.h"
 
 int tc_attach_bpf(const char* dev, const char* bpf_obj,
@@ -46,7 +46,7 @@ int tc_list_filter(const char* dev, const tc_dir dir){
 	ret = runcmd("%s filter show dev %s %s", tc_cmd, dev,
 		tc_dir2s[dir]);
 
-	if (ret) {
+	if(ret){
 		fprintf(stderr,
 			"ERR(%d): tc cannot list filters\n",
 			ret);
@@ -66,10 +66,35 @@ int tc_remove_filter(const char* dev, const tc_dir dir){
 		 tc_cmd, dev, tc_dir2s[dir]);
 
 	if (ret) {
-		fprintf(stderr,
-			"ERR(%d): tc cannot remove filters\n",
-			ret);
+		fprintf(stderr, "ERR(%d): tc cannot remove filters\n", ret);
 	}
 
 	return ret;
+}
+
+int xdp_add(const char* dev, const char* obj, const char* section){
+  int ret = 0;
+
+  ret = runcmd("ip link set dev %s xdp obj %s sec %s",
+      dev, obj, section);
+
+  if(ret){
+    fprintf(stderr, "ERR(%d): 'ip' failed to load XDP prog to iface %s\n",
+      ret, dev);
+  }
+
+  return ret;
+}
+
+int xdp_remove(const char* dev){
+  int ret = 0;
+
+  ret = runcmd("ip link set dev %s xdp off", dev);
+
+  if(ret){
+    fprintf(stderr, "ERR(%d): 'ip' failed to remove XDP progs on iface %s\n",
+      ret, dev);
+  }
+
+  return ret;
 }

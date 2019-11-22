@@ -17,8 +17,8 @@ int runcmd(char* format, ...) {
     int ret;
     va_start(args, format);
 
-    snprintf(cmd,CMD_MAX,format,args);
-
+    vsprintf(cmd, format, args);
+    printf("Running cmd: %s\n", cmd);
     ret = system(cmd);
 #ifdef DEBUG
     if (!WIFEXITED(ret)) {
