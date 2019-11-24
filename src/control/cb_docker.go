@@ -29,15 +29,18 @@ const (
   CLS                     /* Classifier */
 )
 
+type CBAddress [6]byte
+
 type CBInstance struct {
   Tag string
   Type string
   Remote bool
   ContainerId string
+  Address CBAddress
 }
 
 type CBChain struct {
-  Id int64
+  Id uint32
   Nodes []string
 }
 
@@ -48,13 +51,21 @@ type CBConfig struct {
 }
 
 type Fwd_entry struct {
-  flags int8
-  address [6]byte
+  Flags uint8       `json:"flags"`
+  Address CBAddress `json:"address"`
 }
 
 type Fwd_rule struct {
-  key uint32
-  val Fwd_entry
+  Key uint32    `json:"key"`
+  Val Fwd_entry `json:"val"`
+}
+
+type CBRulesConfig struct {
+  Fwd []Fwd_rule `json:"fwd"`
+}
+
+func (cfg *CBConfig) GetNodeByName(name string) *CBInstance{
+  return &cfg.Functions[cfg.name2idx[name]]
 }
 
 func (ntype CBNodeType) String() string {
@@ -236,25 +247,56 @@ func ParseChainsConfig(cfgfile string) (cfg CBConfig){
   }
 
   json.Unmarshal([]byte(cfgjson), &cfg)
+  /* TODO: Validate Chain Id is < 2^24 */
+  /* TODO: Validate taht chain lengths are < 256 */
   // fmt.Printf("Chains: %v\nFunctions: %v\n", cfg.Chains, cfg.Functions)
   return cfg
 }
 
-// func GenerateRules(cfg CBConfig) string{
-  // var sph uint32
-//
-  // for _,chain := cfg.Chains {
-    // for _,node := chain {
-//
-    // }
-  // }
-// }
+func GenerateRules(cfg CBConfig) (rules map[string][]Fwd_rule) {
+  var sph uint32
+  var r Fwd_rule
+  var flags uint8
+  var address_next CBAddress
+
+  /* Each node will have a list of rules */
+  rules = make(map[string][]Fwd_rule)
+
+  for _,chain := range cfg.Chains {
+    spi := chain.Id << 24
+    for i,node := range chain.Nodes {
+      sph = spi | (255-uint32(i))
+
+      /* Is it the end of the chain? */
+      if i == len(chain.Nodes) - 1 {
+        flags = 1
+        address_next = CBAddress{0x00,0x00,0x00,0x00,0x00,0x00}
+      } else {
+        flags = 0
+        address_next = (cfg.GetNodeByName(chain.Nodes[i+1])).Address
+      }
+
+      r.Key = sph
+      r.Val = Fwd_entry{Flags: flags, Address: address_next}
+      rules[node] = append(rules[node], r)
+    }
+  }
+
+  return rules
+}
 
 func main() {
   /* Slice containing IDs of all containers created */
   var clist []string
 
-  cfg := ParseChainsConfig("chains-config.json")
+  /* TODO: Create a proper CLI flag to pass this */
+  if len(os.Args) != 2 {
+    fmt.Println("Please provide the path to the chains config file.")
+    os.Exit(1)
+  }
+
+  cfgfile := os.Args[1]
+  cfg := ParseChainsConfig(cfgfile)
   cfg.name2idx = make(map[string]int)
 
   /* Start containers for all functions declared */
@@ -308,4 +350,17 @@ func main() {
       }
     }
   }
+
+  rules := GenerateRules(cfg)
+
+  fmt.Printf("Rules: %v\n", rules)
+  // for node, node_rules := range rules {
+    // fmt.Printf("Rules for node %s:\n", node)
+    // fmt.Printf(" => Raw: %v\n\n",node_rules)
+    // data, err := json.MarshalIndent(CBRulesConfig{Fwd:node_rules},"","  ")
+    // if err != nil {
+      // fmt.Println("Smth went wrong =(")
+    // }
+    // fmt.Printf(" => JSON: %s\n\n", string(data))
+  // }
 }
