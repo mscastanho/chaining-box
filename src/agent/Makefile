@@ -28,3 +28,4 @@ $(CTARGETS): %: %_user.c
 
 cb_agent: %: %.go
 	go build $<
+	@mv $@ $(BUILD_DIR)
