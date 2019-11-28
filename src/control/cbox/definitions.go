@@ -31,7 +31,7 @@ type CBInstance struct {
   Tag string
   Type string
   Remote bool
-  ContainerId string
+  Id string
   Address CBAddress
 }
 

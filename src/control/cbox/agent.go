@@ -11,7 +11,6 @@ import (
   "errors"
   "io"
   "net"
-  // "os"
   "time"
 )
 
@@ -24,7 +23,7 @@ type CBAgent struct {
   conn net.Conn
 }
 
-func NewCBAgent(name, ifacename string) (*CBAgent,error) {
+func NewCBAgent(name, ifacename, objpath string) (*CBAgent,error) {
   cba := new(CBAgent)
   cba.name = name
 
@@ -38,7 +37,21 @@ func NewCBAgent(name, ifacename string) (*CBAgent,error) {
     // len(iface.HardwareAddr), iface.HardwareAddr, iface.HardwareAddr.String())
   cba.conn = nil
 
+  cba.installStages(objpath)
+
   return cba,nil
+}
+
+func (cba *CBAgent) installStages(obj_path string) error {
+  c_iface := C.CString(cba.iface.Name)
+  c_path := C.CString(obj_path)
+
+  ret := C.load_stages(c_iface, c_path)
+  if ret != 0 {
+    return errors.New("Failed to load stages")
+  }
+
+  return nil
 }
 
 func (cba *CBAgent) ManagerConnect(address string) error {
@@ -65,7 +78,7 @@ func (cba *CBAgent) ManagerConnect(address string) error {
 
 	/* Send Hello */
   hello := MakeCBMsg_Hello(cba.name, CBAddress(cba.iface.HardwareAddr))
-  fmt.Println("Sending: ", hello)
+  // fmt.Println("Sending: ", hello)
   err = json.NewEncoder(cba.conn).Encode(hello)
   if err != nil {
     fmt.Println(err)
@@ -108,6 +121,6 @@ func (cba *CBAgent) ManagerListen() error {
 }
 
 func (cba *CBAgent) handleInstall(msg *CBMsg_Install) error {
-  fmt.Println("Received an Install message!")
+  fmt.Printf("Received an Install message: %+v\n", msg)
   return nil
 }

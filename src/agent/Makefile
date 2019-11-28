@@ -13,7 +13,7 @@ LIBS = -lcbox -lbpf -lelf
 CTARGETS = sfc_agent
 CTARGETS += map_inspector
 
-all: bdir-check $(CTARGETS) cb_agent
+all: bdir-check $(CTARGETS)
 
 bdir-check:
 	@if [ ! -d ../build ]; then \
@@ -24,8 +24,4 @@ bdir-check:
 
 $(CTARGETS): %: %_user.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $< $(UTILS) $(LIBS)
-	@mv $@ $(BUILD_DIR)
-
-cb_agent: %: %.go
-	go build $<
 	@mv $@ $(BUILD_DIR)

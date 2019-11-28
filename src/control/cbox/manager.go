@@ -32,7 +32,8 @@ func (cbm *CBManager) HandleConnection(conn net.Conn) {
     case CBMsg_Hello:
       hello,_ = obj.(CBMsg_Hello)
       cbm.connectedAgents[hello.Name] = conn
-      fmt.Printf("Received hello! %v\n", hello)
+      fmt.Printf("New connection: %s (MAC: %s)\n",
+        hello.Name, net.HardwareAddr(hello.Address).String())
   }
 }
 
@@ -51,7 +52,7 @@ func (cbm *CBManager) BatchInstallRules(rcm map[string]CBRulesConfig) error {
   for node,rules := range rcm {
     conn := cbm.connectedAgents[node]
     data := MakeCBMsg_Install(rules.Fwd)
-    fmt.Printf("rules.Fwd:%+v\n Sending: %+v\n", rules.Fwd, data)
+    // fmt.Printf("rules.Fwd:%+v\n Sending: %+v\n", rules.Fwd, data)
     err := json.NewEncoder(conn).Encode(data)
     if err != nil {
       return errors.New("Failed during rule installation! The system may be" +
