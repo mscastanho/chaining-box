@@ -48,10 +48,6 @@ type CBInstance struct {
   Address CBAddress
 }
 
-func (cfg *CBConfig) GetNodeByName(name string) *CBInstance{
-  return &cfg.Functions[cfg.name2idx[name]]
-}
-
 type CBChain struct {
   Id uint32
   Nodes []string
@@ -75,6 +71,11 @@ func NewCBConfig(cfgbytes []byte) *CBConfig{
 
   return cfg
 }
+
+func (cbc *CBConfig) GetNodeByName(name string) *CBInstance{
+  return &cbc.Functions[cbc.name2idx[name]]
+}
+
 
 func (cbc *CBConfig) parseChainsConfig(cfgbytes []byte) {
   json.Unmarshal([]byte(cfgbytes), &cbc)

@@ -200,41 +200,7 @@ func ParseChainsConfig(cfgfile string) (cfg *cbox.CBConfig){
   return cbox.NewCBConfig(cfgjson)
 }
 
-func GenerateForwardingRules(cfg *cbox.CBConfig) (rules map[string][]cbox.Fwd_rule) {
-  var sph uint32
-  var r cbox.Fwd_rule
-  var flags uint8
-  var address_next cbox.CBAddress
-
-  /* Each node will have a list of rules */
-  rules = make(map[string][]cbox.Fwd_rule)
-
-  for _,chain := range cfg.Chains {
-    spi := chain.Id << 24
-    for i,node := range chain.Nodes {
-      sph = spi | (255-uint32(i))
-
-      /* Is it the end of the chain? */
-      if i == len(chain.Nodes) - 1 {
-        flags = 1
-        address_next = cbox.CBAddress{0x00,0x00,0x00,0x00,0x00,0x00}
-      } else {
-        flags = 0
-        /*TODO: This function should be run from the context of a CBManager, because the Address to be used
-          here is the one reported by each node on the initial Hello message */
-        address_next = cbox.CBAddress{0x11,0x11,0x11,0x11,0x11,0x11}//(cfg.GetNodeByName(chain.Nodes[i+1])).Address
-      }
-
-      r.Key = sph
-      r.Val = cbox.Fwd_entry{Flags: flags, Address: address_next}
-      rules[node] = append(rules[node], r)
-    }
-  }
-
-  return rules
-}
-
-func serve(rules map[string]cbox.CBRulesConfig){
+func serve(cfg *cbox.CBConfig){
   cbm := cbox.NewCBManager()
 
   sock, _ := net.Listen("tcp", server_address)
@@ -253,7 +219,7 @@ func serve(rules map[string]cbox.CBRulesConfig){
   time.Sleep(3*time.Second)
 
   fmt.Println("Installing rules...")
-  err := cbm.BatchInstallRules(rules)
+  err := cbm.InstallConfiguration(cfg)
   if err != nil {
     fmt.Println(err)
   }
@@ -298,15 +264,7 @@ func main() {
   cfgfile := os.Args[1]
   cfg := ParseChainsConfig(cfgfile)
 
-  fwdrules := GenerateForwardingRules(cfg)
-
-  rules := make(map[string]cbox.CBRulesConfig)
-
-  for node, fr := range fwdrules {
-    rules[node] = cbox.CBRulesConfig{Fwd: fr}
-  }
-
-  // serve(rules)
+  // serve(cfg)
 
   /* IP of the docker0 iface so the agents can connect to the manager
    * tunning locally. */
@@ -363,5 +321,5 @@ func main() {
     }
   }
 
-  serve(rules)
+  serve(cfg)
 }
