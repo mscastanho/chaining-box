@@ -1,4 +1,4 @@
-all: cb_docker cb_agent
+all: cb_docker cb_agent cb_start
 
 cb_docker: % : %.go
 	go build $<
@@ -7,3 +7,6 @@ cb_docker: % : %.go
 cb_agent: % : %.go
 	go build $<
 	mv $@ ../build
+
+cb_start: % : %.sh
+	cp $< ../build/$@
