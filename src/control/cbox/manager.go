@@ -33,7 +33,7 @@ func (cbm *CBManager) HandleConnection(conn net.Conn) {
       hello,_ = obj.(CBMsg_Hello)
       cbm.connectedAgents[hello.Name] = conn
       fmt.Printf("New connection: %s (MAC: %s)\n",
-        hello.Name, net.HardwareAddr(hello.Address).String())
+        hello.Name, hello.Address.String())
   }
 }
 

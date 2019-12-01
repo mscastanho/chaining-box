@@ -2,6 +2,8 @@ package cbox
 
 import (
   "encoding/json"
+  // "fmt"
+  "net"
 )
 
 type CBNodeType int
@@ -25,7 +27,18 @@ func (ntype CBNodeType) String() string {
   return names[ntype]
 }
 
-type CBAddress []byte
+type CBAddress [6]byte
+
+func MakeCBAddress (addr []byte) CBAddress {
+  var cba [6]byte
+  copy(cba[:], addr)
+  return CBAddress(cba)
+}
+
+func (addr CBAddress) String() string {
+  a := [6]byte(addr)
+  return net.HardwareAddr(a[:]).String()
+}
 
 type CBInstance struct {
   Tag string

@@ -1,6 +1,6 @@
 package cbox
 
-// #cgo CFLAGS: -I../../ -I../../libbpf/src/root/usr/include/
+// #cgo CFLAGS: -I../../ -I../../libbpf/src/root/usr/include/ -I../../headers
 // #cgo LDFLAGS: -L../../build -L../../libbpf/src/ -lcbox -lbpf
 // #include "../../utils/cb_agent_helpers.h"
 import "C"
@@ -12,6 +12,7 @@ import (
   "io"
   "net"
   "time"
+  "unsafe"
 )
 
 /* TODO: Make this configurable through the CLI */
@@ -77,8 +78,7 @@ func (cba *CBAgent) ManagerConnect(address string) error {
   }
 
 	/* Send Hello */
-  hello := MakeCBMsg_Hello(cba.name, CBAddress(cba.iface.HardwareAddr))
-  // fmt.Println("Sending: ", hello)
+  hello := MakeCBMsg_Hello(cba.name, MakeCBAddress(cba.iface.HardwareAddr))
   err = json.NewEncoder(cba.conn).Encode(hello)
   if err != nil {
     fmt.Println(err)
@@ -122,5 +122,16 @@ func (cba *CBAgent) ManagerListen() error {
 
 func (cba *CBAgent) handleInstall(msg *CBMsg_Install) error {
   fmt.Printf("Received an Install message: %+v\n", msg)
+
+  for i := range msg.Fwd {
+    rule := &msg.Fwd[i]
+    key := C.uint(rule.Key)
+    val := *(*C.struct_fwd_entry)(unsafe.Pointer(&(rule.Val)))
+
+    /* TODO: Don't ignore the error, instead revert (uninstall)
+     * all previously just-installed rules */
+    _ = C.add_fwd_rule(key, val)
+  }
+
   return nil
 }
