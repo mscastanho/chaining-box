@@ -111,3 +111,7 @@ On the origin:
 
     cd ~/chaining-box/test
     ./lossrate-test <dest-IP> <local-iface>
+
+## Running `cb_docker`
+
+  docker image pull mscastanho:chaining-box/cb-node

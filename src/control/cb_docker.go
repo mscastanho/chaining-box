@@ -69,10 +69,10 @@ func CreateNewContainer(name string, entrypoint []string) (string, error) {
 	}
 
   /* Download image from DockerHub if needed */
-  _, err = cli.ImagePull(ctx, default_image, types.ImagePullOptions{})
-	if err != nil {
-    panic(err)
-  }
+  // _, err = cli.ImagePull(ctx, default_image, types.ImagePullOptions{})
+	// if err != nil {
+    // panic(err)
+  // }
 
   /* Get definition of memlock ulimit */
   memlock,_ := units.ParseUlimit("memlock=-1")
