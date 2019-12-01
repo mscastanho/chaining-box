@@ -6,7 +6,6 @@
 #include <ctype.h>
 #include <unistd.h>
 #include <locale.h>
-#include <stdint.h>
 #include <getopt.h>
 #include <time.h>
 #include <signal.h>
@@ -32,10 +31,22 @@ static const struct _bpf_files {
 };
 
 /* Map handles */
-int nsh_data = 0;
-int src_mac = 0;
-int fwd_table = 0;
-int cls_table = 0;
+static int nsh_data = 0;
+static int src_mac = 0;
+static int fwd_table = 0;
+static int cls_table = 0;
+
+static int get_map_fds(){
+  nsh_data = bpf_obj_get(bpf_files.nsh_data);
+  fwd_table = bpf_obj_get(bpf_files.fwd_table);
+  src_mac = bpf_obj_get(bpf_files.src_mac);
+
+  /* Check if we got handles to all maps */
+  if(!nsh_data || !fwd_table || !src_mac)
+    return -1;
+
+  return 0;
+}
 
 int load_stages(const char* iface, const char* stages_obj){
   int ret;
@@ -58,24 +69,23 @@ int load_stages(const char* iface, const char* stages_obj){
 
   /* TODO: Configure tail call map */
 
+  /* Get refs to all maps */
+  ret = get_map_fds();
+  if(ret){
+    return ret;
+  }
+
   /* If we got here, all is fine! */
   return 0;
 }
 
-int get_map_fds(){
-  nsh_data = bpf_obj_get(bpf_files.nsh_data);
-  fwd_table = bpf_obj_get(bpf_files.fwd_table);
-  src_mac = bpf_obj_get(bpf_files.src_mac);
-
-  /* Check if we got handles to all maps */
-  if(!nsh_data || !fwd_table || !src_mac)
-    return -1;
-
-  return 0;
+int add_fwd_rule(uint32_t key, struct fwd_entry val){
+  return bpf_map_update_elem(fwd_table, &key, &val, BPF_ANY);
 }
 
-//
-// int add_fwd_rule();
+/* TODO: Add rule to add rules in batches, to avoid the overhead of
+ * many individual calls to add_fwd_rule() */
+
 //
 // int add_cls_rule();
 //
