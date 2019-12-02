@@ -7,13 +7,13 @@ import binascii
 import signal
 
 def signal_handler(signal, frame):
-    print "\n\n" + str(count) + " packets received"
+    print("\n\n" + str(count) + " packets received")
     sys.exit(0)
 
 signal.signal(signal.SIGINT, signal_handler)
 
 if len(sys.argv) != 3:
-    print "Usage: %s <interface> <flow src IP>" % sys.argv[0]
+    print("Usage: %s <interface> <flow src IP>" % sys.argv[0])
     exit(1)
 
 iface = sys.argv[1]
