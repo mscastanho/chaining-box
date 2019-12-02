@@ -37,8 +37,8 @@ func (cbm *CBManager) HandleConnection(conn net.Conn) {
     case CBMsg_Hello:
       hello,_ = obj.(CBMsg_Hello)
       cbm.connectedAgents[hello.Name] = cBClient{conn, hello.Address}
-      fmt.Printf("New connection: %s (MAC: %s)\n",
-        hello.Name, hello.Address.String())
+      fmt.Printf("New connection: %s (MAC: %v) from IP: %v\n",
+        hello.Name, hello.Address, conn.RemoteAddr())
   }
 }
 
