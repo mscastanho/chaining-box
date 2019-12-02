@@ -11,6 +11,9 @@
 #include <signal.h>
 #include <net/if.h>
 #include <linux/if_link.h>
+#include <string.h>	//strncpy
+#include <sys/socket.h>
+#include <sys/ioctl.h>
 
 #include <bpf/bpf.h>
 #include <bpf/libbpf.h>
@@ -36,7 +39,7 @@ static int src_mac = 0;
 static int fwd_table = 0;
 static int cls_table = 0;
 
-static int get_map_fds(){
+static int get_map_fds(void){
   nsh_data = bpf_obj_get(bpf_files.nsh_data);
   fwd_table = bpf_obj_get(bpf_files.fwd_table);
   src_mac = bpf_obj_get(bpf_files.src_mac);
@@ -46,6 +49,26 @@ static int get_map_fds(){
     return -1;
 
   return 0;
+}
+
+static int config_src_mac_map(const char* iface){
+	int fd;
+	struct ifreq ifr;
+	unsigned char *mac;
+	unsigned char key = 0;
+
+	fd = socket(AF_INET, SOCK_DGRAM, 0);
+
+	ifr.ifr_addr.sa_family = AF_INET;
+	strncpy(ifr.ifr_name , iface , IFNAMSIZ-1);
+
+	ioctl(fd, SIOCGIFHWADDR, &ifr);
+
+	close(fd);
+
+	mac = (unsigned char *)ifr.ifr_hwaddr.sa_data;
+
+	return bpf_map_update_elem(src_mac, &key, mac, BPF_ANY);
 }
 
 int load_stages(const char* iface, const char* stages_obj){
@@ -74,6 +97,11 @@ int load_stages(const char* iface, const char* stages_obj){
   if(ret){
     return ret;
   }
+
+	ret = config_src_mac_map(iface);
+	if(ret){
+		return ret;
+	}
 
   /* If we got here, all is fine! */
   return 0;
