@@ -51,5 +51,8 @@ kdir-check:
 kernel: build-dir kdir-check
 	$(MAKE) -C kernel KDIR=$(KDIR)
 
+kernel-debug: build-dir kdir-check
+	$(MAKE) -C kernel KDIR=$(KDIR) debug
+
 utils: build-dir
 	$(MAKE) -C $(UTILS_DIR)
