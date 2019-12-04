@@ -15,6 +15,7 @@
 #include <time.h>
 #include <signal.h>
 #include <net/if.h>
+#include <arpa/inet.h>
 #include <linux/if_link.h>
 
 #include <bpf/bpf.h>
@@ -49,6 +50,105 @@ static const struct option long_options[] = {
 	{0, 0, NULL,  0 }
 };
 
+void ip2str(unsigned int ip, char* buf, size_t size)
+{
+    unsigned char bytes[4];
+
+    bytes[0] = ip & 0xFF;
+    bytes[1] = (ip >> 8) & 0xFF;
+    bytes[2] = (ip >> 16) & 0xFF;
+    bytes[3] = (ip >> 24) & 0xFF;
+
+		snprintf(buf, size, "%d.%d.%d.%d", bytes[0], bytes[1], bytes[2], bytes[3]);
+}
+
+void mac2str(unsigned char* mac, char* buf, size_t size)
+{
+		snprintf(buf, size, "%02X:%02X:%02X:%02X:%02X:%02X",
+			 mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+}
+
+void dump_cls_table(int cls_table){
+  struct ip_5tuple prev_key, key;
+  struct cls_entry val;
+  char buf[32];
+  int sph;
+  int err;
+
+  if(cls_table < 0){
+    return;
+  }
+
+  printf("==== Classifier map ====\n");
+
+  while(true) {
+    err = bpf_map_get_next_key(cls_table, &prev_key, &key);
+    if (err) {
+      return;
+    }
+
+    if(!bpf_map_lookup_elem(cls_table, &key, &val)){
+      ip2str(key.ip_src, buf,	16);
+      printf("Key: [ip_src: %s, ", buf);
+
+      ip2str(key.ip_dst, buf, 16);
+      printf("ip_dst: %s, ", buf);
+
+      printf("sport: %d, dport: %d, proto: %u]\n",
+        ntohs(key.sport), ntohs(key.dport), key.proto);
+
+      mac2str(val.next_hop, buf, 32);
+      sph = ntohl(val.sph);
+      printf("Val: [spi: %d, si: %u, sph: 0x%08x, next_hop: %s]\n\n",
+        sph >> 8, sph & 0xFF, sph, buf);
+    }
+
+    prev_key = key;
+  }
+
+}
+
+void dump_nsh_data(int nsh_data){
+  struct ip_5tuple *prev_key, key;
+  struct nshhdr val;
+  int sph, err;
+  char buf[16];
+
+  prev_key = NULL;
+
+  if(nsh_data < 0){
+    return;
+  }
+
+  printf("==== NSH data map ====\n");
+
+  while(true) {
+    err = bpf_map_get_next_key(nsh_data, prev_key, &key);
+    if (err) {
+      return;
+    }
+
+    if(!bpf_map_lookup_elem(nsh_data, &key, &val)){
+      ip2str(key.ip_src, buf,	16);
+      printf("Key: [ip_src: %s, ", buf);
+
+      ip2str(key.ip_dst, buf, 16);
+      printf("ip_dst: %s, ", buf);
+
+      printf("sport: %d, dport: %d, proto: %u]\n",
+        ntohs(key.sport), ntohs(key.dport), key.proto);
+
+      sph = ntohl(val.serv_path);
+      printf("Val: [spi: %d, si: %u, sph: 0x%08x]\n\n",
+        sph >> 8, sph & 0xFF, sph);
+    }else{
+      printf("next_key err\n");
+    }
+
+    prev_key = &key;
+  }
+}
+
 int main(int argc, char **argv)
 {
     unsigned stats_id = 0;
@@ -68,17 +168,20 @@ int main(int argc, char **argv)
         }
     }
 
-    int nsh_data = bpf_obj_get(bpf_files.nsh_data);
+    int cls_table = bpf_obj_get(bpf_files.cls_table);
     int fwd_table = bpf_obj_get(bpf_files.fwd_table);
+    int nsh_data = bpf_obj_get(bpf_files.nsh_data);
     int src_mac = bpf_obj_get(bpf_files.src_mac);
-        
+
     //printf("nsh_data = %d\nfwd_table = %d\nsrc_mac = %d\n",nsh_data,fwd_table,src_mac);
+
+    dump_cls_table(cls_table);
+    dump_nsh_data(nsh_data);
 
 #ifdef ENABLE_STATS
     int stats_fd = -1;
     uint8_t key = 0;
     struct stats stats;
-    int err;
 
     if(stats_id == 0){
         fprintf(stderr,"No id for stats map provided!\n");
