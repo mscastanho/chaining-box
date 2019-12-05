@@ -35,10 +35,13 @@ const progs_dir = "src/build"
 /* Port the server use to communicate with clients */
 const server_address = ":9000"
 
+/* Default entrypoint to guarantee a Docker container keeps alive */
+var default_entrypoint = []string{"tail","-f","/dev/null"}
+
 /* Base chaining-box dir */
 /* TODO: This should be configured through CLI */
-var source_dir = "/home/mscastanho/devel/chaining-box"
-var target_dir = "/usr/src/chaining-box"
+const source_dir = "/home/mscastanho/devel/chaining-box"
+const target_dir = "/cb"
 
 /* Direct Link global ID */
 var dlgid = 0
@@ -280,9 +283,16 @@ func main() {
      * connections WITHOUT direct links (veth pairs), so we use the remote
      * param to force connections between some containers to not use veth.*/
     // id, err := CreateNewContainer(sf.Tag, []string{"tail","-f","/dev/null"})
-    id, err := CreateNewContainer(sf.Tag,
-      []string{target_dir + "/src/build/cb_agent",
-      sf.Tag, "eth0", target_dir + "/src/build/sfc_stages_kern.o", server_address})
+    // id, err := CreateNewContainer(sf.Tag,
+      // []string{target_dir + "/src/build/cb_agent",
+      // sf.Tag, "eth0", target_dir + "/src/build/sfc_stages_kern.o", server_address})
+    id, err = CreateNewContainer(sf.Tag,
+      []string{target_dir + "/src/build/cb_start",
+        "--name", sf.Tag,
+        "--iface", "eth0",
+        "--obj", target_dir + "/src/build/sfc_stages_kern.o",
+        "--address", server_address,
+        target_dir + "/deploy/functions/cloop", "eth0", "172.17.0.2"})
 
     if err != nil {
       fmt.Println("Failed to start container!")
@@ -313,9 +323,9 @@ func main() {
       n1 := cfg.GetNodeByName(chain.Nodes[i-1])
       n2 := cfg.GetNodeByName(chain.Nodes[i])
 
-      fmt.Printf("Node1: %v\nNode2: %v\n\n", n1, n2)
       /* We can only create veth pairs between local nodes */
       if !n1.Remote && !n2.Remote {
+        fmt.Printf("Node1: %v\nNode2: %v\n\n", n1, n2)
         _,_ = CreateDirectLink(n1.Id,n2.Id)
       }
     }
