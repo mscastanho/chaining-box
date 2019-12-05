@@ -79,9 +79,9 @@ func (cbm *CBManager) InstallConfiguration(cfg *CBConfig) error {
   rules := make(map[string][]Fwd_rule)
 
   for _,chain := range cfg.Chains {
-    spi := chain.Id << 24
+    spi := chain.Id << 8
     for i,node := range chain.Nodes {
-      sph = spi | (255-uint32(i))
+      sph = spi | (254-uint32(i))
 
       /* Is it the end of the chain? */
       if i == len(chain.Nodes) - 1 {

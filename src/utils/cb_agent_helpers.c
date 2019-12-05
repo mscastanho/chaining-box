@@ -14,6 +14,7 @@
 #include <string.h>	//strncpy
 #include <sys/socket.h>
 #include <sys/ioctl.h>
+#include <arpa/inet.h>
 
 #include <bpf/bpf.h>
 #include <bpf/libbpf.h>
@@ -108,6 +109,10 @@ int load_stages(const char* iface, const char* stages_obj){
 }
 
 int add_fwd_rule(uint32_t key, struct fwd_entry val){
+  /* In this case, key is the NSH Service Path Header (SPH),
+   * which should be added in network byte order (BE) to the
+   * map. */
+  key = htonl(key);
   return bpf_map_update_elem(fwd_table, &key, &val, BPF_ANY);
 }
 
