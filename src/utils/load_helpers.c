@@ -72,6 +72,35 @@ int tc_remove_filter(const char* dev, const tc_dir dir){
 	return ret;
 }
 
+/* Really hacky solution, but I couldn't find another way since libbpf
+ * does not have great support for programs on TC yet. */
+int tc_get_prog_id(const char* dev, const char* secname){
+  int ret = 0;
+  char output[128];
+  char cmd[512];
+  FILE *f;
+
+  ret = snprintf(cmd, 512, "/sbin/tc filter show dev %s egress 2> /dev/null"
+      " | grep %s | grep -o -e 'id [0-9]*' | awk '{print $2}'", dev, secname);
+
+  if (!ret) {
+    return -1;
+  }
+
+  f = popen(cmd, "r");
+  if (!f) {
+    return -1;
+  }
+
+  if (!fgets(output, sizeof(output), f)) {
+    return -1;
+  }
+
+  /* On error, it returns 0, which is not a valid id, so it's fine. The caller
+   * should check the validity of the return id. */
+  return atoi(output);
+}
+
 int xdp_add(const char* dev, const char* obj, const char* section){
   int ret = 0;
 
