@@ -12,23 +12,15 @@ int tc_attach_bpf(const char* dev, const char* bpf_obj,
 				const char* sec, const tc_dir dir){
 	int ret = 0;
 
-	/* Step-1: Delete clsact, which also remove filters */
-	ret = runcmd("%s qdisc del dev %s clsact 2> /dev/null", tc_cmd, dev);
-	if (WEXITSTATUS(ret) == 2) {
-		/* Unfortunately TC use same return code for many errors */
-		fprintf(stderr,
-			"Failed to load program to TC\n - (First time loading clsact?)\n");
-	}
-
-	/* Step-2: Attach a new clsact qdisc */
-	ret = runcmd("%s qdisc add dev %s clsact", tc_cmd, dev);
+	/* Step-1: Attach a new clsact qdisc */
+	ret = runcmd("%s qdisc add dev %s clsact > /dev/null", tc_cmd, dev);
 	if (ret) {
 		fprintf(stderr,
 			"ERR(%d): tc cannot attach qdisc hook\n",
 			WEXITSTATUS(ret));
 	}
 
-	/* Step-3: Attach BPF program/object as ingress/egress filter */
+	/* Step-2: Attach BPF program/object as ingress/egress filter */
 	ret = runcmd("%s filter add dev %s %s bpf da obj %s sec %s",
 			tc_cmd, dev, tc_dir2s[dir], bpf_obj, sec);
 	if (ret) {
