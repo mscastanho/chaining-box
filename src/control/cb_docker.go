@@ -9,7 +9,6 @@ import (
   "net"
   "os"
   "os/exec"
-  "time"
 
   /* Interaction with Docker Engine */
   "github.com/docker/docker/api/types"
@@ -203,34 +202,6 @@ func ParseChainsConfig(cfgfile string) (cfg *cbox.CBConfig){
   return cbox.NewCBConfig(cfgjson)
 }
 
-func serve(cfg *cbox.CBConfig){
-  cbm := cbox.NewCBManager()
-
-  sock, _ := net.Listen("tcp", server_address)
-  done := make(chan bool)
-
-  go func(done chan bool) {
-    for {
-      conn, _ := sock.Accept()
-      defer conn.Close()
-      go cbm.HandleConnection(conn)
-    }
-    done <- true
-  }(done)
-
-  fmt.Println("Listening for connections...")
-  time.Sleep(3*time.Second)
-
-  fmt.Println("Installing rules...")
-  err := cbm.InstallConfiguration(cfg)
-  if err != nil {
-    fmt.Println(err)
-  }
-
-  /* Block waiting for the go routine*/
-  <- done
-}
-
 func getDockerIP() string {
 	var ip net.IP
 
@@ -330,6 +301,4 @@ func main() {
       }
     }
   }
-
-  serve(cfg)
 }
