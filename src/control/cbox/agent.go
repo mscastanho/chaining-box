@@ -38,7 +38,10 @@ func NewCBAgent(name, ifacename, objpath string) (*CBAgent,error) {
     // len(iface.HardwareAddr), iface.HardwareAddr, iface.HardwareAddr.String())
   cba.conn = nil
 
-  cba.installStages(objpath)
+  err = cba.installStages(objpath)
+  if err != nil {
+    return nil,err
+  }
 
   return cba,nil
 }
