@@ -8,11 +8,10 @@
 #include "load_helpers.h"
 #include "sys_helpers.h"
 
-int tc_attach_bpf(const char* dev, const char* bpf_obj,
-				const char* sec, const tc_dir dir){
+int tc_create_clsact(const char* dev){
 	int ret = 0;
 
-	/* Step-1: Attach a new clsact qdisc */
+	/* Attach a new clsact qdisc */
 	ret = runcmd("%s qdisc add dev %s clsact > /dev/null", tc_cmd, dev);
 	if (ret) {
 		fprintf(stderr,
@@ -20,16 +19,26 @@ int tc_attach_bpf(const char* dev, const char* bpf_obj,
 			WEXITSTATUS(ret));
 	}
 
-	/* Step-2: Attach BPF program/object as ingress/egress filter */
-	ret = runcmd("%s filter add dev %s %s bpf da obj %s sec %s",
-			tc_cmd, dev, tc_dir2s[dir], bpf_obj, sec);
-	if (ret) {
-		fprintf(stderr,
-			"ERR(%d): tc cannot attach filter\n",
-			WEXITSTATUS(ret));
-	}
+  return ret;
+}
 
-	return ret;
+int tc_attach_bpf(const char* dev, const char* bpf_obj, int prio, int handle,
+				const char* sec, const tc_dir dir){
+  int ret = 0;
+
+  /* Step-1: Attach a new clsact qdisc */
+  /* tc_create_clsact() should be called *once* before this function! */
+
+  /* Step-2: Attach BPF program/object as ingress/egress filter */
+  ret = runcmd("%s filter add dev %s %s pref %d handle %d bpf da obj %s sec %s",
+      tc_cmd, dev, tc_dir2s[dir], prio, handle, bpf_obj, sec);
+  if (ret) {
+    fprintf(stderr,
+      "ERR(%d): tc cannot attach filter\n",
+      WEXITSTATUS(ret));
+  }
+
+  return ret;
 }
 
 int tc_list_filter(const char* dev, const tc_dir dir){

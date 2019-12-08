@@ -82,16 +82,25 @@ int load_stages(const char* iface, const char* stages_obj){
     return ret;
   }
 
-  /* TODO: Add Enc stage on TC egress */
+  /* Create clsact qdisc */
+  ret = tc_create_clsact(iface);
+  if(ret){
+    return ret;
+  }
 
-  /* Load Fwd stage on TC egress */
-  ret = tc_attach_bpf(iface, stages_obj, "action/forward", EGRESS);
+  /* Load Enc stage on TC egress */
+  ret = tc_attach_bpf(iface, stages_obj, 1, 1, "action/encap", EGRESS);
   if(ret){
     (void) tc_remove_filter(iface, EGRESS);
     return ret;
   }
 
-  /* TODO: Configure tail call map */
+  /* Load Fwd stage on TC egress, AFTER Enc stage */
+  ret = tc_attach_bpf(iface, stages_obj, 2, 1, "action/forward", EGRESS);
+  if(ret){
+    (void) tc_remove_filter(iface, EGRESS);
+    return ret;
+  }
 
   /* Get refs to all maps */
   ret = get_map_fds();

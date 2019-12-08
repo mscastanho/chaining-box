@@ -19,20 +19,14 @@
 #define ADJ_STAGE 1
 #define FWD_STAGE 2
 
-// Internal return codes
-enum cb_ret {
-    CB_OK,
-    CB_END_CHAIN,
-    CB_PASS,
-    CB_DROP,
-};
-
 /* Map containing source MAC */
 SRCMACMAP();
 
+/* Table to temporarily store NSH data */
 MAP(nsh_data, BPF_MAP_TYPE_HASH, sizeof(struct ip_5tuple),
     sizeof(struct nshhdr), 2048, PIN_GLOBAL_NS);
 
+/* Table with SFC forwarding rules */
 MAP(fwd_table, BPF_MAP_TYPE_HASH, sizeof(__u32),
     sizeof(struct fwd_entry), 2048, PIN_GLOBAL_NS);
 
@@ -119,9 +113,10 @@ int decap_nsh(struct xdp_md *ctx)
         if((void*)vlan + sizeof(struct vlanhdr) > data_end)
             return cb_retother(XDP_DROP);
 
-        cb_debug("[DECAP] vlan->proto: 0x%x\n",bpf_ntohs(vlan->h_vlan_encapsulated_proto));
+        cb_debug("[DECAP] vlan->proto: 0x%x\n",
+            bpf_ntohs(vlan->h_vlan_encapsulated_proto));
 
-        h_proto = bpf_ntohs(vlan->h_vlan_encapsulated_proto); 
+        h_proto = bpf_ntohs(vlan->h_vlan_encapsulated_proto);
     }else{
         h_proto = bpf_ntohs(eth->h_proto);
     }
@@ -143,7 +138,8 @@ int decap_nsh(struct xdp_md *ctx)
 		return cb_retother(XDP_DROP);
 
 	// Single check for Inner Ether + IP
-	if((void*)nsh + sizeof(struct nshhdr) + sizeof(struct ethhdr) + sizeof(struct iphdr) > data_end)
+	if((void*)nsh + sizeof(struct nshhdr) + sizeof(struct ethhdr) +
+      sizeof(struct iphdr) > data_end)
 		return cb_retother(XDP_DROP);
 
 	// cb_debug("[DECAP] \n");
@@ -176,10 +172,10 @@ int decap_nsh(struct xdp_md *ctx)
 	return cb_retok(XDP_PASS);
 }
 
-//SEC("adjust")
-int adjust_nsh(struct __sk_buff *skb)
+SEC("action/encap")
+int encap_nsh(struct __sk_buff *skb)
 {
-    void *data_end = (void *)(long)skb->data_end;
+  void *data_end = (void *)(long)skb->data_end;
 	void *data = (void *)(long)skb->data;
 	int ret = 0;
 	struct ip_5tuple key = { }; // Verifier does not allow uninitialized keys
@@ -190,41 +186,44 @@ int adjust_nsh(struct __sk_buff *skb)
 	__be32 sph, spi, si;
 	struct fwd_entry *next_hop;
 
-	if(data + sizeof(struct ethhdr) + sizeof(struct iphdr) > data_end){
-		cb_debug("[ADJUST]: Bounds check failed\n");
-		return CB_PASS;
-	}
- 
-    // Check if frame contains IP. Pass along otherwise
-	oeth = data;
-    if(oeth->h_proto != bpf_htons(ETH_P_IP))
-        return CB_PASS;
+  /* Start timestamps for statistics (if enabled) */
+  cb_mark_init();
 
-    ip = data + sizeof(struct ethhdr);
+	if(data + sizeof(struct ethhdr) + sizeof(struct iphdr) > data_end){
+		cb_debug("[ENCAP]: Bounds check failed\n");
+		return cb_retok(TC_ACT_OK);
+	}
+
+  // Check if frame contains IP. Pass along otherwise
+	oeth = data;
+  if(oeth->h_proto != bpf_htons(ETH_P_IP))
+    return cb_retok(TC_ACT_OK);
+
+  ip = data + sizeof(struct ethhdr);
 
 	ret = get_tuple(ip,data_end,&key);
 	if (ret < 0) {
-		cb_debug("[ADJUST]: get_tuple() failed: %d\n", ret);
-		return CB_PASS;
+		cb_debug("[ENCAP]: get_tuple() failed: %d\n", ret);
+		return cb_retok(TC_ACT_OK);
 	}
 
 	// Check if we have a corresponding NSH saved
-    prev_nsh = bpf_map_lookup_elem(&nsh_data,&key);
+  prev_nsh = bpf_map_lookup_elem(&nsh_data,&key);
 	if(prev_nsh == NULL){
-		cb_debug("[ADJUST] NSH header not found in table.\n");
-		return CB_PASS;
+		cb_debug("[ENCAP] NSH header not found in table.\n");
+    return cb_retok(TC_ACT_OK);
 	}
 
-	cb_debug("[ADJUST]: First look: SPH = 0x%x\n",bpf_ntohl(prev_nsh->serv_path));
+	cb_debug("[ENCAP]: First look: SPH = 0x%x\n",bpf_ntohl(prev_nsh->serv_path));
 
 	sph = bpf_ntohl(prev_nsh->serv_path);
 	spi = sph & 0xFFFFFF00;
 	si = sph & 0x000000FF;
-	cb_debug("[ADJUST]: SPH = 0x%x ; SPI = 0x%x ; SI = 0x%x \n",sph,spi>>8,si);
+	cb_debug("[ENCAP]: SPH = 0x%x ; SPI = 0x%x ; SI = 0x%x \n",sph,spi>>8,si);
 
 	if(si == 0){
-		cb_debug("[ADJUST]: Anomalous SI number. Dropping packet.\n");
-		return CB_DROP;
+		cb_debug("[ENCAP]: Anomalous SI number. Dropping packet.\n");
+		return cb_retother(TC_ACT_SHOT);
 	}
 
 	// Update the SI this way is safe because we
@@ -233,36 +232,40 @@ int adjust_nsh(struct __sk_buff *skb)
 
 	// Check if it is end of chain
 	// If it is, we don't have to re-encapsulate it
-	// TODO: This lookup is repeated in FWD stage.
-	// 		 Ideally, this should only be done once
-	cb_debug("[ADJUST]: Pre-lookup: SPH = 0x%x\n",sph);
+	cb_debug("[ENCAP]: Pre-lookup: SPH = 0x%x\n",sph);
 
 	__u32 fkey = bpf_htonl(sph);
 	next_hop = bpf_map_lookup_elem(&fwd_table,&fkey);
 	if(likely(next_hop) && (next_hop->flags & 0x1)){
-		cb_debug("[ADJUST]: End of chain 1! SPH = 0x%x\n",sph);
-		return CB_END_CHAIN;
+		cb_debug("[ENCAP]: End of chain! SPH = 0x%x\n",sph);
+
+    /* Set src MAC and send it away */
+    if(set_src_mac(oeth))
+        return cb_retother(TC_ACT_SHOT);
+
+    return cb_retok(TC_ACT_OK);
 	}
 
 	// Save previous EtherType before it is overwritten
 	ieth = data;
 	prev_proto = ieth->h_proto;
 
-    // Add outer encapsulation
-    ret = bpf_skb_adjust_room(skb,sizeof(struct ethhdr) + sizeof(struct nshhdr),BPF_ADJ_ROOM_MAC,0);
+  // Add outer encapsulation
+  ret = bpf_skb_adjust_room(skb,sizeof(struct ethhdr) + sizeof(struct nshhdr),
+            BPF_ADJ_ROOM_MAC,0);
 
-    if (ret < 0) {
-		cb_debug("[ADJUST]: Failed to add extra room: %d\n", ret);
-		return CB_DROP;
-    }
+  if (ret < 0) {
+    cb_debug("[ENCAP]: Failed to add extra room: %d\n", ret);
+    return cb_retother(TC_ACT_SHOT);
+  }
 
 	data = (void *)(long)skb->data;
 	data_end = (void *)(long)skb->data_end;
 
 	// Bounds check to please the verifier
 	if(data + 2*sizeof(struct ethhdr) + sizeof(struct nshhdr) > data_end){
-		cb_debug("[ADJUST]: Bounds check failed.\n");
-		return CB_DROP;
+		cb_debug("[ENCAP]: Bounds check failed.\n");
+		return cb_retother(TC_ACT_SHOT);
 	}
 
 	oeth = data;
@@ -280,45 +283,23 @@ int adjust_nsh(struct __sk_buff *skb)
 	// Re-add NSH
 	__builtin_memcpy(nsh,prev_nsh,sizeof(struct nshhdr));
 	nsh->serv_path = bpf_htonl(sph);
-	cb_debug("[ADJUST] Re-added NSH header!\n");
+	cb_debug("[ENCAP] Re-added NSH header!\n");
 
-	// bpf_tail_call(skb, &jmp_table, FWD_STAGE);
-
-	// With the tail call, this is unreachable code.
-	// It's here just to be safe.
-	return CB_OK;
-
+  /* Execute next program on TC, which will be Fwd stage */
+  return TC_ACT_UNSPEC;
 }
 
 SEC("action/forward")
 int sfc_forwarding(struct __sk_buff *skb)
 {
-    /* Start timestamps for statistics (if enabled) */
-    cb_mark_init();
+  /* Start timestamps for statistics (if enabled) */
+  cb_mark_init();
 
-    void *data;
+  void *data;
 	void *data_end;
 	struct ethhdr *eth;
 	struct nshhdr *nsh;
 	struct fwd_entry *next_hop;
-	int ret;
-    int ready2send = 0;
-
-	// TODO: The link between these two progs
-	// 		 should be a tail call instead
-	ret = adjust_nsh(skb);
-    switch(ret){
-        case CB_OK:
-            break;                              // Continue execution
-        case CB_DROP:
-            return cb_retother(TC_ACT_SHOT);                 // Drop packet
-        case CB_END_CHAIN:
-            ready2send = 1;                     // Signal pkt should be sent
-            break;                              // after MAC update
-        case CB_PASS:
-        default:
-            return cb_retother(TC_ACT_OK);                   // Send packet rightaway
-    }
 
 	// We can only make these attributions here since
 	// adjust_nsh() changes the packet, making previous
@@ -334,14 +315,6 @@ int sfc_forwarding(struct __sk_buff *skb)
 		return cb_retother(TC_ACT_SHOT);
 	}
 
-    // Adjust source MAC and send
-    if(ready2send){
-        if(set_src_mac(eth))
-            return cb_retother(TC_ACT_SHOT);
-
-        return cb_retok(TC_ACT_OK);
-    }
-
 	nsh = (void*) eth + sizeof(*eth);
 
 	if ((void*) nsh + sizeof(*nsh) > data_end){
@@ -353,9 +326,11 @@ int sfc_forwarding(struct __sk_buff *skb)
 	if(likely(next_hop)){
 
 		// Check if it is end of chain
-		if(next_hop->flags & 0x1){
-			cb_debug("[FORWARD]: End of chain 2! SPH = 0x%x\n", bpf_ntohl(nsh->serv_path));
-			return cb_retok(TC_ACT_OK); //TODO: Change this
+    if(next_hop->flags & 0x1){
+      cb_debug("[FORWARD]: Second end of chain! This should not happen!!\n",
+          bpf_ntohl(nsh->serv_path));
+
+			return cb_retok(TC_ACT_SHOT);
 		}else{
 			cb_debug("[FORWARD]: Updating next hop info\n");
 			// Update MAC addresses
@@ -363,7 +338,9 @@ int sfc_forwarding(struct __sk_buff *skb)
 			__builtin_memmove(eth->h_dest,next_hop->address,ETH_ALEN);
 		}
 	}else{
-		cb_debug("[FORWARD]: No corresponding rule. SPH = 0x%x\n",bpf_ntohl(nsh->serv_path));
+		cb_debug("[FORWARD]: No corresponding rule. SPH = 0x%x\n",
+        bpf_ntohl(nsh->serv_path));
+
 		// No corresponding rule. Drop the packet.
 		return cb_retother(TC_ACT_SHOT);
 	}
