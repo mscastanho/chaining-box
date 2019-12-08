@@ -32,7 +32,7 @@ static inline int set_src_mac(struct ethhdr *eth){
 	// Get src MAC from table. Is there a better way?
 	smac = bpf_map_lookup_elem(&src_mac,&zero);
 	if(smac == NULL){
-		cb_debug("[FORWARD]: No source MAC configured\n");
+		cb_debug("[CLSFY]: No source MAC configured\n");
 		return -1;
 	}
 
@@ -58,7 +58,7 @@ int classify_tc(struct __sk_buff *skb)
 	__u16 prev_proto;
 
 	if(data + sizeof(struct ethhdr) + sizeof(struct iphdr) > data_end){
-        cb_debug("[CLASSIFY] Bounds check #1 failed.\n");
+        cb_debug("[CLSFY] Bounds check #1 failed.\n");
 		return cb_retother(TC_ACT_OK);
 	}
 
@@ -66,46 +66,46 @@ int classify_tc(struct __sk_buff *skb)
 	ip = (void*)eth + sizeof(struct ethhdr);
 
 	if(bpf_ntohs(eth->h_proto) != ETH_P_IP){
-        cb_debug("[CLASSIFY] Not an IPv4 packet, passing along.\n");
+        cb_debug("[CLSFY] Not an IPv4 packet, passing along.\n");
 		return cb_retother(TC_ACT_OK);
 	}
 
 	ret = get_tuple(ip,data_end,&key);
 	if (ret < 0){
-        cb_debug("[CLASSIFY] get_tuple() failed: %d\n",ret);
+        cb_debug("[CLSFY] get_tuple() failed: %d\n",ret);
 		return cb_retother(TC_ACT_OK);
 	}
 
 	cls = bpf_map_lookup_elem(&cls_table,&key);
 	if(cls == NULL){
-        cb_debug("[CLASSIFY] No rule for packet.\n");
+        cb_debug("[CLSFY] No rule for packet.\n");
 		return cb_retother(TC_ACT_OK);
 	}
 
-    cb_debug("[CLASSIFY] Matched packet flow.\n");
+    cb_debug("[CLSFY] Matched packet flow.\n");
 
 	// Save previous proto
 	ieth = data;
 	prev_proto = ieth->h_proto;
 
-    cb_debug("[CLASS-TC] Size before: %d\n",data_end-data);
+    cb_debug("[CLSFY] Size before: %d\n",data_end-data);
 
     // Add outer encapsulation
     ret = bpf_skb_adjust_room(skb,sizeof(struct ethhdr) + sizeof(struct nshhdr),BPF_ADJ_ROOM_MAC,0);
 
     if (ret < 0) {
-        cb_debug("[CLASSIFY]: Failed to add extra room: %d\n", ret);
+        cb_debug("[CLSFY]: Failed to add extra room: %d\n", ret);
         return cb_retother(TC_ACT_SHOT);
     }
     
     data = (void *)(long)skb->data;
 	data_end = (void *)(long)skb->data_end;
 
-    cb_debug("[CLASS-TC] Size after: %d\n",data_end-data);
+    cb_debug("[CLSFY] Size after: %d\n",data_end-data);
 
 	// Bounds check to please the verifier
     if(data + 2*sizeof(struct ethhdr) + sizeof(struct nshhdr) > data_end){
-        cb_debug("[CLASSIFY] Bounds check #2 failed.\n");
+        cb_debug("[CLSFY] Bounds check #2 failed.\n");
 		return cb_retother(TC_ACT_OK);
 	}
 
@@ -136,7 +136,7 @@ int classify_tc(struct __sk_buff *skb)
     // using big endian notation.
     nsh->serv_path 	= cls->sph;
 
-    cb_debug("[CLASSIFY] NSH added.\n");
+    cb_debug("[CLSFY] NSH added.\n");
 
 	// TODO: This should be bpf_redirect_map(), to allow
 	// redirecting the packet to another interface

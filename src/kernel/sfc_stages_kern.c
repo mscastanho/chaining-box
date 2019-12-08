@@ -311,14 +311,14 @@ int sfc_forwarding(struct __sk_buff *skb)
 	eth = data;
 
 	if (data + sizeof(*eth) > data_end){
-		cb_debug("[FORWARD]: Bounds check failed.\n");
+		cb_debug("[FORWD]: Bounds check failed.\n");
 		return cb_retother(TC_ACT_SHOT);
 	}
 
 	nsh = (void*) eth + sizeof(*eth);
 
 	if ((void*) nsh + sizeof(*nsh) > data_end){
-		cb_debug("[FORWARD]: Bounds check failed.\n");
+		cb_debug("[FORWD]: Bounds check failed.\n");
 		return cb_retother(TC_ACT_SHOT);
 	}
 
@@ -327,25 +327,25 @@ int sfc_forwarding(struct __sk_buff *skb)
 
 		// Check if it is end of chain
     if(next_hop->flags & 0x1){
-      cb_debug("[FORWARD]: Second end of chain! This should not happen!!\n",
+      cb_debug("[FORWD]: Second end of chain! This should not happen!!\n",
           bpf_ntohl(nsh->serv_path));
 
 			return cb_retok(TC_ACT_SHOT);
 		}else{
-			cb_debug("[FORWARD]: Updating next hop info\n");
+			cb_debug("[FORWD]: Updating next hop info\n");
 			// Update MAC addresses
 			if(set_src_mac(eth)) return cb_retother(BPF_DROP);
 			__builtin_memmove(eth->h_dest,next_hop->address,ETH_ALEN);
 		}
 	}else{
-		cb_debug("[FORWARD]: No corresponding rule. SPH = 0x%x\n",
+		cb_debug("[FORWD]: No corresponding rule. SPH = 0x%x\n",
         bpf_ntohl(nsh->serv_path));
 
 		// No corresponding rule. Drop the packet.
 		return cb_retother(TC_ACT_SHOT);
 	}
 
-	cb_debug("[FORWARD]: Successfully forwarded the pkt!\n");
+	cb_debug("[FORWD]: Successfully forwarded the pkt!\n");
 	return cb_retok(TC_ACT_OK);
 }
 
