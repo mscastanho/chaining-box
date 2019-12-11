@@ -1,9 +1,14 @@
-all: chacha20
+funcs := chacha20
+funcs += user-redirect
 
-.PHONY: chacha20
+all: ${funcs}
 
-chacha20:
-	make -C chacha20
+.PHONY: ${funcs}
 
-clean:
-	make -C chacha20 clean
+${funcs}: %:
+	make -C $@
+
+clean: %:
+	@for f in ${clean} ; do \
+		make -C $$f; \
+	done
