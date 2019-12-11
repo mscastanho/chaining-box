@@ -6,9 +6,9 @@ BUILD_DIR = ./build
 LIBBPF_DIR = libbpf/src
 
 # === Targets ===
-all: build-dir kernel utils libbpf control agent chown
+all: build-dir kernel utils libbpf control agent functions chown
 
-.PHONY: all agent chown clean control libbpf kernel kdir-check utils
+.PHONY: all agent chown clean control functions libbpf kernel kdir-check utils
 
 agent: build-dir libbpf utils
 	make -C agent
@@ -28,6 +28,9 @@ chown:
 
 control: build-dir
 	make -C control
+
+functions:
+	make -C functions
 
 libbpf:
 	@if [ ! -d $(LIBBPF_DIR) ]; then \
