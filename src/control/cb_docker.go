@@ -238,7 +238,16 @@ func main() {
   cfgfile := os.Args[1]
   cfg := ParseChainsConfig(cfgfile)
 
-  // serve(cfg)
+  /* Create src and dest to test chaining */
+  id, err := CreateNewContainer("src", default_entrypoint)
+  if err != nil {
+    panic(fmt.Sprintf("Failed to create source container:", err))
+  }
+
+  id, err = CreateNewContainer("dst", default_entrypoint)
+  if err != nil {
+    panic(fmt.Sprintf("Failed to create destination container:", err))
+  }
 
   /* IP of the docker0 iface so the agents can connect to the manager
    * tunning locally. */
