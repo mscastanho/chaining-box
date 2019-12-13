@@ -1,0 +1,4 @@
+* IDS using Suricata
+
+This function uses Suricata to implement an IDS. It uses eBPF programs
+to actually implement its functionality.
