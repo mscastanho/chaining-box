@@ -6,12 +6,12 @@ BUILD_DIR = ./build
 LIBBPF_DIR = libbpf/src
 
 # === Targets ===
-all: build-dir kernel utils libbpf control agent functions chown
+all: build-dir kernel utils libbpf control user functions chown
 
-.PHONY: all agent chown clean control functions libbpf kernel kdir-check utils
+.PHONY: all chown clean control functions libbpf kernel kdir-check user utils
 
-agent: build-dir libbpf utils
-	make -C agent
+user: build-dir libbpf utils
+	make -C user
 
 build-dir:
 	mkdir -p $(BUILD_DIR)
