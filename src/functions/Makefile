@@ -1,4 +1,5 @@
 funcs := chacha20
+funcs += l4lb
 funcs += user-redirect
 
 all: ${funcs}

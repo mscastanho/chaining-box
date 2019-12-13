@@ -9,13 +9,14 @@ SRCS=$(wildcard *.c)
 OBJS=$(patsubst %.c,%.o,$(SRCS))
 Q ?= @
 
-INCLUDE_DIRS ?= -I../headers/
+INCLUDE_DIRS ?= -I../../headers/
 
 %.o: %.c
 	@echo "\tLLVM CC $@"
 	$(Q) clang$(LLVM_VERSION) $(INCLUDE_DIRS) -O2 -emit-llvm -c $< $(CLANG_FLAGS) -o $(patsubst %.o,%.llvm,$@)
 	$(Q) llc$(LLVM_VERSION) -march=bpf -filetype=obj -o $@ $(patsubst %.o,%.llvm,$@)
 	$(Q) rm $(patsubst %.o,%.llvm,$@)
+	@mv $@ ../../build
 
 ifeq ($(LLVM),)
 all:
