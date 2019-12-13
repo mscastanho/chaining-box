@@ -15,9 +15,8 @@
 #include <libgen.h>
 #include <sys/resource.h>
 
-#include "bpf_util.h"
 #include <bpf/bpf.h>
-#include "libbpf.h"
+#include <bpf/libbpf.h>
 
 static int ifindex_in;
 static int ifindex_out;
@@ -27,6 +26,19 @@ static __u32 dummy_prog_id;
 
 static __u32 xdp_flags = XDP_FLAGS_UPDATE_IF_NOEXIST;
 static int rxcnt_map_fd;
+
+/* Copied from tools/testing/selftests/bpf/bpf_util.h */
+static inline unsigned int bpf_num_possible_cpus(void)
+{
+	int possible_cpus = libbpf_num_possible_cpus();
+
+	if (possible_cpus < 0) {
+		printf("Failed to get # of possible cpus: '%s'!\n",
+		       strerror(-possible_cpus));
+		exit(1);
+	}
+	return possible_cpus;
+}
 
 static void int_exit(int sig)
 {

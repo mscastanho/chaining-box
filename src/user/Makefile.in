@@ -24,6 +24,6 @@ bdir-check:
 		exit 1; \
 	fi
 
-$(USER_TARGETS): %: %_user.c libbpf
+$(USER_TARGETS): %: %.c libbpf
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $< $(UTILS) $(LIBS)
 	@mv $@ $(BUILD_DIR)
