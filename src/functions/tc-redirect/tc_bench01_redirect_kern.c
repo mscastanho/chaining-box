@@ -19,7 +19,6 @@
 
 #include "bpf_endian.h"
 #include "bpf_helpers.h"
-#include "common.h"
 
 /* Notice: TC and iproute2 bpf-loader uses another elf map layout */
 struct bpf_elf_map {
