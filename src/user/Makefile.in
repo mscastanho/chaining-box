@@ -14,7 +14,7 @@ LIBS = -lcbox -lbpf -lelf
 
 all: bdir-check $(USER_TARGETS)
 
-libbpf:
+$(OBJECT_LIBBPF):
 	make -C $(LIBBPF_DIR)
 
 bdir-check:
@@ -24,6 +24,6 @@ bdir-check:
 		exit 1; \
 	fi
 
-$(USER_TARGETS): %: %.c libbpf
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $< $(UTILS) $(OBJECT_LIBBPF) $(LIBS)
+$(USER_TARGETS): %: %_user.c $(OBJECT_LIBBPF)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^ $(UTILS) $(LIBS)
 	@mv $@ $(BUILD_DIR)
