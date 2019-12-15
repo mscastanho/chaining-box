@@ -7,7 +7,7 @@ CFLAGS := -I../../headers \
 
 include ../../kernel/Makefile.in
 
-USER_TARGETS := xdp_redirect_map_user
+USER_TARGETS := xdp_redirect_map
 
 LIBBPF_ROOT := ../../libbpf
 

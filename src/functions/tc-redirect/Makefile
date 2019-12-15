@@ -6,7 +6,7 @@ CFLAGS := -I../../headers
 
 include ../../kernel/Makefile.in
 
-USER_TARGETS := tc_bench01_redirect_user
+USER_TARGETS := tc_bench01_redirect
 
 LIBBPF_ROOT := ../../libbpf
 
