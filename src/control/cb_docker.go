@@ -2,13 +2,10 @@ package main
 
 import (
   "context"
-  "errors"
   "fmt"
   "io/ioutil"
-  "log"
   "net"
   "os"
-  "os/exec"
 
   /* Interaction with Docker Engine */
   "github.com/docker/docker/api/types"
@@ -164,32 +161,6 @@ func CreateDirectLink(container1, container2 string) (string, string){
   checkErr(err)
 
   return veth1.LinkName, veth2.LinkName
-}
-
-func ConfigureStages(container string, ntype cbox.CBNodeType, iface string) error {
-  var obj string
-
-  switch ntype {
-    case cbox.SF:
-      obj = "sfc_stages_kern.o"
-    case cbox.CLS:
-      obj = "sfc_classifier_kern.o"
-    default:
-      return  errors.New("Unknown type")
-  }
-
-  obj_path := fmt.Sprintf("%s/src/build/%s",target_dir,obj)
-  script_path := fmt.Sprintf("%s/test/load-bpf.sh",target_dir)
-
-  /* TODO: Too hacky. Use proper Docker SDK funcs instead. */
-  cmd := exec.Command("docker", "exec", "-t", container,
-      script_path, obj_path, iface, ntype.String())
-
-  // log.Printf("Configuring stages: %s\n", cmd.String())
-  out, _ := cmd.Output()
-  log.Printf("%s", out)
-
-  return nil
 }
 
 func ParseChainsConfig(cfgfile string) (cfg *cbox.CBConfig){
