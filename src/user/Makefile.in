@@ -25,5 +25,5 @@ bdir-check:
 	fi
 
 $(USER_TARGETS): %: %.c libbpf
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $< $(UTILS) $(LIBS)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $< $(UTILS) $(OBJECT_LIBBPF) $(LIBS)
 	@mv $@ $(BUILD_DIR)
