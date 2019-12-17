@@ -81,21 +81,21 @@ static int tc_ingress_attach_bpf(const char* dev, const char* bpf_obj)
 	int ret = 0;
 
 	/* Step-1: Delete clsact, which also remove filters */
-	memset(&cmd, 0, CMD_MAX);
-	snprintf(cmd, CMD_MAX,
-		 "%s qdisc del dev %s clsact 2> /dev/null",
-		 tc_cmd, dev);
-	if (verbose) printf(" - Run: %s\n", cmd);
-	ret = system(cmd);
-	if (!WIFEXITED(ret)) {
-		fprintf(stderr,
-			"ERR(%d): Cannot exec tc cmd\n Cmdline:%s\n",
-			WEXITSTATUS(ret), cmd);
-		exit(EXIT_FAILURE);
-	} else if (WEXITSTATUS(ret) == 2) {
-		/* Unfortunately TC use same return code for many errors */
-		if (verbose) printf(" - (First time loading clsact?)\n");
-	}
+//	memset(&cmd, 0, CMD_MAX);
+//	snprintf(cmd, CMD_MAX,
+//		 "%s qdisc del dev %s clsact 2> /dev/null",
+//		 tc_cmd, dev);
+//	if (verbose) printf(" - Run: %s\n", cmd);
+//	ret = system(cmd);
+//	if (!WIFEXITED(ret)) {
+//		fprintf(stderr,
+//			"ERR(%d): Cannot exec tc cmd\n Cmdline:%s\n",
+//			WEXITSTATUS(ret), cmd);
+//		exit(EXIT_FAILURE);
+//	} else if (WEXITSTATUS(ret) == 2) {
+//		/* Unfortunately TC use same return code for many errors */
+//		if (verbose) printf(" - (First time loading clsact?)\n");
+//	}
 
 	/* Step-2: Attach a new clsact qdisc */
 	memset(&cmd, 0, CMD_MAX);
@@ -108,7 +108,7 @@ static int tc_ingress_attach_bpf(const char* dev, const char* bpf_obj)
 		fprintf(stderr,
 			"ERR(%d): tc cannot attach qdisc hook\n Cmdline:%s\n",
 			WEXITSTATUS(ret), cmd);
-		exit(EXIT_FAILURE);
+		// exit(EXIT_FAILURE);
 	}
 
 	/* Step-3: Attach BPF program/object as ingress filter */
