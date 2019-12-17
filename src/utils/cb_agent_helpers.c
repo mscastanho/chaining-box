@@ -84,7 +84,7 @@ int load_stages(const char* iface, const char* stages_obj){
 
   /* Create clsact qdisc */
   ret = tc_create_clsact(iface);
-  if(ret){
+  if(ret && ret != 2){ // 2 happens if clsact is already created, ignore that
     return ret;
   }
 

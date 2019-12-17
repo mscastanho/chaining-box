@@ -19,7 +19,7 @@ int tc_create_clsact(const char* dev){
 			WEXITSTATUS(ret));
 	}
 
-  return ret;
+  return WEXITSTATUS(ret);
 }
 
 int tc_attach_bpf(const char* dev, const char* bpf_obj, int prio, int handle,
