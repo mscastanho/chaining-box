@@ -72,7 +72,7 @@ static int config_src_mac_map(const char* iface){
 	return bpf_map_update_elem(src_mac, &key, mac, BPF_ANY);
 }
 
-int load_stages(const char* iface, const char* stages_obj){
+int load_ingress_stages(const char* iface, const char* stages_obj){
   int ret;
 
   /* Load Dec stage on XDP */
@@ -81,6 +81,14 @@ int load_stages(const char* iface, const char* stages_obj){
     (void) xdp_remove(iface);
     return ret;
   }
+
+  /* If we got here, all is fine! */
+  return 0;
+
+}
+
+int load_egress_stages(const char* iface, const char* stages_obj){
+  int ret;
 
   /* Create clsact qdisc */
   ret = tc_create_clsact(iface);

@@ -241,13 +241,16 @@ func main() {
   for i := 0 ; i < len(cfg.Functions) ; i++ {
     sf := &cfg.Functions[i]
 
+    /* Base entrypoint to start CB agent*/
     entrypoint := []string{
           target_dir + "/src/build/cb_start",
           "--name", sf.Tag,
-          "--iface", "eth0",
+          "--ingress", "eth0",
+          "--egress", "eth0",
           "--obj", target_dir + "/src/build/sfc_stages_kern.o",
           "--address", server_address}
 
+    /* Extend entrypoint with SF-specific startup cmd*/
     if sfCmd := getTypeExecString(sf.Type) ; sfCmd != nil {
       entrypoint = append(entrypoint, sfCmd...)
     } else {

@@ -10,7 +10,7 @@ function usage {
 # Note that we use "$@" to let each command-line parameter expand to a
 # separate word. The quotes around "$@" are essential!
 # We need TEMP as the 'eval set --' would nuke the return value of getopt.
-TEMP=$(getopt -o 'n:i:o:a:' --long 'name:,iface:,obj:,address:' -n 'cb-start' -- "$@")
+TEMP=$(getopt -o 'n:i:e:o:a:' --long 'name:,ingress:,egress:,obj:,address:' -n 'cb-start' -- "$@")
 
 if [ $? -ne 0 ]; then
 	echo 'Terminating...' >&2
@@ -28,8 +28,13 @@ while true; do
 			shift 2
 			continue
 		;;
-		'-i'|'--iface')
-      IFACE="$2"
+		'-i'|'--ingress')
+      IIFACE="$2"
+			shift 2
+			continue
+		;;
+		'-e'|'--egress')
+      EIFACE="$2"
 			shift 2
 			continue
 		;;
@@ -61,8 +66,14 @@ if [ -z $NAME ]; then
   exit 1 
 fi
 
-if [ -z $IFACE ] ; then
-  echo "Expected interface (-i or --iface)"
+if [ -z $IIFACE ] ; then
+  echo "Expected ingress interface (-i or --ingress)"
+  usage
+  exit 1
+fi
+
+if [ -z $EIFACE ] ; then
+  echo "Expected egress interface (-e or --egress)"
   usage
   exit 1
 fi
@@ -83,4 +94,4 @@ fi
 "$@" &
 
 # Start agent
-$AGENT $NAME $IFACE $OBJ $ADDR > /dev/null
+$AGENT $NAME $IIFACE $EIFACE $OBJ $ADDR

@@ -20,22 +20,33 @@ const server_address = ":9000"
 
 type CBAgent struct {
   name string
-  iface *net.Interface
+  ingress_iface *net.Interface
+  egress_iface *net.Interface
   conn net.Conn
 }
 
-func NewCBAgent(name, ifacename, objpath string) (*CBAgent,error) {
+func NewCBAgent(name, ingress_ifname, egress_ifname, objpath string) (*CBAgent,error) {
   cba := new(CBAgent)
   cba.name = name
 
-  iface, err := net.InterfaceByName(ifacename)
+  iface, err := net.InterfaceByName(ingress_ifname)
   if err != nil {
     return nil, err
   }
 
-  cba.iface = iface
-  // fmt.Printf("MAC:=> Raw len: %d\n=> Raw: %v\n=> Pretty: %s\n",
-    // len(iface.HardwareAddr), iface.HardwareAddr, iface.HardwareAddr.String())
+  cba.ingress_iface = iface
+
+  if ingress_ifname == egress_ifname {
+    cba.egress_iface = cba.ingress_iface
+  } else {
+    iface, err = net.InterfaceByName(egress_ifname)
+    if err != nil {
+      return nil, err
+    }
+
+    cba.egress_iface = iface
+  }
+
   cba.conn = nil
 
   err = cba.installStages(objpath)
@@ -47,12 +58,21 @@ func NewCBAgent(name, ifacename, objpath string) (*CBAgent,error) {
 }
 
 func (cba *CBAgent) installStages(obj_path string) error {
-  c_iface := C.CString(cba.iface.Name)
+  c_iif := C.CString(cba.ingress_iface.Name)
   c_path := C.CString(obj_path)
+  /* TODO: free c_iif and c_path*/
 
-  ret := C.load_stages(c_iface, c_path)
+  ret := C.load_ingress_stages(c_iif, c_path)
   if ret != 0 {
-    return errors.New("Failed to load stages")
+    return errors.New("Failed to load ingress stages")
+  }
+
+  c_eif := C.CString(cba.egress_iface.Name)
+  /* TODO: free c_eif and c_path*/
+
+  ret = C.load_egress_stages(c_eif, c_path)
+  if ret != 0 {
+    return errors.New("Failed to load egress stages")
   }
 
   return nil
@@ -65,7 +85,7 @@ func (cba *CBAgent) ManagerConnect(address string) error {
   for {
     conn, err := net.Dial("tcp", address)
     if err != nil {
-      fmt.Println("Unable to connect to controller. Retrying...")
+      fmt.Println("Unable to connect to controller at" + address + ". Retrying...")
       ntries++
     } else {
       cba.conn = conn
@@ -81,7 +101,7 @@ func (cba *CBAgent) ManagerConnect(address string) error {
   }
 
 	/* Send Hello */
-  hello := MakeCBMsg_Hello(cba.name, MakeCBAddress(cba.iface.HardwareAddr))
+  hello := MakeCBMsg_Hello(cba.name, MakeCBAddress(cba.ingress_iface.HardwareAddr))
   err = json.NewEncoder(cba.conn).Encode(hello)
   if err != nil {
     fmt.Println(err)
