@@ -17,6 +17,7 @@
 
 #include <linux/pkt_cls.h>
 
+#include "cb_helpers.h"
 #include "bpf_endian.h"
 #include "bpf_helpers.h"
 
@@ -84,6 +85,8 @@ static void swap_src_dst_mac(void *data)
 SEC("ingress_redirect")
 int _ingress_redirect(struct __sk_buff *skb)
 {
+  cb_debug("Starting TC redirect\n");
+
 	void *data     = (void *)(long)skb->data;
 	void *data_end = (void *)(long)skb->data_end;
 	struct ethhdr *eth = data;
@@ -102,59 +105,44 @@ int _ingress_redirect(struct __sk_buff *skb)
 	if (!ifindex)
 		return TC_ACT_OK;
 
-	if (*ifindex == 0)
-		return TC_ACT_OK; // or TC_ACT_SHOT ?
+  bpf_printk("ifi OK. Checking sip...\n");
 
-	if (*ifindex == 42)  /* Hack: use ifindex==42 as DROP switch */
-		return TC_ACT_SHOT;
+  struct iphdr *ip = (struct iphdr*)(data + sizeof(struct ethhdr));
+  if((void*)ip + sizeof(struct iphdr) > data_end)
+    return TC_ACT_OK;
 
-    #ifdef DEBUG
-    printk("ifi OK. Checking sip...\n");
-    #endif /* DEBUG */
+  sip = bpf_map_lookup_elem(&srcip, &key);
+  if (!sip)
+    return TC_ACT_OK;
 
-    struct iphdr *ip = (struct iphdr*)(data + sizeof(struct ethhdr));
-    if((void*)ip + sizeof(struct iphdr) > data_end)
-        return TC_ACT_OK;
+  if(ip->protocol == 1){
+    cb_debug("IT'S A PING!!!\n");
+  }
 
-    sip = bpf_map_lookup_elem(&srcip, &key);
-	if (!sip)
-        return TC_ACT_OK;
+  if(*sip != ip->saddr){
+    cb_debug("sip check failed. Passing along... %x != %x\n",*sip,ip->saddr);
+    return TC_ACT_OK;
+  }else{
+    cb_debug("IT'S A MATCH!!!\n");
+  }
 
-    if(ip->protocol == 1){
-        #ifdef DEBUG
-        printk("IT'S A PING!!!\n");
-        #endif /* DEBUG */
-    }
+  /* Swap src and dst mac-addr if ingress==egress
+   * --------------------------------------------
+   * If bouncing packet out ingress device, we need to update
+   * MAC-addr, as some NIC HW will drop such bounced frames
+   * silently (e.g mlx5).
+   *
+   * Note on eBPF translations:
+   *  __sk_buff->ingress_ifindex == skb->skb_iif
+   *   (which is set to skb->dev->ifindex, before sch_handle_ingress)
+   *  __sk_buff->ifindex == skb->dev->ifindex
+   *   (which is translated into BPF insns that deref dev->ifindex)
+   */
+  if (*ifindex == skb->ingress_ifindex)
+    swap_src_dst_mac(data);
 
-    if(*sip != ip->saddr){
-        #ifdef DEBUG
-        printk("sip check failed. Passing along... %x != %x\n",*sip,ip->saddr);
-        #endif /* DEBUG */
-
-        return TC_ACT_OK;
-    }else{
-        #ifdef DEBUG
-        printk("IT'S A MATCH!!!\n");
-        #endif /* DEBUG */
-    }
-
-     /* Swap src and dst mac-addr if ingress==egress
-	 * --------------------------------------------
-	 * If bouncing packet out ingress device, we need to update
-	 * MAC-addr, as some NIC HW will drop such bounced frames
-	 * silently (e.g mlx5).
-	 *
-	 * Note on eBPF translations:
-	 *  __sk_buff->ingress_ifindex == skb->skb_iif
-	 *   (which is set to skb->dev->ifindex, before sch_handle_ingress)
-	 *  __sk_buff->ifindex == skb->dev->ifindex
-	 *   (which is translated into BPF insns that deref dev->ifindex)
-	 */
-	if (*ifindex == skb->ingress_ifindex)
-		swap_src_dst_mac(data);
-
-	//return bpf_redirect(*ifindex, BPF_F_INGRESS); // __bpf_rx_skb
-	return bpf_redirect(*ifindex, 0); // __bpf_tx_skb / __dev_xmit_skb
+  //return bpf_redirect(*ifindex, BPF_F_INGRESS); // __bpf_rx_skb
+  return bpf_redirect(*ifindex, 0); // __bpf_tx_skb / __dev_xmit_skb
 }
 
 char _license[] SEC("license") = "GPL";

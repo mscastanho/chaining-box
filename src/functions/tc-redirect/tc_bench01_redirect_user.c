@@ -13,7 +13,7 @@ static const char *__doc__=
 #include <ctype.h>
 #include <unistd.h>
 #include <locale.h>
-
+#include <arpa/inet.h>
 #include <getopt.h>
 #include <net/if.h>
 #include <time.h>
@@ -23,6 +23,7 @@ static const char *__doc__=
 
 static int verbose = 1;
 static const char *mapfile = "/sys/fs/bpf/tc/globals/egress_ifindex";
+static const char *srcipmapfile = "/sys/fs/bpf/tc/globals/srcip";
 
 #define CMD_MAX 	2048
 #define CMD_MAX_TC	256
@@ -32,6 +33,7 @@ static const struct option long_options[] = {
 	{"help",	no_argument,		NULL, 'h' },
 	{"ingress",	required_argument,	NULL, 'i' },
 	{"egress",	required_argument,	NULL, 'e' },
+	{"srcip",	required_argument,	NULL, 's' },
 	{"ifindex-egress", required_argument,	NULL, 'x' },
 	/* Allow specifying tc cmd via argument */
 	{"tc-cmd",	required_argument,	NULL, 't' },
@@ -206,6 +208,8 @@ int main(int argc, char **argv)
 	int egress_ifindex = -1;
 	int ingress_ifindex = 0;
 	int ret = EXIT_SUCCESS;
+  int srcip = 0;
+  bool has_srcip = false;
 	int key = 0;
 	size_t len;
 
@@ -215,7 +219,7 @@ int main(int argc, char **argv)
 	memset(ingress_ifname, 0, IF_NAMESIZE); /* Can be used uninitialized */
 
 	/* Parse commands line args */
-	while ((opt = getopt_long(argc, argv, "hq",
+	while ((opt = getopt_long(argc, argv, "hqi:e:x:t:l::r::s:",
 				  long_options, &longindex)) != -1) {
 		switch (opt) {
 		case 'x':
@@ -286,12 +290,25 @@ int main(int argc, char **argv)
 		case 'q':
 			verbose = 0;
 			break;
+    case 's':
+      if(inet_pton(AF_INET, optarg, &srcip) == -1){
+        fprintf(stderr, "Failed to parse src ip. Given: %s\n", optarg);
+        return EXIT_FAILURE;
+      }
+      has_srcip = true;
+      break;
 		case 'h':
 		default:
 			usage(argv);
 			return EXIT_FAILURE;
 		}
 	}
+
+  if(!has_srcip) {
+    fprintf(stderr,"Source IP to filter is required.\n");
+    usage(argv);
+    return EXIT_FAILURE;
+  }
 
 	if (ingress_ifindex) {
 		if (verbose)
@@ -317,6 +334,23 @@ int main(int argc, char **argv)
 		tc_remove_ingress_filter(ingress_ifname);
 		return EXIT_SUCCESS;
 	}
+
+  /* Fill srcip map */
+  fd = bpf_obj_get(srcipmapfile);
+  if (fd < 0) {
+		fprintf(stderr, "ERROR: cannot open bpf_obj_get(%s): %s(%d)\n",
+			srcipmapfile, strerror(errno), errno);
+		usage(argv);
+		ret = EXIT_FAILURE;
+		goto out;
+	} else {
+		ret = bpf_map_update_elem(fd, &key, &srcip, 0);
+		if (ret) {
+			perror("ERROR: bpf_map_update_elem on srcip");
+			ret = EXIT_FAILURE;
+			goto out;
+		}
+  }
 
 	fd = bpf_obj_get(mapfile);
 	if (fd < 0) {
