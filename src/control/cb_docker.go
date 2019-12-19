@@ -28,10 +28,8 @@ const default_image = "docker.io/mscastanho/chaining-box:cb-node"
 /* Default directory containing the eBPF programs*/
 const progs_dir = "src/build"
 
-/* Port the server use to communicate with clients */
-const server_address = ":9000"
-
 /* Default entrypoint to guarantee a Docker container keeps alive */
+var placeholder_entrypoint = []string{"tail","-f","/dev/null"}
 var default_entrypoint = []string{"tail","-f","/dev/null"}
 
 /* Base chaining-box dir */
@@ -196,6 +194,21 @@ func getDockerIP() string {
   return ip.String()
 }
 
+func getTypeExecString(sfType string) []string{
+  basedir := target_dir + "/src/build/"
+  switch sfType {
+    case "user-redirect":
+      return []string{basedir + "user-redirect", "eth0", "172.17.0.2"}
+    case "xdp-redirect":
+      return []string{basedir + "xdp_redirect_map", "eth0", "eth0"}
+    case "tc-redirect":
+      return []string{"--", basedir + "tc_bench01_redirect", "--ingress", "eth0",
+                        "--egress", "eth0", "--srcip", "172.17.0.2"}
+  }
+
+  return nil
+}
+
 func main() {
   /* Slice containing IDs of all containers created */
   var clist []string
@@ -210,12 +223,12 @@ func main() {
   cfg := ParseChainsConfig(cfgfile)
 
   /* Create src and dest to test chaining */
-  id, err := CreateNewContainer("src", default_entrypoint)
+  _, err := CreateNewContainer("src", default_entrypoint)
   if err != nil {
     panic(fmt.Sprintf("Failed to create source container:", err))
   }
 
-  id, err = CreateNewContainer("dst", default_entrypoint)
+  _, err = CreateNewContainer("dst", default_entrypoint)
   if err != nil {
     panic(fmt.Sprintf("Failed to create destination container:", err))
   }
@@ -228,6 +241,20 @@ func main() {
   for i := 0 ; i < len(cfg.Functions) ; i++ {
     sf := &cfg.Functions[i]
 
+    entrypoint := []string{
+          target_dir + "/src/build/cb_start",
+          "--name", sf.Tag,
+          "--iface", "eth0",
+          "--obj", target_dir + "/src/build/sfc_stages_kern.o",
+          "--address", server_address}
+
+    if sfCmd := getTypeExecString(sf.Type) ; sfCmd != nil {
+      entrypoint = append(entrypoint, sfCmd...)
+    } else {
+      fmt.Printf("SF type '%s' unknown, skipping node '%s'...", sf.Type, sf.Tag)
+      continue
+    }
+
     /* TODO: We should only start containers for functions that are NOT
      * remote. This is not being done now because the current tests will
      * all take place on the same host, but we also want to exercise the
@@ -237,13 +264,7 @@ func main() {
     // id, err := CreateNewContainer(sf.Tag,
       // []string{target_dir + "/src/build/cb_agent",
       // sf.Tag, "eth0", target_dir + "/src/build/sfc_stages_kern.o", server_address})
-    id, err = CreateNewContainer(sf.Tag,
-      []string{target_dir + "/src/build/cb_start",
-        "--name", sf.Tag,
-        "--iface", "eth0",
-        "--obj", target_dir + "/src/build/sfc_stages_kern.o",
-        "--address", server_address,
-        target_dir + "/deploy/functions/cloop", "eth0", "172.17.0.2"})
+    id, err := CreateNewContainer(sf.Tag, entrypoint)
 
     if err != nil {
       fmt.Println("Failed to start container!")
