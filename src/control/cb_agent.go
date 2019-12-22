@@ -24,12 +24,18 @@ func main(){
     server_address = os.Args[5]
   }
 
-  // objpath := C.CString(os.Args[2])
+  /* Allow not using ingress */
+  if iiface == "-" {
+    iiface = ""
+  }
 
-  // ret = C.get_map_fds()
-  // if ret != 0 {
-    // panic("Could not get map fds!")
-  // }
+  /* Allow not using egress */
+  if eiface == "-" {
+    eiface = ""
+  }
+
+  /* Empty values for [e,i]iface will tell the agent that it should
+   * not configure stages for that direction. */
 
   cba, err := cbox.NewCBAgent(name, iiface, eiface, objpath)
   if err != nil {

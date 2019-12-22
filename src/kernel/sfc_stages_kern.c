@@ -211,6 +211,11 @@ int encap_nsh(struct __sk_buff *skb)
   prev_nsh = bpf_map_lookup_elem(&nsh_data,&key);
 	if(prev_nsh == NULL){
 		cb_debug("[ENCAP] NSH header not found in table.\n");
+
+    /* Set src MAC and send it away */
+    if(set_src_mac(oeth,EGRESS_MAC))
+      return cb_retother(TC_ACT_SHOT);
+
     return cb_retok(TC_ACT_OK);
 	}
 

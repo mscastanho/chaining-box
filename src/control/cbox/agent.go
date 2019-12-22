@@ -29,27 +29,31 @@ func NewCBAgent(name, ingress_ifname, egress_ifname, objpath string) (*CBAgent,e
   cba := new(CBAgent)
   cba.name = name
 
-  iface, err := net.InterfaceByName(ingress_ifname)
-  if err != nil {
-    return nil, err
-  }
-
-  cba.ingress_iface = iface
-
-  if ingress_ifname == egress_ifname {
-    cba.egress_iface = cba.ingress_iface
-  } else {
-    iface, err = net.InterfaceByName(egress_ifname)
+  if ingress_ifname != "" {
+    iface, err := net.InterfaceByName(ingress_ifname)
     if err != nil {
       return nil, err
     }
 
-    cba.egress_iface = iface
+    cba.ingress_iface = iface
+  }
+
+  if egress_ifname != "" {
+    if ingress_ifname == egress_ifname {
+      cba.egress_iface = cba.ingress_iface
+    } else {
+      iface, err := net.InterfaceByName(egress_ifname)
+      if err != nil {
+        return nil, err
+      }
+
+      cba.egress_iface = iface
+    }
   }
 
   cba.conn = nil
 
-  err = cba.installStages(objpath)
+  err := cba.installStages(objpath)
   if err != nil {
     return nil,err
   }
@@ -58,23 +62,27 @@ func NewCBAgent(name, ingress_ifname, egress_ifname, objpath string) (*CBAgent,e
 }
 
 func (cba *CBAgent) installStages(obj_path string) error {
-  c_iif := C.CString(cba.ingress_iface.Name)
   c_path := C.CString(obj_path)
-  /* TODO: free c_iif and c_path*/
 
-  ret := C.load_ingress_stages(c_iif, c_path)
-  if ret != 0 {
-    return errors.New("Failed to load ingress stages")
+  if cba.ingress_iface != nil {
+    c_iif := C.CString(cba.ingress_iface.Name)
+    /* TODO: free c_iif and c_path*/
+
+    ret := C.load_ingress_stages(c_iif, c_path)
+    if ret != 0 {
+      return errors.New("Failed to load ingress stages")
+    }
   }
 
-  c_eif := C.CString(cba.egress_iface.Name)
-  /* TODO: free c_eif and c_path*/
+  if cba.egress_iface != nil {
+    c_eif := C.CString(cba.egress_iface.Name)
+    /* TODO: free c_eif and c_path*/
 
-  ret = C.load_egress_stages(c_eif, c_path)
-  if ret != 0 {
-    return errors.New("Failed to load egress stages")
+    ret := C.load_egress_stages(c_eif, c_path)
+    if ret != 0 {
+      return errors.New("Failed to load egress stages")
+    }
   }
-
   return nil
 }
 
@@ -100,8 +108,15 @@ func (cba *CBAgent) ManagerConnect(address string) error {
     time.Sleep(time.Second)
   }
 
+  var addrBytes []byte
+  if cba.ingress_iface != nil {
+    addrBytes = cba.ingress_iface.HardwareAddr
+  } else {
+    addrBytes = []byte{0,0,0,0,0,0}
+  }
+
 	/* Send Hello */
-  hello := MakeCBMsg_Hello(cba.name, MakeCBAddress(cba.ingress_iface.HardwareAddr))
+  hello := MakeCBMsg_Hello(cba.name, MakeCBAddress(addrBytes))
   err = json.NewEncoder(cba.conn).Encode(hello)
   if err != nil {
     fmt.Println(err)

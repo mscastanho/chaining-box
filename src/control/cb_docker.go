@@ -212,16 +212,33 @@ func getTypeExecString(sfType, ingress, egress string) []string{
   return nil
 }
 
-func startServiceFunction(sf cbox.CBInstance, ingress, egress,
-  server_address string) {
+func startServiceFunction(sf cbox.CBInstance, ingress string, omit_ingress bool,
+  egress string, omit_egress bool, server_address string) {
+
   /* Base entrypoint to start CB agent*/
   entrypoint := []string{
         target_dir + "/src/build/cb_start",
-        "--name", sf.Tag,
-        "--ingress", ingress,
-        "--egress", egress,
+        "--name", sf.Tag}
+
+  /* CB Agent allows us to not configure the stages on a specific direction, to
+   * handle the case when we are using veth pairs for direct communication, in
+   * which we don't have to performing encap/decap between nodes. To tell this
+   * to the agent, we need to pass '-' as the name of an interface to cb_start */
+  if omit_ingress {
+    entrypoint = append(entrypoint, "--ingress", "-")
+  } else {
+    entrypoint = append(entrypoint, "--ingress", ingress)
+  }
+
+  if omit_egress {
+    entrypoint = append(entrypoint, "--egress", "-")
+  } else {
+    entrypoint = append(entrypoint, "--egress", egress)
+  }
+
+  entrypoint = append(entrypoint,
         "--obj", target_dir + "/src/build/sfc_stages_kern.o",
-        "--address", server_address}
+        "--address", server_address)
 
   /* Extend entrypoint with SF-specific startup cmd*/
   if sfCmd := getTypeExecString(sf.Type, ingress, egress) ; sfCmd != nil {
@@ -232,8 +249,9 @@ func startServiceFunction(sf cbox.CBInstance, ingress, egress,
     return
   }
 
-  fmt.Printf("Starting %s of type %s on iif %s, eif %s\n", sf.Tag, sf.Type,
-            ingress, egress)
+  fmt.Printf("Starting %s of type %s on iif %s, eif %v\nEntrypoint: %v\n\n",
+          sf.Tag, sf.Type, ingress, egress, entrypoint)
+
 
   args := append([]string{"exec", "-t", sf.Tag}, entrypoint...)
 
@@ -364,21 +382,27 @@ func main() {
   /* Start SF apps on each container. */
   for i := 0 ; i < len(cfg.Functions) ; i++ {
     var ingress, egress string
+    var omit_ingress, omit_egress bool
 
     sf := cfg.Functions[i]
 
     if val,ok := ingress_ifaces[sf.Tag] ; ok {
       ingress = val
+      omit_ingress = true
     } else {
       ingress = "eth0"
+      omit_ingress = false
     }
 
     if val,ok := egress_ifaces[sf.Tag] ; ok {
       egress = val
+      omit_egress = true
     } else {
       egress = "eth0"
+      omit_egress = false
     }
 
-    startServiceFunction(sf, ingress, egress, server_address)
+    startServiceFunction(sf, ingress, omit_ingress, egress, omit_egress,
+      server_address)
   }
 }
