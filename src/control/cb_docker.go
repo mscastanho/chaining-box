@@ -212,6 +212,7 @@ func getTypeExecString(sfType string) []string{
 func main() {
   /* Slice containing IDs of all containers created */
   var clist []string
+  using_direct_links := false
 
   /* TODO: Create a proper CLI flag to pass this */
   if len(os.Args) != 2 {
@@ -293,6 +294,9 @@ func main() {
       continue
     }
 
+    ingress_ifaces := make(map[string]string)
+    egress_ifaces := make(map[string]string)
+
     /* Create direct links */
     for i := 1 ; i < clen ; i++ {
       n1 := cfg.GetNodeByName(chain.Nodes[i-1])
@@ -300,9 +304,36 @@ func main() {
 
       /* We can only create veth pairs between local nodes */
       if !n1.Remote && !n2.Remote {
-        fmt.Printf("Node1: %v\nNode2: %v\n\n", n1, n2)
-        _,_ = CreateDirectLink(n1.Id,n2.Id)
+        if _,ok := ingress_ifaces[n2.Tag]; ok {
+          fmt.Println("ERROR: Nodes with direct links should not be",
+          "shared between chains.")
+          fmt.Printf("\tFailed while creating link %s <-> %s\n", n1.Tag, n2.Tag)
+          os.Exit(1)
+        }
+
+        if _,ok := egress_ifaces[n1.Tag]; ok {
+          fmt.Println("ERROR: Nodes with direct links should not be",
+          "shared between chains.")
+          fmt.Printf("\tFailed while creating link %s <-> %s\n", n1.Tag, n2.Tag)
+          os.Exit(1)
+        }
+
+        dl1,dl2 := CreateDirectLink(n1.Id,n2.Id)
+        ingress_ifaces[n2.Tag] = dl2
+        egress_ifaces[n2.Tag] = dl1
+        using_direct_links = true
+
+        fmt.Printf("Direct link created: %s (%s) <=> (%s) %s\n",
+          n1.Tag, dl1, dl2, n2.Tag)
       }
     }
   }
+
+  if using_direct_links {
+    fmt.Println("WARNING: nodes using direct links should not be shared",
+                "between chains. This is not being fully checked. Make sure",
+                "this is being respected in the chains config file passed to",
+                "this program.")
+  }
+
 }
