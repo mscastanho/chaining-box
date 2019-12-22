@@ -85,7 +85,7 @@ func (cba *CBAgent) ManagerConnect(address string) error {
   for {
     conn, err := net.Dial("tcp", address)
     if err != nil {
-      fmt.Println("Unable to connect to controller at" + address + ". Retrying...")
+      fmt.Println("Unable to connect to controller at " + address + ". Retrying...")
       ntries++
     } else {
       cba.conn = conn

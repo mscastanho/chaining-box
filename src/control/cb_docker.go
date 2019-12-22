@@ -1,11 +1,14 @@
 package main
 
 import (
+  // "bufio"
   "context"
   "fmt"
+  // "io"
   "io/ioutil"
   "net"
   "os"
+  "os/exec"
 
   /* Interaction with Docker Engine */
   "github.com/docker/docker/api/types"
@@ -101,7 +104,7 @@ func CreateNewContainer(name string, entrypoint []string) (string, error) {
        *   Ex: loading BPF programs.*/
       Privileged: true,
       /* Remove container when process finishes */
-      // AutoRemove: true,
+      AutoRemove: true,
       /* Map local port 9000 to remote port 9000 */
       PortBindings: nat.PortMap{
         containerPort: []nat.PortBinding{hostBinding},
@@ -194,25 +197,71 @@ func getDockerIP() string {
   return ip.String()
 }
 
-func getTypeExecString(sfType string) []string{
+func getTypeExecString(sfType, ingress, egress string) []string{
   basedir := target_dir + "/src/build/"
   switch sfType {
     case "user-redirect":
-      return []string{basedir + "user-redirect", "eth0", "172.17.0.2"}
+      return []string{basedir + "user-redirect", ingress, "172.17.0.2"}
     case "xdp-redirect":
-      return []string{basedir + "xdp_redirect_map", "eth0", "eth0"}
+      return []string{basedir + "xdp_redirect_map", ingress, egress}
     case "tc-redirect":
-      return []string{"--", basedir + "tc_bench01_redirect", "--ingress", "eth0",
-                        "--egress", "eth0", "--srcip", "172.17.0.2"}
+      return []string{"--", basedir + "tc_bench01_redirect", "--ingress", ingress,
+                        "--egress", egress, "--srcip", "172.17.0.2"}
   }
 
   return nil
+}
+
+func startServiceFunction(sf cbox.CBInstance, ingress, egress,
+  server_address string) {
+  /* Base entrypoint to start CB agent*/
+  entrypoint := []string{
+        target_dir + "/src/build/cb_start",
+        "--name", sf.Tag,
+        "--ingress", ingress,
+        "--egress", egress,
+        "--obj", target_dir + "/src/build/sfc_stages_kern.o",
+        "--address", server_address}
+
+  /* Extend entrypoint with SF-specific startup cmd*/
+  if sfCmd := getTypeExecString(sf.Type, ingress, egress) ; sfCmd != nil {
+    entrypoint = append(entrypoint, sfCmd...)
+  } else {
+    fmt.Printf("ERROR: SF type '%s' unknown, not starting SF '%s'...", sf.Type,
+            sf.Tag)
+    return
+  }
+
+  fmt.Printf("Starting %s of type %s on iif %s, eif %s\n", sf.Tag, sf.Type,
+            ingress, egress)
+
+  args := append([]string{"exec", "-t", sf.Tag}, entrypoint...)
+
+    /* TODO: Too hacky. Use proper Docker SDK funcs instead. */
+    cmd := exec.Command("docker", args...)
+
+    /* Create file to log the output */
+    outfile, err := os.Create("/tmp/" + sf.Tag + ".out")
+    if err != nil {
+      panic(err)
+    }
+    defer outfile.Close()
+    cmd.Stdout = outfile
+
+    if err := cmd.Start(); err != nil {
+      panic(err)
+      return
+    }
+
+    go cmd.Wait()
 }
 
 func main() {
   /* Slice containing IDs of all containers created */
   var clist []string
   using_direct_links := false
+  ingress_ifaces := make(map[string]string)
+  egress_ifaces := make(map[string]string)
 
   /* TODO: Create a proper CLI flag to pass this */
   if len(os.Args) != 2 {
@@ -234,41 +283,16 @@ func main() {
     panic(fmt.Sprintf("Failed to create destination container:", err))
   }
 
-  /* IP of the docker0 iface so the agents can connect to the manager
-   * tunning locally. */
-  server_address := getDockerIP() + ":9000"
-
   /* Start containers for all functions declared */
   for i := 0 ; i < len(cfg.Functions) ; i++ {
     sf := &cfg.Functions[i]
-
-    /* Base entrypoint to start CB agent*/
-    entrypoint := []string{
-          target_dir + "/src/build/cb_start",
-          "--name", sf.Tag,
-          "--ingress", "eth0",
-          "--egress", "eth0",
-          "--obj", target_dir + "/src/build/sfc_stages_kern.o",
-          "--address", server_address}
-
-    /* Extend entrypoint with SF-specific startup cmd*/
-    if sfCmd := getTypeExecString(sf.Type) ; sfCmd != nil {
-      entrypoint = append(entrypoint, sfCmd...)
-    } else {
-      fmt.Printf("SF type '%s' unknown, skipping node '%s'...", sf.Type, sf.Tag)
-      continue
-    }
 
     /* TODO: We should only start containers for functions that are NOT
      * remote. This is not being done now because the current tests will
      * all take place on the same host, but we also want to exercise the
      * connections WITHOUT direct links (veth pairs), so we use the remote
      * param to force connections between some containers to not use veth.*/
-    // id, err := CreateNewContainer(sf.Tag, []string{"tail","-f","/dev/null"})
-    // id, err := CreateNewContainer(sf.Tag,
-      // []string{target_dir + "/src/build/cb_agent",
-      // sf.Tag, "eth0", target_dir + "/src/build/sfc_stages_kern.o", server_address})
-    id, err := CreateNewContainer(sf.Tag, entrypoint)
+    id, err := CreateNewContainer(sf.Tag, placeholder_entrypoint)
 
     if err != nil {
       fmt.Println("Failed to start container!")
@@ -294,9 +318,6 @@ func main() {
       continue
     }
 
-    ingress_ifaces := make(map[string]string)
-    egress_ifaces := make(map[string]string)
-
     /* Create direct links */
     for i := 1 ; i < clen ; i++ {
       n1 := cfg.GetNodeByName(chain.Nodes[i-1])
@@ -320,7 +341,7 @@ func main() {
 
         dl1,dl2 := CreateDirectLink(n1.Id,n2.Id)
         ingress_ifaces[n2.Tag] = dl2
-        egress_ifaces[n2.Tag] = dl1
+        egress_ifaces[n1.Tag] = dl1
         using_direct_links = true
 
         fmt.Printf("Direct link created: %s (%s) <=> (%s) %s\n",
@@ -336,4 +357,28 @@ func main() {
                 "this program.")
   }
 
+  /* IP of the docker0 iface so the agents can connect to the manager
+   * running locally. */
+  server_address := getDockerIP() + ":9000"
+
+  /* Start SF apps on each container. */
+  for i := 0 ; i < len(cfg.Functions) ; i++ {
+    var ingress, egress string
+
+    sf := cfg.Functions[i]
+
+    if val,ok := ingress_ifaces[sf.Tag] ; ok {
+      ingress = val
+    } else {
+      ingress = "eth0"
+    }
+
+    if val,ok := egress_ifaces[sf.Tag] ; ok {
+      egress = val
+    } else {
+      egress = "eth0"
+    }
+
+    startServiceFunction(sf, ingress, egress, server_address)
+  }
 }
