@@ -36,12 +36,12 @@ STATSMAP();
 
 // The pointer passed to this function must have been
 // bounds checked already
-static inline int set_src_mac(struct ethhdr *eth){
+static inline int set_src_mac(struct ethhdr *eth, enum srcmac_idx idx){
 	void* smac;
-	__u8 zero = 0;
+	__u32 key = (__u32) idx;
 
 	// Get src MAC from table. Is there a better way?
-	smac = bpf_map_lookup_elem(&src_mac,&zero);
+	smac = bpf_map_lookup_elem(&src_mac,&key);
 	if(smac == NULL){
 		cb_debug("[SET_SRC_MAC]: No source MAC configured\n");
 		return -1;
@@ -69,7 +69,7 @@ int decap_nsh(struct xdp_md *ctx)
     uint16_t h_proto = 0;
     void *smac;
 	int ret = 0;
-	__u8 zero = 0;
+	__u32 idx = INGRESS_MAC;
 	eth = data;
 
 	if(data + sizeof(struct ethhdr) > data_end)
@@ -77,7 +77,7 @@ int decap_nsh(struct xdp_md *ctx)
 
     offset += sizeof(struct ethhdr);
 
-	smac = bpf_map_lookup_elem(&src_mac,&zero);
+	smac = bpf_map_lookup_elem(&src_mac,&idx);
 	if(smac == NULL){
 		cb_debug("[DECAP]: No source MAC configured\n");
 		return cb_retother(XDP_PASS);
@@ -240,8 +240,8 @@ int encap_nsh(struct __sk_buff *skb)
 		cb_debug("[ENCAP]: End of chain! SPH = 0x%x\n",sph);
 
     /* Set src MAC and send it away */
-    if(set_src_mac(oeth))
-        return cb_retother(TC_ACT_SHOT);
+    if(set_src_mac(oeth,EGRESS_MAC))
+      return cb_retother(TC_ACT_SHOT);
 
     return cb_retok(TC_ACT_OK);
 	}
@@ -334,7 +334,7 @@ int sfc_forwarding(struct __sk_buff *skb)
 		}else{
 			cb_debug("[FORWD]: Updating next hop info\n");
 			// Update MAC addresses
-			if(set_src_mac(eth)) return cb_retother(BPF_DROP);
+			if(set_src_mac(eth,EGRESS_MAC)) return cb_retother(BPF_DROP);
 			__builtin_memmove(eth->h_dest,next_hop->address,ETH_ALEN);
 		}
 	}else{

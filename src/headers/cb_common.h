@@ -37,10 +37,17 @@
     };
 #endif /* BPFMAPDEF */
 
+enum srcmac_idx {
+  INGRESS_MAC = 0,
+  EGRESS_MAC,
+};
+
 /* Map to hold source MAC
- * This is the shared definition used by all programs */
-#define SRCMACMAP() MAP(src_mac, BPF_MAP_TYPE_HASH, sizeof(__u8), \
-    ETH_ALEN, 1, PIN_GLOBAL_NS);
+ * This is the shared definition used by all programs.
+ *  0: MAC of ingress interface
+ *  1: MAC of egress interface */
+#define SRCMACMAP() MAP(src_mac, BPF_MAP_TYPE_ARRAY, sizeof(__u32), \
+    ETH_ALEN, 2, PIN_GLOBAL_NS);
 
 #ifdef ENABLE_STATS
 

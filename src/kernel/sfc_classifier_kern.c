@@ -27,10 +27,10 @@ STATSMAP();
 
 static inline int set_src_mac(struct ethhdr *eth){
 	void* smac;
-	__u8 zero = 0;
+	__u32 idx = 1;
 
 	// Get src MAC from table. Is there a better way?
-	smac = bpf_map_lookup_elem(&src_mac,&zero);
+	smac = bpf_map_lookup_elem(&src_mac,&idx);
 	if(smac == NULL){
 		cb_debug("[CLSFY]: No source MAC configured\n");
 		return -1;

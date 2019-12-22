@@ -52,11 +52,11 @@ static int get_map_fds(void){
   return 0;
 }
 
-static int config_src_mac_map(const char* iface){
+static int config_src_mac_map(const char* iface, enum srcmac_idx idx){
 	int fd;
 	struct ifreq ifr;
 	unsigned char *mac;
-	unsigned char key = 0;
+	uint32_t key = idx;
 
 	fd = socket(AF_INET, SOCK_DGRAM, 0);
 
@@ -79,6 +79,18 @@ int load_ingress_stages(const char* iface, const char* stages_obj){
   ret = xdp_add(iface, stages_obj, "xdp/decap");
   if(ret){
     (void) xdp_remove(iface);
+    return ret;
+  }
+
+  /* Get refs to all maps */
+  ret = get_map_fds();
+  if(ret){
+    return ret;
+  }
+
+  ret = config_src_mac_map(iface, INGRESS_MAC);
+  if(ret){
+    printf("Failed to configure ingress MAC: %d\n", ret);
     return ret;
   }
 
@@ -116,10 +128,10 @@ int load_egress_stages(const char* iface, const char* stages_obj){
     return ret;
   }
 
-	ret = config_src_mac_map(iface);
-	if(ret){
-		return ret;
-	}
+  ret = config_src_mac_map(iface, EGRESS_MAC);
+  if(ret){
+    return ret;
+  }
 
   /* If we got here, all is fine! */
   return 0;
