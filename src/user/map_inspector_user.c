@@ -149,6 +149,42 @@ void dump_nsh_data(int nsh_data){
   }
 }
 
+void dump_fwd_table(int fd){
+  int *prev_key, key;
+  struct fwd_entry val;
+  int sph, err;
+  char buf[32];
+
+  prev_key = NULL;
+
+  if(fd < 0){
+    return;
+  }
+
+  printf("==== Forwarding table ====\n");
+
+  while(true) {
+    err = bpf_map_get_next_key(fd, prev_key, &key);
+    if (err) {
+      return;
+    }
+
+    if(!bpf_map_lookup_elem(fd, &key, &val)){
+      sph = ntohl(key);
+      printf("Key: [spi: %d, si: %u, sph: 0x%08x]\n",
+        sph >> 8, sph & 0xFF, sph);
+      
+      mac2str(val.address, buf, 32);
+      printf("Val: [flags: %x, address: %s]\n\n",
+        val.flags, buf);
+    }else{
+      printf("next_key err\n");
+    }
+
+    prev_key = &key;
+  }
+}
+
 int main(int argc, char **argv)
 {
     unsigned stats_id = 0;
@@ -177,6 +213,7 @@ int main(int argc, char **argv)
 
     dump_cls_table(cls_table);
     dump_nsh_data(nsh_data);
+    dump_fwd_table(fwd_table);
 
 #ifdef ENABLE_STATS
     int stats_fd = -1;
