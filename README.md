@@ -115,3 +115,16 @@ On the origin:
 ## Running `cb_docker`
 
   docker image pull mscastanho:chaining-box/cb-node
+
+## cb_docker
+
+It generates logs with the output from all the startup processes on each SF
+under `/tmp/<sfname>.out`.
+
+## Quick commands
+/cb/test/config-cls-docker.sh
+ping 172.17.0.3
+
+mount -t debugfs debugfs /sys/kernel/debug
+tcpdump -i eth0 -Q in icmp
+cat /sys/kernel/debug/tracing/trace_pipe
