@@ -58,5 +58,5 @@ kernel: build-dir kdir-check
 kernel-debug: build-dir kdir-check
 	$(MAKE) -C kernel KDIR=$(KDIR) debug
 
-utils: build-dir
+utils: build-dir libbpf
 	$(MAKE) -C $(UTILS_DIR)
