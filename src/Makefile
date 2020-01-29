@@ -18,6 +18,7 @@ build-dir:
 
 clean:
 	cd libbpf/src && $(MAKE) clean;
+	rm -rdf libbpf/src/root;
 	cd utils && $(MAKE) clean;
 	rm -rdf $(BUILD_DIR)
 
@@ -38,7 +39,7 @@ libbpf:
 		echo "May need to run git submodule update --init"; \
 		exit 1; \
 	else \
-		BUILD_STATIC_ONLY=y make -C $(LIBBPF_DIR); \
+		cd $(LIBBPF_DIR) && mkdir -p root; BUILD_STATIC_ONLY=y DESTDIR=root $(MAKE) install; \
 	fi
 
 # We need acces to kernel headers. Pass it as KDIR:
