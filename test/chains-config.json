@@ -2,37 +2,35 @@
   "chains": [
     {
       "id": 100,
-      "nodes": ["sf1","sf2"]
-    },
-    {
-      "id": 200,
-      "nodes": ["sf2","sf3"]
-    },
-    {
-      "id": 300,
-      "nodes": ["sf3","sf1"]
-    },
-    {
-      "id": 400,
-      "nodes": ["sf1","sf2","sf3"]
+      "nodes": ["sf1","sf2","sf3","sf4"]
     }
   ],
   "functions": [
     {
       "tag": "sf1",
-      "type": "loopback",
-      "remote": true
+      "type": "tc-redirect",
+      "remote": false
     },
     {
       "tag": "sf2",
-      "type": "loopback",
-      "remote": true
+      "type": "tc-redirect",
+      "remote": false
 
     },
     {
       "tag": "sf3",
-      "type": "loopback",
-      "remote": true
+      "type": "tc-redirect",
+      "remote": false
+    },
+    {
+      "tag": "sf4",
+      "type": "tc-redirect",
+      "remote": false
+    },
+    {
+      "tag": "sf5",
+      "type": "tc-redirect",
+      "remote": false
 
     }
   ]
