@@ -1,14 +1,14 @@
 package main
 
 import (
-  // "bufio"
   "context"
+  "flag"
   "fmt"
-  // "io"
   "io/ioutil"
   "net"
   "os"
   "os/exec"
+  "path/filepath"
 
   /* Interaction with Docker Engine */
   "github.com/docker/docker/api/types"
@@ -36,12 +36,18 @@ var placeholder_entrypoint = []string{"tail","-f","/dev/null"}
 var default_entrypoint = []string{"tail","-f","/dev/null"}
 
 /* Base chaining-box dir */
-/* TODO: This should be configured through CLI */
-const source_dir = "/home/mscastanho/devel/chaining-box"
 const target_dir = "/cb"
 
 /* Direct Link global ID */
 var dlgid = 0
+
+func usage() {
+  var flags_desc string = `
+    -c : path to chains configuration file
+    -d : path to chaining-box source dir`
+
+    fmt.Printf("Usage: %s -c <path> -d <path>\n\nRequired flags:%s\n", os.Args[0], flags_desc)
+}
 
 func getDirectLinkNames() (string,string) {
   /* The name of each interface on a veth pair used for direct linking two
@@ -57,7 +63,7 @@ func getDirectLinkNames() (string,string) {
   return a,b
 }
 
-func CreateNewContainer(name string, entrypoint []string) (string, error) {
+func CreateNewContainer(name string, srcdir string, entrypoint []string) (string, error) {
   const port = "9000"
   ctx := context.Background()
 
@@ -119,9 +125,7 @@ func CreateNewContainer(name string, entrypoint []string) (string, error) {
       Mounts: []mount.Mount{
         {
           Type: mount.TypeBind,
-          /* TODO: Change source to a configurable path. Maybe defined
-             by a CLI flag. */
-          Source: source_dir,
+          Source: srcdir,
           Target: target_dir,
         },
       },
@@ -277,26 +281,46 @@ func startServiceFunction(sf cbox.CBInstance, ingress string, omit_ingress bool,
 func main() {
   /* Slice containing IDs of all containers created */
   var clist []string
+  var cfgfile string
+  var srcdir string
   using_direct_links := false
   ingress_ifaces := make(map[string]string)
   egress_ifaces := make(map[string]string)
 
-  /* TODO: Create a proper CLI flag to pass this */
-  if len(os.Args) != 2 {
+  flag.StringVar(&cfgfile, "c", "", "path to the chains configuration file.")
+  flag.StringVar(&srcdir, "d", "", "path to the chaining-box source dir.")
+  flag.Parse()
+
+  if cfgfile == "" {
     fmt.Println("Please provide the path to the chains config file.")
+    usage()
     os.Exit(1)
   }
 
-  cfgfile := os.Args[1]
+  /* TODO: Avoid this requirement by installing all needed files to a default
+   * location like /usr/local/chaining-box */
+  if srcdir == "" {
+    fmt.Println("Please provide the path to chaining-box source code config file.")
+    usage()
+    os.Exit(1)
+  }
+
+  /* Docker requires paths to be absolute */
+  source_dir, err := filepath.Abs(srcdir)
+  if err != nil {
+    fmt.Printf("Error while turning %s into an absolute path.", srcdir)
+    os.Exit(1)
+  }
+
   cfg := ParseChainsConfig(cfgfile)
 
   /* Create src and dest to test chaining */
-  _, err := CreateNewContainer("src", default_entrypoint)
+  _, err = CreateNewContainer("src", source_dir, default_entrypoint)
   if err != nil {
     panic(fmt.Sprintf("Failed to create source container:", err))
   }
 
-  _, err = CreateNewContainer("dst", default_entrypoint)
+  _, err = CreateNewContainer("dst", source_dir, default_entrypoint)
   if err != nil {
     panic(fmt.Sprintf("Failed to create destination container:", err))
   }
@@ -310,7 +334,7 @@ func main() {
      * all take place on the same host, but we also want to exercise the
      * connections WITHOUT direct links (veth pairs), so we use the remote
      * param to force connections between some containers to not use veth.*/
-    id, err := CreateNewContainer(sf.Tag, placeholder_entrypoint)
+    id, err := CreateNewContainer(sf.Tag, source_dir, placeholder_entrypoint)
 
     if err != nil {
       fmt.Println("Failed to start container!")
