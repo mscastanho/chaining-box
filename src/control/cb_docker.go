@@ -18,6 +18,9 @@ import (
   "github.com/docker/go-units"
   "github.com/docker/go-connections/nat"
 
+  /* Interaction with Open vSwitch */
+  "github.com/digitalocean/go-openvswitch/ovs"
+
   /* Handling point-to-point links using veth pairs */
   "control/koko"
 
@@ -30,6 +33,11 @@ const default_image = "docker.io/mscastanho/chaining-box:cb-node"
 
 /* Default directory containing the eBPF programs*/
 const progs_dir = "src/build"
+
+/* Configs to be used on OVS network */
+const net_prefix = "10.10.10"
+const ip_offset = 10
+const ovs_br = "cbox-br"
 
 /* Default entrypoint to guarantee a Docker container keeps alive */
 var placeholder_entrypoint = []string{"tail","-f","/dev/null"}
@@ -314,6 +322,16 @@ func main() {
 
   cfg := ParseChainsConfig(cfgfile)
 
+  /* Create OVS bridge for container communication */
+  ovs_client := ovs.New(
+    // Prepend "sudo" to all commands.
+    ovs.Sudo(),
+  )
+
+  if err = ovs_client.VSwitch.AddBridge(ovs_br); err != nil {
+    panic(fmt.Sprintf("Failed to create OVS bridge:", err))
+  }
+
   /* Create src and dest to test chaining */
   _, err = CreateNewContainer("src", source_dir, default_entrypoint)
   if err != nil {
@@ -339,6 +357,14 @@ func main() {
     if err != nil {
       fmt.Println("Failed to start container!")
       panic(err)
+    }
+
+    /* Add interface attached to OVS bridge */
+    err = exec.Command("ovs-docker", "add-port", ovs_br, "eth1", sf.Tag,
+            fmt.Sprintf("--ipaddress=%s.%d/24", net_prefix, ip_offset + i + 1)).Run()
+
+    if err != nil {
+      fmt.Printf("Failed to plug %s to OVS bridge: %v", sf.Tag, err)
     }
 
     clist = append(clist,id)
@@ -414,7 +440,7 @@ func main() {
       ingress = val
       omit_ingress = true
     } else {
-      ingress = "eth0"
+      ingress = "eth1"
       omit_ingress = false
     }
 
@@ -422,7 +448,7 @@ func main() {
       egress = val
       omit_egress = true
     } else {
-      egress = "eth0"
+      egress = "eth1"
       omit_egress = false
     }
 

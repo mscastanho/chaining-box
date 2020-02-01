@@ -16,6 +16,7 @@ a git submodule.
   - perf v5.3.g4d856f72c10e
   - pahole v1.15
   - Docker 18.09.7
+  - openvswitch 2.9.5
 
 ## Building the Docker container
 
