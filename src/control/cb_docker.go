@@ -332,17 +332,6 @@ func main() {
     panic(fmt.Sprintf("Failed to create OVS bridge:", err))
   }
 
-  /* Create src and dest to test chaining */
-  _, err = CreateNewContainer("src", source_dir, default_entrypoint)
-  if err != nil {
-    panic(fmt.Sprintf("Failed to create source container:", err))
-  }
-
-  _, err = CreateNewContainer("dst", source_dir, default_entrypoint)
-  if err != nil {
-    panic(fmt.Sprintf("Failed to create destination container:", err))
-  }
-
   /* Start containers for all functions declared */
   for i := 0 ; i < len(cfg.Functions) ; i++ {
     sf := &cfg.Functions[i]
