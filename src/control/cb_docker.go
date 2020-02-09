@@ -511,6 +511,21 @@ func main() {
       /* Otherwise, we have to choose the default iface*/
       ingress = defi
       omit_ingress = false
+
+      /* TODO: When using MACVLAN, we need to make sure at least one
+       * container receives packets from macvlan0 and sends to
+       * macvlan1, so the traffic gets back to the traffic generator. For
+       * now we will fix this on sf1. During the tests, all our chains should
+       * start on sf1 for this to work.
+       *
+       * A proper way to fix this would be to allow ingress and egress to be
+       * an array of interfaces, and installing the stages on all those interfaces.
+       * Then we would only have to make sure that the app running in the container
+       * receives and sends to the proper intefaces.
+       * >>>>> This is a HACK!!! <<<<< */
+       if dataplane_type == MACVLAN && sf.Tag == "sf1" {
+        ingress = "eth1"
+       }
     }
 
     if val,ok := egress_ifaces[sf.Tag] ; ok {
