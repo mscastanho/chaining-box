@@ -2,13 +2,13 @@
 
 ###### Check if DPDK vars are set ######
 
-#export RTE_SDK=/usr/src/dpdk-18.05.1
-#export RTE_TARGET=x86_64-native-linuxapp-gcc
+export RTE_SDK=/usr/src/dpdk-19.11
+export RTE_TARGET=x86_64-native-linuxapp-gcc
 
 : ${RTE_SDK:?"Please set 'RTE_SDK' before running this script."}
 : ${RTE_TARGET:?"Please set 'RTE_TARGET' before running this script."}
 
-npages="1024" # Number of hugepages to reserve
+npages="3072" # Number of hugepages to reserve
 
 function configure_dpdk {
     ###### Setup hugepages ######
@@ -34,7 +34,7 @@ function configure_dpdk {
     fi
 
     if ! lsmod | grep igb_uio &> /dev/null ; then
-        insmod $RTE_SDK/x86_64-native-linuxapp-gcc/kmod/igb_uio.ko
+        insmod $RTE_SDK/$RTE_TARGET/build/kernel/linux/igb_uio/igb_uio.ko
     fi
 }
 
