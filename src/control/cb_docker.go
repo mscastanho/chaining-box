@@ -49,6 +49,20 @@ const target_dir = "/cb"
 /* Direct Link global ID */
 var dlgid = 0
 
+/* IP address counter */
+var ipac = 0
+
+/* Type of dataplane to use */
+type NetType int
+
+const (
+  OVS NetType = iota
+  MACVLAN
+  BRIDGE
+)
+
+var dataplane_type NetType
+
 func usage() {
   var flags_desc string = `
     -c : path to chains configuration file
@@ -69,6 +83,63 @@ func getDirectLinkNames() (string,string) {
   b := fmt.Sprintf("dl%db",dlgid)
   dlgid++
   return a,b
+}
+
+func createNetworkInfra() {
+  switch dataplane_type {
+    case BRIDGE:
+    case MACVLAN:
+      /* TODO: Make physical iface configurable */
+      /* TODO: Use SDK for this */
+      err := exec.Command("docker", "network", "create", "-d", "macvlan",
+        "--subnet=192.168.100.0/24", "--gateway=192.168.100.1",
+        "-o", "parent=enp1s0f0", "macvlan0").Run()
+      if err != nil {
+        panic("Failed to create network macvlan0")
+      }
+
+      err = exec.Command("docker", "network", "create", "-d", "macvlan",
+        "--subnet=192.168.101.0/24", "--gateway=192.168.101.1",
+        "-o", "parent=enp1s0f1", "macvlan1").Run()
+      if err != nil {
+        panic("Failed to create network macvlan1")
+      }
+    case OVS:
+      /* Create OVS bridge for container communication */
+      ovs_client := ovs.New(
+        // Prepend "sudo" to all commands.
+        ovs.Sudo(),
+      )
+
+      if err := ovs_client.VSwitch.AddBridge(ovs_br); err != nil {
+        panic(fmt.Sprintf("Failed to create OVS bridge:", err))
+      }
+    default:
+      fmt.Printf("Unknown network type %s\n", dataplane_type);
+      os.Exit(1)
+  }
+}
+
+func attachExtraInterfaces(cname string) {
+  var err0, err1 error
+
+  switch dataplane_type {
+    case BRIDGE:
+    case MACVLAN:
+      /* TODO: Properly use the SDK for this */
+      err0 = exec.Command("docker", "network", "connect", "macvlan0", cname).Run()
+      err1 = exec.Command("docker", "network", "connect", "macvlan1", cname).Run()
+    case OVS:
+      /* Add interface attached to OVS bridge */
+      ipac += 1
+      err0 = exec.Command("ovs-docker", "add-port", ovs_br, "eth1", cname,
+              fmt.Sprintf("--ipaddress=192.168.100.%d/24", ipac)).Run()
+  }
+
+  if err0 != nil || err1 != nil {
+    fmt.Printf("Failed to configure extra interfaces for %s. NetType: %v err0: %v err1: %v ",
+      cname, dataplane_type, err0, err1)
+  }
 }
 
 func CreateNewContainer(name string, srcdir string, entrypoint []string) (string, error) {
@@ -322,15 +393,10 @@ func main() {
 
   cfg := ParseChainsConfig(cfgfile)
 
-  /* Create OVS bridge for container communication */
-  ovs_client := ovs.New(
-    // Prepend "sudo" to all commands.
-    ovs.Sudo(),
-  )
+  /* TODO: Make this configurable */
+  dataplane_type = MACVLAN
 
-  if err = ovs_client.VSwitch.AddBridge(ovs_br); err != nil {
-    panic(fmt.Sprintf("Failed to create OVS bridge:", err))
-  }
+  createNetworkInfra()
 
   /* Start containers for all functions declared */
   for i := 0 ; i < len(cfg.Functions) ; i++ {
@@ -348,13 +414,7 @@ func main() {
       panic(err)
     }
 
-    /* Add interface attached to OVS bridge */
-    err = exec.Command("ovs-docker", "add-port", ovs_br, "eth1", sf.Tag,
-            fmt.Sprintf("--ipaddress=%s.%d/24", net_prefix, ip_offset + i + 1)).Run()
-
-    if err != nil {
-      fmt.Printf("Failed to plug %s to OVS bridge: %v", sf.Tag, err)
-    }
+    attachExtraInterfaces(sf.Tag)
 
     clist = append(clist,id)
     sf.Id = id
