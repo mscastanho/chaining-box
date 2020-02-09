@@ -13,29 +13,17 @@ src_mac = sys.argv[1]
 dst_mac = sys.argv[2]
 #  out_src_mac = netifaces.ifaddresses(out_iface)[netifaces.AF_LINK][0]['addr']
 
-html  = """
-<html>
-<head>
-    <title>Messages from the SFs</title>
-</head>
-<body>
-</body>
-</html>
-"""
-
-http_resp  = "HTTP/1.1 200 OK\r\n"
-http_resp += "Server: exampleServer\r\n"
-http_resp += "Content-Length: " + str(len(html)) + "\r\n"
-http_resp += "\r\n"
-http_resp += html
-
 # Generate input packets
-i_eth = Ether(src="AA:BB:CC:DD:EE:FF",dst="AA:AA:AA:AA:AA:AA")
+i_eth = Ether(src=src_mac,dst=dst_mac)
 ip = IP(src="10.10.0.1",dst="10.10.0.2")
 udp = UDP(sport=1000,dport=2000)
-o_eth = Ether(src=src_mac,dst=dst_mac)
+o_eth = Ether(src=src_mac,dst='02:42:c0:a8:64:02')
 
-pkt = o_eth/NSH(mdtype=2, spi=0x1, si=0xFF)/i_eth/ip/udp/http_resp
+headers = o_eth/NSH(mdtype=2, spi=100, si=255)/i_eth/ip/udp
+final_size = 1500
+payload = Raw(RandString(size=(final_size - len(headers))))
+
+pkt = headers/payload
 
 print("Beautiful packet!\n")
 pkt.show()
