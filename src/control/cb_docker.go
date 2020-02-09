@@ -142,6 +142,22 @@ func attachExtraInterfaces(cname string) {
   }
 }
 
+/* This function return the names of the default ifaces to use as ingress and egress */
+func getDefaultInterfaces() (ingress string, egress string) {
+  switch dataplane_type {
+    case BRIDGE:
+      return "eth0","eth0"
+    case MACVLAN:
+      return "eth2","eth2"
+    case OVS:
+      return "eth1","eth1"
+    default:
+      panic(fmt.Sprintf("Unknown network type %s\n", dataplane_type));
+  }
+
+  return "", ""
+}
+
 func CreateNewContainer(name string, srcdir string, entrypoint []string) (string, error) {
   const port = "9000"
   ctx := context.Background()
@@ -484,12 +500,16 @@ func main() {
     var omit_ingress, omit_egress bool
 
     sf := cfg.Functions[i]
+    defi, defe := getDefaultInterfaces()
 
+    /* If ingress_ifaces[sf.Tag] is already set, then it is using
+     * a direct link, we should make sure it is used. */
     if val,ok := ingress_ifaces[sf.Tag] ; ok {
       ingress = val
       omit_ingress = true
     } else {
-      ingress = "eth1"
+      /* Otherwise, we have to choose the default iface*/
+      ingress = defi
       omit_ingress = false
     }
 
@@ -497,7 +517,7 @@ func main() {
       egress = val
       omit_egress = true
     } else {
-      egress = "eth1"
+      egress = defe
       omit_egress = false
     }
 
