@@ -12,6 +12,10 @@ function create_ns {
     ip link set dev $I0 netns $NS0
     ip link set dev $I1 netns $NS1
 
+    # Enable loopback interfaces
+    $NSCMD $NS0 ip link set dev lo up
+    $NSCMD $NS1 ip link set dev lo up
+
     # Set IP addresses
     $NSCMD $NS0 ifconfig $I0 $IP0/24 up
     $NSCMD $NS1 ifconfig $I1 $IP1/24 up
@@ -45,11 +49,11 @@ NS1="ns1"
 
 # Interface 0
 I0="enp2s0np0"
-IP0="192.168.0.1"
+IP0="10.10.0.1"
 
 # Interface 1
 I1="enp2s0np1"
-IP1="192.168.0.2"
+IP1="10.10.0.2"
 
 if [ $del == "true" ]; then
     destroy_ns
