@@ -37,7 +37,7 @@ const progs_dir = "src/build"
 /* Configs to be used on OVS network */
 const net_prefix = "10.10.10"
 const ip_offset = 10
-const ovs_br = "cbox-br"
+const bridge_name = "cbox-br"
 
 /* Default entrypoint to guarantee a Docker container keeps alive */
 var placeholder_entrypoint = []string{"tail","-f","/dev/null"}
@@ -88,6 +88,11 @@ func getDirectLinkNames() (string,string) {
 func createNetworkInfra() {
   switch dataplane_type {
     case BRIDGE:
+      err := exec.Command("docker", "network", "create", "-d", "bridge",
+        "bridge0").Run()
+      if err != nil {
+        panic("Failed to create Doker network bridge0")
+      }
     case MACVLAN:
       /* TODO: Make physical iface configurable */
       /* TODO: Use SDK for this */
@@ -111,7 +116,7 @@ func createNetworkInfra() {
         ovs.Sudo(),
       )
 
-      if err := ovs_client.VSwitch.AddBridge(ovs_br); err != nil {
+      if err := ovs_client.VSwitch.AddBridge(bridge_name); err != nil {
         panic(fmt.Sprintf("Failed to create OVS bridge:", err))
       }
     default:
@@ -125,6 +130,8 @@ func attachExtraInterfaces(cname string) {
 
   switch dataplane_type {
     case BRIDGE:
+      /* TODO: Properly use the SDK for this */
+      err0 = exec.Command("docker", "network", "connect", "bridge0", cname).Run()
     case MACVLAN:
       /* TODO: Properly use the SDK for this */
       err0 = exec.Command("docker", "network", "connect", "macvlan0", cname).Run()
@@ -132,7 +139,7 @@ func attachExtraInterfaces(cname string) {
     case OVS:
       /* Add interface attached to OVS bridge */
       ipac += 1
-      err0 = exec.Command("ovs-docker", "add-port", ovs_br, "eth1", cname,
+      err0 = exec.Command("ovs-docker", "add-port", bridge_name, "eth1", cname,
               fmt.Sprintf("--ipaddress=192.168.100.%d/24", ipac)).Run()
   }
 
@@ -146,7 +153,7 @@ func attachExtraInterfaces(cname string) {
 func getDefaultInterfaces() (ingress string, egress string) {
   switch dataplane_type {
     case BRIDGE:
-      return "eth0","eth0"
+      return "eth1","eth1"
     case MACVLAN:
       return "eth2","eth2"
     case OVS:
