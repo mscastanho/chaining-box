@@ -105,7 +105,7 @@ int _ingress_redirect(struct __sk_buff *skb)
 	if (!ifindex)
 		return TC_ACT_OK;
 
-  bpf_printk("ifi OK. Checking sip...\n");
+  cb_debug("ifi OK. Checking sip...\n");
 
   struct iphdr *ip = (struct iphdr*)(data + sizeof(struct ethhdr));
   if((void*)ip + sizeof(struct iphdr) > data_end)
@@ -138,8 +138,8 @@ int _ingress_redirect(struct __sk_buff *skb)
    *  __sk_buff->ifindex == skb->dev->ifindex
    *   (which is translated into BPF insns that deref dev->ifindex)
    */
-  if (*ifindex == skb->ingress_ifindex)
-    swap_src_dst_mac(data);
+  // if (*ifindex == skb->ingress_ifindex)
+    // swap_src_dst_mac(data);
 
   //return bpf_redirect(*ifindex, BPF_F_INGRESS); // __bpf_rx_skb
   return bpf_redirect(*ifindex, 0); // __bpf_tx_skb / __dev_xmit_skb
