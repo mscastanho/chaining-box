@@ -13,3 +13,8 @@ value hex 00 00 64 ff 02 42 ac 11 00 04 any
 bpftool map update pinned /sys/fs/bpf/tc/globals/src_mac \
 key hex 01 00 00 00 \
 value hex 02 42 ac 11 00 02 any
+
+
+# With namespaces and MACVLAN
+bpftool map update pinned /sys/fs/bpf/tc/globals/cls_table key hex 0a 0a 00 01 0a 0a 00 02 00 00 00 00 01 val hex 00
+00 64 ff 02 42 c0 a8 64 02 any
