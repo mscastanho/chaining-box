@@ -88,11 +88,19 @@ func getDirectLinkNames() (string,string) {
 func createNetworkInfra() {
   switch dataplane_type {
     case BRIDGE:
-      err := exec.Command("docker", "network", "create", "-d", "bridge",
-        "bridge0").Run()
-      if err != nil {
-        panic("Failed to create Doker network bridge0")
-      }
+      // err := exec.Command("docker", "network", "create", "-d", "bridge",
+        // "bridge0").Run()
+      // if err != nil {
+        // panic("Failed to create Doker network bridge0")
+      // }
+      // err := exec.Command("brctl", "addif", "docker0", "enp1s0f0").Run()
+      // if err != nil {
+        // panic("Failed to attach enp1s0f0 to bridge docker0")
+      // }
+      // err = exec.Command("brctl", "addif", "docker0", "enp1s0f1").Run()
+      // if err != nil {
+        // panic("Failed to attach enp1s0f1 to bridge docker0")
+      // }
     case MACVLAN:
       /* TODO: Make physical iface configurable */
       /* TODO: Use SDK for this */
@@ -131,7 +139,8 @@ func attachExtraInterfaces(cname string) {
   switch dataplane_type {
     case BRIDGE:
       /* TODO: Properly use the SDK for this */
-      err0 = exec.Command("docker", "network", "connect", "bridge0", cname).Run()
+      // err0 = exec.Command("docker", "network", "connect", "bridge0", cname).Run()
+      /* For now we will just use the docker0 bridge */
     case MACVLAN:
       /* TODO: Properly use the SDK for this */
       err0 = exec.Command("docker", "network", "connect", "macvlan0", cname).Run()
@@ -153,7 +162,7 @@ func attachExtraInterfaces(cname string) {
 func getDefaultInterfaces() (ingress string, egress string) {
   switch dataplane_type {
     case BRIDGE:
-      return "eth1","eth1"
+      return "eth0","eth0"
     case MACVLAN:
       return "eth2","eth2"
     case OVS:
@@ -417,7 +426,7 @@ func main() {
   cfg := ParseChainsConfig(cfgfile)
 
   /* TODO: Make this configurable */
-  dataplane_type = MACVLAN
+  dataplane_type = BRIDGE
 
   createNetworkInfra()
 
