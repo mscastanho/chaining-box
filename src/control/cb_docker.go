@@ -316,12 +316,12 @@ func getTypeExecString(sfType, ingress, egress string) []string{
   basedir := target_dir + "/src/build/"
   switch sfType {
     case "user-redirect":
-      return []string{basedir + "user-redirect", ingress, "172.17.0.2"}
+      return []string{basedir + "user-redirect", ingress, "10.10.0.1"}
     case "xdp-redirect":
       return []string{basedir + "xdp_redirect_map", ingress, egress}
     case "tc-redirect":
       return []string{"--", basedir + "tc_bench01_redirect", "--ingress", ingress,
-                        "--egress", egress, "--srcip", "172.17.0.2"}
+                        "--egress", egress, "--srcip", "10.10.0.1"}
   }
 
   return nil
