@@ -2,7 +2,16 @@
   "chains": [
     {
       "id": 100,
-      "nodes": ["sf1","sf2","sf3","sf4"]
+      "nodes": ["sf1","sf2","sf3","sf4"],
+      "flows": [
+        {
+          "ipsrc": "10.10.0.1", 
+          "ipdst": "10.10.0.2",
+          "sport": 1000,
+          "dport": 2000,
+          "proto": 17
+        }
+      ]
     }
   ],
   "functions": [

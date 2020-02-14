@@ -60,7 +60,8 @@ func (cbm *CBManager) batchInstallRules(rcm map[string]CBRulesConfig) error {
 
 func (cbm *CBManager) InstallConfiguration(cfg *CBConfig) error {
   var sph uint32
-  var r Fwd_rule
+  var fr Fwd_rule
+  var pr Proxy_rule
   var flags uint8
   var address_next CBAddress
 
@@ -76,7 +77,8 @@ func (cbm *CBManager) InstallConfiguration(cfg *CBConfig) error {
   }
 
   /* Each node will have a list of rules */
-  rules := make(map[string][]Fwd_rule)
+  frules := make(map[string][]Fwd_rule)
+  prules := make(map[string][]Proxy_rule)
 
   for _,chain := range cfg.Chains {
     spi := chain.Id << 8
@@ -90,21 +92,51 @@ func (cbm *CBManager) InstallConfiguration(cfg *CBConfig) error {
       } else {
         flags = 0
         next := chain.Nodes[i+1]
-        /*TODO: This function should be run from the context of a CBManager, because the Address to be used
-          here is the one reported by each node on the initial Hello message */
         address_next = cbm.connectedAgents[next].addr
       }
 
-      r.Key = sph
-      r.Val = Fwd_entry{Flags: flags, Address: address_next}
-      rules[node] = append(rules[node], r)
+      fr.Key = sph
+      fr.Val = Fwd_entry{Flags: flags, Address: address_next}
+      frules[node] = append(frules[node], fr)
+
+      /* Imagine this situation: a chain with two local SFs followed by a remote one.
+       *    sf1 (local) -> sf2 (local) -> sf3 (remote)
+       * the connection sf1 -> sf2 will be configured with a direct link, and the Dec
+       * stage on sf2 will be suppressed. So the NSH table will not have any entries
+       * when the Enc stage on sf2 executes. 
+       *
+       * To avoid this problem, we need to populate the NSH data (Proxy table) on sf2
+       * with an artificial entry, so the Enc stage can use it when preparing to send
+       * the packet to sf3. */
+      if i > 0 && i < len(chain.Nodes) - 1 {
+				prev := cfg.GetNodeByName(chain.Nodes[i-1])
+				curr := cfg.GetNodeByName(chain.Nodes[i])
+				next := cfg.GetNodeByName(chain.Nodes[i+1])
+
+				if !(prev.Remote) && !(curr.Remote) && next.Remote {
+					for _,flow := range chain.Flows {
+						ip5tuple,err := flow.Parse()
+						if err != nil {
+							panic(err)
+						}
+						pr.Key = *ip5tuple
+						pr.Val = sph
+						prules[node] = append(prules[node], pr)
+					}
+				}
+        /* Create proxy rule */
+      }
     }
   }
 
   node_cfgs := make(map[string]CBRulesConfig)
 
-  for node, fr := range rules {
-    node_cfgs[node] = CBRulesConfig{Fwd: fr}
+  for node, frule := range frules {
+		if prule,ok := prules[node]; ok {
+			node_cfgs[node] = CBRulesConfig{Fwd: frule, Proxy: prule}
+		} else {
+			node_cfgs[node] = CBRulesConfig{Fwd: frule}
+		}
   }
 
   return cbm.batchInstallRules(node_cfgs)
