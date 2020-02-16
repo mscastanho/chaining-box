@@ -64,6 +64,7 @@ func (cbm *CBManager) InstallConfiguration(cfg *CBConfig) error {
   var pr Proxy_rule
   var flags uint8
   var address_next CBAddress
+  var next *CBInstance
 
   /* Iterate over all nodes in the config to guarantee we have
    * open connections to them. We will only install rules once we
@@ -84,58 +85,109 @@ func (cbm *CBManager) InstallConfiguration(cfg *CBConfig) error {
     spi := chain.Id << 8
     for i,node := range chain.Nodes {
       sph = spi | (254-uint32(i))
+      curr := cfg.GetNodeByName(node)
 
-      /* Is it the end of the chain? */
-      if i == len(chain.Nodes) - 1 {
+      /* Generate forwarding rules */
+
+      if i == len(chain.Nodes) - 1 { /* End of the chain? */
         flags = 1
+        next = nil
         address_next = CBAddress{0x00,0x00,0x00,0x00,0x00,0x00}
       } else {
         flags = 0
-        next := chain.Nodes[i+1]
-        address_next = cbm.connectedAgents[next].addr
+        next = cfg.GetNodeByName(chain.Nodes[i+1])
+        address_next = cbm.connectedAgents[next.Tag].addr
       }
 
-      fr.Key = sph
-      fr.Val = Fwd_entry{Flags: flags, Address: address_next}
-      frules[node] = append(frules[node], fr)
+      /* We only need forwarding rules if we *do not* have a direct link
+       * to the next SF or this is the end of the chain. */
+      if next == nil || (curr.Remote || next.Remote) {
+        fr.Key = sph
+        fr.Val = Fwd_entry{Flags: flags, Address: address_next}
+        frules[node] = append(frules[node], fr)
+      }
 
-      /* Imagine this situation: a chain with two local SFs followed by a remote one.
-       *    sf1 (local) -> sf2 (local) -> sf3 (remote)
+      /* Generate proxy rules
+       *
+       * Imagine the following situations:
+       * 1) A chain with two local SFs followed by a remote one.
+       *    sf1 (local) -> sf2 (local) -> sf3 (remote) -> ...
        * the connection sf1 -> sf2 will be configured with a direct link, and the Dec
        * stage on sf2 will be suppressed. So the NSH table will not have any entries
-       * when the Enc stage on sf2 executes. 
+       * when the Enc stage on sf2 executes.
+       *
+       * 2)Another possibility is when the last connection before the end of a chain is
+       * direct:
+       *    sf1 (local) -> sf2 (local) (end)
+       * in this case sf2 will also need the information from the NSH data table to
+       * know if this is the end of the chain or not.
        *
        * To avoid this problem, we need to populate the NSH data (Proxy table) on sf2
        * with an artificial entry, so the Enc stage can use it when preparing to send
-       * the packet to sf3. */
-      if i > 0 && i < len(chain.Nodes) - 1 {
+       * the packet to sf3 (case 1) or end the chain (case 2). */
+      if i > 0 {
 				prev := cfg.GetNodeByName(chain.Nodes[i-1])
-				curr := cfg.GetNodeByName(chain.Nodes[i])
-				next := cfg.GetNodeByName(chain.Nodes[i+1])
 
-				if !(prev.Remote) && !(curr.Remote) && next.Remote {
-					for _,flow := range chain.Flows {
-						ip5tuple,err := flow.Parse()
-						if err != nil {
-							panic(err)
-						}
-						pr.Key = *ip5tuple
-						pr.Val = sph
-						prules[node] = append(prules[node], pr)
-					}
-				}
+        /* If there is a direct link with the previous node in the chain and... */
+        if !(prev.Remote) && !(curr.Remote) {
+          /* ...is the end of chain (Case 2) || ...is followed by remote (Case 1) */
+          if i == len(chain.Nodes) - 1 || cfg.GetNodeByName(chain.Nodes[i+1]).Remote {
+            for _,flow := range chain.Flows {
+              ip5tuple,err := flow.Parse()
+              if err != nil {
+                panic(err)
+              }
+              /* Create proxy rule */
+              pr.Key = *ip5tuple
+              pr.Val = sph
+              prules[node] = append(prules[node], pr)
+            }
+          }
+        }
+        // if i < len(chain.Nodes) - 1 { [> Not the last in the chain. <]
+          // next := cfg.GetNodeByName(chain.Nodes[i+1])
+//
+          // Case 1
+          // if !(prev.remote) && !(curr.remote) && next.remote {
+            // for _,flow := range chain.Flows {
+              // ip5tuple,err := flow.Parse()
+              // if err != nil {
+                // panic(err)
+              // }
+              // pr.Key = *ip5tuple
+              // pr.Val = sph
+              // prules[node] = append(prules[node], pr)
+            // }
+          // }
+        // } else if !(prev.Remote) && !(curr.Remote) { [> Case 2 - last in the chain <]
+          // TODO: Can I avoid repeating this code?
+          // for _,flow := range chain.Flows {
+            // ip5tuple,err := flow.Parse()
+            // if err != nil {
+              // panic(err)
+            // }
+            // pr.Key = *ip5tuple
+            // pr.Val = sph
+            // prules[node] = append(prules[node], pr)
+          // }
+        // }
         /* Create proxy rule */
       }
     }
   }
+
+	fmt.Printf("frules:\n %+v\n\n", frules)
+	fmt.Printf("prules:\n %+v\n\n", prules)
 
   node_cfgs := make(map[string]CBRulesConfig)
 
   for node, frule := range frules {
 		if prule,ok := prules[node]; ok {
 			node_cfgs[node] = CBRulesConfig{Fwd: frule, Proxy: prule}
+      fmt.Printf("Generated rules for %s:\n\tFwd: %+v\n\tProxy: %+v\n\n", node, frule, prule)
 		} else {
 			node_cfgs[node] = CBRulesConfig{Fwd: frule}
+			fmt.Printf("Generated rules for %s:\n\tFwd: %+v\n\n", node, frule)
 		}
   }
 

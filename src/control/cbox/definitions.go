@@ -76,7 +76,11 @@ func NewCBConfig(cfgbytes []byte) *CBConfig{
 }
 
 func (cbc *CBConfig) GetNodeByName(name string) *CBInstance{
-  return &cbc.Functions[cbc.name2idx[name]]
+  if idx,ok := cbc.name2idx[name]; ok {
+    return &cbc.Functions[idx]
+  }
+
+  return nil
 }
 
 

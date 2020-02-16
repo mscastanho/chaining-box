@@ -88,5 +88,8 @@ cat /sys/kernel/debug/tracing/trace_pipe
 
 ### Running the tests
 
-TODO
+#### With Linux bridge
+Add the physical interfaces to the Docker bridge
+brctl addif docker0 enp1s0f0
+brctl addif docker0 enp1s0f1
 
