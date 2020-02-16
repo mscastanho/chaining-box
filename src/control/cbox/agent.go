@@ -161,6 +161,7 @@ func (cba *CBAgent) ManagerListen() error {
 func (cba *CBAgent) handleInstall(msg *CBMsg_Install) error {
   fmt.Printf("Received an Install message: %+v\n", msg)
 
+  /* Install forwarding rules */
   for i := range msg.Fwd {
     rule := &msg.Fwd[i]
     key := C.uint(rule.Key)
@@ -169,6 +170,16 @@ func (cba *CBAgent) handleInstall(msg *CBMsg_Install) error {
     /* TODO: Don't ignore the error, instead revert (uninstall)
      * all previously just-installed rules */
     _ = C.add_fwd_rule(key, val)
+  }
+
+  /* Install artificial proxy rules */
+  for _,rule := range msg.Proxy {
+    key := *(*C.struct_ip_5tuple)(unsafe.Pointer(&(rule.Key)))
+    val := C.uint(rule.Val)
+
+    /* TODO: Don't ignore the error, instead revert (uninstall)
+     * all previously just-installed rules */
+    _ = C.add_proxy_rule(key, val)
   }
 
   return nil

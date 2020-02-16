@@ -46,7 +46,7 @@ func (cbm *CBManager) batchInstallRules(rcm map[string]CBRulesConfig) error {
 
   for node,rules := range rcm {
     conn := cbm.connectedAgents[node].conn
-    data := MakeCBMsg_Install(rules.Fwd)
+    data := MakeCBMsg_Install(rules.Fwd, rules.Proxy)
     // fmt.Printf("rules.Fwd:%+v\n Sending: %+v\n", rules.Fwd, data)
     err := json.NewEncoder(conn).Encode(data)
     if err != nil {

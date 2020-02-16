@@ -10,4 +10,6 @@ int load_egress_stages(const char* iface, const char* stages_obj);
 
 int add_fwd_rule(uint32_t key, struct fwd_entry val);
 
+int add_proxy_rule(struct ip_5tuple key, uint32_t val);
+
 #endif /* CB_AGENT_HELPERS_H_ */

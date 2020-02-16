@@ -31,8 +31,8 @@ func MakeCBMsg_Hello(name string, addr CBAddress) (msg CBMsg){
   return CBMsg{Hello, m}
 }
 
-func MakeCBMsg_Install(fwd []Fwd_rule) (msg CBMsg){
-  m,_ := json.Marshal(CBMsg_Install{CBRulesConfig{Fwd: fwd}})
+func MakeCBMsg_Install(fwd []Fwd_rule, pxy []Proxy_rule) (msg CBMsg){
+  m,_ := json.Marshal(CBMsg_Install{CBRulesConfig{Fwd: fwd, Proxy: pxy}})
   return CBMsg{Install, m}
 }
 

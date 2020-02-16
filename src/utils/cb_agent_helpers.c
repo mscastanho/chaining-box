@@ -21,6 +21,7 @@
 
 #include "load_helpers.h"
 #include "cb_agent_helpers.h"
+#include "nsh.h"
 
 static const struct _bpf_files {
     char* cls_table;
@@ -145,10 +146,29 @@ int add_fwd_rule(uint32_t key, struct fwd_entry val){
   return bpf_map_update_elem(fwd_table, &key, &val, BPF_ANY);
 }
 
+int add_proxy_rule(struct ip_5tuple key, uint32_t sph){
+  /* In this case, key is an IP 5-tuple. We have to guarantee that
+   * all values are in BE before adding the IP to the table. */
+  /* TODO: The conversion as-is is not necessarily correct, as we
+   * assume both manager and agent are running on an LE system. */
+  key.ip_src = htonl(key.ip_src);
+  key.ip_dst = htonl(key.ip_dst);
+  key.sport = htons(key.sport);
+  key.dport = htons(key.dport);
+
+  struct nshhdr val;
+	val.basic_info = htons( ((uint16_t) 0)     |
+						         NSH_TTL_DEFAULT 	|
+						         NSH_BASE_LENGHT_MD_TYPE_2);
+	val.md_type 	= NSH_MD_TYPE_2;
+	val.next_proto = NSH_NEXT_PROTO_ETHER;
+  val.serv_path 	= htonl(sph);
+
+  return bpf_map_update_elem(nsh_data, &key, &val, BPF_ANY);
+}
+
 /* TODO: Add rule to add rules in batches, to avoid the overhead of
  * many individual calls to add_fwd_rule() */
 
 //
 // int add_cls_rule();
-//
-// int update_src_mac();
