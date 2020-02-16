@@ -144,34 +144,6 @@ func (cbm *CBManager) InstallConfiguration(cfg *CBConfig) error {
             }
           }
         }
-        // if i < len(chain.Nodes) - 1 { [> Not the last in the chain. <]
-          // next := cfg.GetNodeByName(chain.Nodes[i+1])
-//
-          // Case 1
-          // if !(prev.remote) && !(curr.remote) && next.remote {
-            // for _,flow := range chain.Flows {
-              // ip5tuple,err := flow.Parse()
-              // if err != nil {
-                // panic(err)
-              // }
-              // pr.Key = *ip5tuple
-              // pr.Val = sph
-              // prules[node] = append(prules[node], pr)
-            // }
-          // }
-        // } else if !(prev.Remote) && !(curr.Remote) { [> Case 2 - last in the chain <]
-          // TODO: Can I avoid repeating this code?
-          // for _,flow := range chain.Flows {
-            // ip5tuple,err := flow.Parse()
-            // if err != nil {
-              // panic(err)
-            // }
-            // pr.Key = *ip5tuple
-            // pr.Val = sph
-            // prules[node] = append(prules[node], pr)
-          // }
-        // }
-        /* Create proxy rule */
       }
     }
   }
