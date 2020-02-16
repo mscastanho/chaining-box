@@ -137,6 +137,10 @@ func (tstr *Ip_5tuplestr) Parse() (*Ip_5tuple,error) {
   }
 	ip5t.Ipdst = ip2int(ipdst)
 
+  ip5t.Sport = tstr.Sport
+  ip5t.Dport = tstr.Dport
+  ip5t.Proto = tstr.Proto
+
   return ip5t,nil
 
 }

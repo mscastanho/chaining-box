@@ -139,7 +139,8 @@ func (cbm *CBManager) InstallConfiguration(cfg *CBConfig) error {
               }
               /* Create proxy rule */
               pr.Key = *ip5tuple
-              pr.Val = sph
+              /* The SPI should match the one for the current SF, not the next. Hence the +1. */
+              pr.Val = sph + 1
               prules[node] = append(prules[node], pr)
             }
           }
