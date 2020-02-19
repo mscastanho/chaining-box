@@ -3,6 +3,7 @@ funcs += l4lb
 funcs += tc-redirect
 funcs += user-redirect
 funcs += xdp-redirect
+funcs += flow-monitor
 
 all: ${funcs}
 
