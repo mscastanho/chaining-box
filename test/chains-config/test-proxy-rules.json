@@ -1,0 +1,93 @@
+{
+  "chains": [
+    {
+      "id": 100,
+      "nodes": ["sf1","sf2","sf3","sf4"],
+      "flows": [
+        {
+          "ipsrc": "172.17.0.2", 
+          "ipdst": "172.17.0.3",
+          "sport": 0,
+          "dport": 0,
+          "proto": 1
+        },
+        {
+          "ipsrc": "172.17.0.2", 
+          "ipdst": "172.17.0.3",
+          "sport": 1000,
+          "dport": 2000,
+          "proto": 17
+        },
+        {
+          "ipsrc": "10.100.0.1", 
+          "ipdst": "10.100.0.2",
+          "sport": 50000,
+          "dport": 60000,
+          "proto": 6
+        },
+        {
+          "ipsrc": "10.100.0.1", 
+          "ipdst": "10.100.0.2",
+          "sport": 50000,
+          "dport": 60000,
+          "proto": 6
+        },
+        {
+          "ipsrc": "10.100.0.1", 
+          "ipdst": "10.100.0.2",
+          "sport": 50000,
+          "dport": 60000,
+          "proto": 6
+        }
+
+
+      ]
+    },
+    {
+      "id": 300,
+      "nodes": ["sf5","sf6"],
+      "flows": [
+        {
+          "ipsrc": "10.10.0.1", 
+          "ipdst": "10.10.0.2",
+          "sport": 2571,
+          "dport": 2828,
+          "proto": 17
+        }
+      ]
+    }
+  ],
+  "functions": [
+    {
+      "tag": "sf1",
+      "type": "tc-redirect",
+      "remote": false
+    },
+    {
+      "tag": "sf2",
+      "type": "tc-redirect",
+      "remote": false
+
+    },
+    {
+      "tag": "sf3",
+      "type": "tc-redirect",
+      "remote": true
+    },
+    {
+      "tag": "sf4",
+      "type": "tc-redirect",
+      "remote": false 
+    },
+    {
+      "tag": "sf5",
+      "type": "tc-redirect",
+      "remote": false
+    },
+    {
+      "tag": "sf6",
+      "type": "tc-redirect",
+      "remote": false
+    }
+  ]
+}
