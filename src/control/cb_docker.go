@@ -52,6 +52,9 @@ var dlgid = 0
 /* IP address counter */
 var ipac = 0
 
+/* Number of VFs already used */
+var vfcount = 0
+
 /* Type of dataplane to use */
 type NetType int
 
@@ -59,6 +62,7 @@ const (
   OVS NetType = iota
   MACVLAN
   BRIDGE
+  SRIOV
 )
 
 var dataplane_type NetType
@@ -127,6 +131,13 @@ func createNetworkInfra() {
       if err := ovs_client.VSwitch.AddBridge(bridge_name); err != nil {
         panic(fmt.Sprintf("Failed to create OVS bridge:", err))
       }
+    case SRIOV:
+      pf := "enp2s0np0"
+      err := exec.Command("echo", "16", ">",
+        fmt.Sprintf("/sys/class/net/%s/device/sriov_numvfs",pf)).Run()
+      if err != nil {
+        panic(fmt.Sprintf("Failed to create VFs on PF %s",pf))
+      }
     default:
       fmt.Printf("Unknown network type %s\n", dataplane_type);
       os.Exit(1)
@@ -150,10 +161,33 @@ func attachExtraInterfaces(cname string) {
       ipac += 1
       err0 = exec.Command("ovs-docker", "add-port", bridge_name, "eth1", cname,
               fmt.Sprintf("--ipaddress=192.168.100.%d/24", ipac)).Run()
+    case SRIOV:
+      /* Add 2 VFs to each container */
+
+      /* This is a simple function to return a VF matching the name scheme used
+       * by Netronome SmartNICs (used on the tests) */
+      get_vfname := func (i *int) (name string) {
+        si := (*i/8) + 8
+        fi := *i % 8
+        if fi == 0 {
+          name = fmt.Sprintf("enp2s%d", si)
+        } else {
+          name = fmt.Sprintf("enp2s%df%d", si, fi)
+        }
+        *i += 1
+        return name
+      }
+
+      ipac += 1
+      err0 = exec.Command("pipework", "--direct-phys", get_vfname(&vfcount), "-i", "eth1",
+        cname, fmt.Sprintf("192.168.100.%d/24", ipac)).Run()
+      ipac += 1
+      err1 = exec.Command("pipework", "--direct-phys", get_vfname(&vfcount), "-i", "eth2",
+        cname, fmt.Sprintf("192.168.100.%d/24", ipac)).Run()
   }
 
   if err0 != nil || err1 != nil {
-    fmt.Printf("Failed to configure extra interfaces for %s. NetType: %v err0: %v err1: %v ",
+    fmt.Printf("Failed to configure extra interfaces for %s. NetType: %v err0: %v err1: %v\n",
       cname, dataplane_type, err0, err1)
   }
 }
@@ -167,6 +201,8 @@ func getDefaultInterfaces() (ingress string, egress string) {
       return "eth2","eth2"
     case OVS:
       return "eth1","eth1"
+    case SRIOV:
+      return "eth1","eth2"
     default:
       panic(fmt.Sprintf("Unknown network type %s\n", dataplane_type));
   }
@@ -429,7 +465,7 @@ func main() {
   cfg := ParseChainsConfig(cfgfile)
 
   /* TODO: Make this configurable */
-  dataplane_type = BRIDGE
+  dataplane_type = SRIOV
 
   createNetworkInfra()
 
