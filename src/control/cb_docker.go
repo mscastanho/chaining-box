@@ -56,13 +56,13 @@ var ipac = 0
 var vfcount = 0
 
 /* Type of dataplane to use */
-type NetType int
+type NetType string
 
 const (
-  OVS NetType = iota
-  MACVLAN
-  BRIDGE
-  SRIOV
+  OVS NetType = "ovs"
+  MACVLAN = "macvlan"
+  BRIDGE = "bridge"
+  SRIOV = "sriov"
 )
 
 var dataplane_type NetType
@@ -132,12 +132,14 @@ func createNetworkInfra() {
         panic(fmt.Sprintf("Failed to create OVS bridge:", err))
       }
     case SRIOV:
-      pf := "enp2s0np0"
-      err := exec.Command("echo", "16", ">",
-        fmt.Sprintf("/sys/class/net/%s/device/sriov_numvfs",pf)).Run()
-      if err != nil {
-        panic(fmt.Sprintf("Failed to create VFs on PF %s",pf))
-      }
+      /* Please setup SRIOV VFs before running cb_docker */
+
+      // pf := "enp2s0np0"
+      // err := exec.Command("echo", "16", ">",
+        // fmt.Sprintf("/sys/class/net/%s/device/sriov_numvfs",pf)).Run()
+      // if err != nil {
+        // panic(fmt.Sprintf("Failed to create VFs on PF %s",pf))
+      // }
     default:
       fmt.Printf("Unknown network type %s\n", dataplane_type);
       os.Exit(1)
@@ -433,12 +435,14 @@ func main() {
   var clist []string
   var cfgfile string
   var srcdir string
+  var nettype string
   using_direct_links := false
   ingress_ifaces := make(map[string]string)
   egress_ifaces := make(map[string]string)
 
   flag.StringVar(&cfgfile, "c", "", "path to the chains configuration file.")
   flag.StringVar(&srcdir, "d", "", "path to the chaining-box source dir.")
+  flag.StringVar(&nettype, "n", "bridge", "type of network to use.")
   flag.Parse()
 
   if cfgfile == "" {
@@ -462,10 +466,14 @@ func main() {
     os.Exit(1)
   }
 
-  cfg := ParseChainsConfig(cfgfile)
+  if nettype != string(OVS) && nettype != MACVLAN && nettype != BRIDGE &&
+      nettype != SRIOV {
+        panic(fmt.Sprintf("Invalid network type: %s", nettype))
+  } else {
+    dataplane_type = NetType(nettype)
+  }
 
-  /* TODO: Make this configurable */
-  dataplane_type = SRIOV
+  cfg := ParseChainsConfig(cfgfile)
 
   createNetworkInfra()
 
