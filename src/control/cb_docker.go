@@ -163,6 +163,8 @@ func attachExtraInterfaces(cname string) {
       ipac += 1
       err0 = exec.Command("ovs-docker", "add-port", bridge_name, "eth1", cname,
               fmt.Sprintf("--ipaddress=192.168.100.%d/24", ipac)).Run()
+      err1 = exec.Command("ovs-docker", "add-port", bridge_name, "eth2", cname,
+              fmt.Sprintf("--ipaddress=192.168.200.%d/24", ipac)).Run()
     case SRIOV:
       /* Add 2 VFs to each container */
 
@@ -202,7 +204,7 @@ func getDefaultInterfaces() (ingress string, egress string) {
     case MACVLAN:
       return "eth2","eth2"
     case OVS:
-      return "eth1","eth1"
+      return "eth1","eth2"
     case SRIOV:
       return "eth1","eth2"
     default:
