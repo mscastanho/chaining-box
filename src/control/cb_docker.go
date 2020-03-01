@@ -144,6 +144,8 @@ func createNetworkInfra() {
       fmt.Printf("Unknown network type %s\n", dataplane_type);
       os.Exit(1)
   }
+
+  fmt.Printf("Network type %s succesfully configured!\n", dataplane_type)
 }
 
 func attachExtraInterfaces(cname string) {
