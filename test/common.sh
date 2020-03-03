@@ -3,7 +3,7 @@
 # Test configuration
 phys0="enp1s0f0"
 phys1="enp1s0f1"
-pktgen_args="-l 0-3 -n 4 -- -P -T -m 2.0,3.1"
+pktgen_args="-l 0-2 -n 4 -- -P -T -m 1.0,2.1"
 
 if [ -z "$chainscfg" ]; then
   echo "Please set 'chainscfg' env var before calling the test scripts."
@@ -16,13 +16,13 @@ cbdir="${scriptdir}/.."
 objdir="${cbdir}/src/build"
 scriptsdir="${cbdir}/scripts"
 pktgen="/usr/src/pktgen-19.12.0/app/x86_64-native-linuxapp-gcc/pktgen"
-
-# Log files
 logdir="/tmp/cb"
+pcapdir="$logdir/pcap"
 
 [ -d $logdir ] && rm -rdf $logdir
-mkdir $logdir
+mkdir -p $logdir $pcapdir
 
+# Log files
 dockerlog="${logdir}/docker.log"
 managerlog="${logdir}/manager.log"
 

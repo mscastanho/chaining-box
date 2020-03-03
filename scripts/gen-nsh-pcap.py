@@ -22,7 +22,7 @@ o_eth = Ether(src=o_src_mac,dst=o_dst_mac)
 
 headers = o_eth/NSH(mdtype=2, spi=100, si=255)/i_eth/ip/udp
 
-for final_size in [64, 250, 500, 1000, 1500]:
+for final_size in [64, 128, 256, 512, 1024, 1280, 1500]:
     payload = Raw(RandString(size=(final_size - len(headers))))
     pkt = headers/payload
 
@@ -32,4 +32,4 @@ for final_size in [64, 250, 500, 1000, 1500]:
     #  hexdump(pkt)
 
     # Save to PCAP file
-    wrpcap('nsh-traffic-{}.pcap'.format(final_size), pkt)
+    wrpcap('/tmp/cb/pcap/nsh-traffic-{}.pcap'.format(final_size), pkt)
