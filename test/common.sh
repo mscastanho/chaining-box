@@ -18,6 +18,7 @@ scriptsdir="${cbdir}/scripts"
 pktgen="/usr/src/pktgen-19.12.0/app/x86_64-native-linuxapp-gcc/pktgen"
 logdir="/tmp/cb"
 pcapdir="$logdir/pcap"
+testdir="$cbdir/test"
 
 [ -d $logdir ] && rm -rdf $logdir
 mkdir -p $logdir $pcapdir
