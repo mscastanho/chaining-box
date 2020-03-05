@@ -53,14 +53,15 @@ function load_redirect {
 function load_classifier {
     BPFOBJ="$1"
     DEV="$2"
-
+    DIR="$3"
+    [ -z $DIR ] && DIR="egress"
     # Load decap XDP code
     #ip -force link set dev $DEV xdp \
     #    obj $BPFOBJ sec action/classify
 
     tc qdisc add dev $DEV clsact 2> /dev/null
-    tc filter del dev $DEV egress 2> /dev/null
-    tc filter add dev $DEV egress bpf da obj $BPFOBJ \
+    tc filter del dev $DEV $DIR 2> /dev/null
+    tc filter add dev $DEV $DIR bpf da obj $BPFOBJ \
         sec action/classify
 
 }
@@ -72,7 +73,8 @@ TYPE="$3"
 if [ $TYPE = "sf" ]; then
     load_sf $PROG $IFACE
 elif [ $TYPE = "cls" ]; then
-    load_classifier $PROG $IFACE
+    DIR="$4"
+    load_classifier $PROG $IFACE $DIR
 elif [ $TYPE = "redir" ]; then
     load_redirect $PROG $IFACE
 else
