@@ -1,4 +1,0 @@
-* BPF Firewall using libkefir
-
-This function uses libkefir to implement a simple Firewall. This lib takes input
-firewall rules and creates a BPF program to implement a filter to enforce those rules. 
