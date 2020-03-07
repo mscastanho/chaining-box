@@ -304,12 +304,6 @@ int main(int argc, char **argv)
 		}
 	}
 
-  if(!has_srcip) {
-    fprintf(stderr,"Source IP to filter is required.\n");
-    usage(argv);
-    return EXIT_FAILURE;
-  }
-
 	if (ingress_ifindex) {
 		if (verbose)
 			printf("TC attach BPF object %s to device %s\n",
@@ -336,20 +330,22 @@ int main(int argc, char **argv)
 	}
 
   /* Fill srcip map */
-  fd = bpf_obj_get(srcipmapfile);
-  if (fd < 0) {
-		fprintf(stderr, "ERROR: cannot open bpf_obj_get(%s): %s(%d)\n",
-			srcipmapfile, strerror(errno), errno);
-		usage(argv);
-		ret = EXIT_FAILURE;
-		goto out;
-	} else {
-		ret = bpf_map_update_elem(fd, &key, &srcip, 0);
-		if (ret) {
-			perror("ERROR: bpf_map_update_elem on srcip");
-			ret = EXIT_FAILURE;
-			goto out;
-		}
+  if (has_srcip) {
+    fd = bpf_obj_get(srcipmapfile);
+    if (fd < 0) {
+      fprintf(stderr, "ERROR: cannot open bpf_obj_get(%s): %s(%d)\n",
+        srcipmapfile, strerror(errno), errno);
+      usage(argv);
+      ret = EXIT_FAILURE;
+      goto out;
+    } else {
+      ret = bpf_map_update_elem(fd, &key, &srcip, 0);
+      if (ret) {
+        perror("ERROR: bpf_map_update_elem on srcip");
+        ret = EXIT_FAILURE;
+        goto out;
+      }
+    }
   }
 
 	fd = bpf_obj_get(mapfile);

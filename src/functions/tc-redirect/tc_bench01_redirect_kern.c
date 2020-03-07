@@ -112,18 +112,25 @@ int _ingress_redirect(struct __sk_buff *skb)
     return TC_ACT_OK;
 
   sip = bpf_map_lookup_elem(&srcip, &key);
-  if (!sip)
+  if (!sip) /* check required by verifier */
     return TC_ACT_OK;
+ 
+  /* If srcip is not set (== 0) then the program will not impose any restrictions
+   * and just forward *all* traffic to the egress port.
+   *
+   * Otherwise, only packets with src IP matching srcip will be redirected, the
+   * rest will be passed along the stack. */ 
+  if (*sip) {
+    if(ip->protocol == 1){
+      cb_debug("IT'S A PING!!!\n");
+    }
 
-  if(ip->protocol == 1){
-    cb_debug("IT'S A PING!!!\n");
-  }
-
-  if(*sip != ip->saddr){
-    cb_debug("sip check failed. Passing along... %x != %x\n",*sip,ip->saddr);
-    return TC_ACT_OK;
-  }else{
-    cb_debug("IT'S A MATCH!!!\n");
+    if(*sip != ip->saddr){
+      cb_debug("sip check failed. Passing along... %x != %x\n",*sip,ip->saddr);
+      return TC_ACT_OK;
+    }else{
+      cb_debug("IT'S A MATCH!!!\n");
+    }
   }
 
   /* Swap src and dst mac-addr if ingress==egress
@@ -142,6 +149,9 @@ int _ingress_redirect(struct __sk_buff *skb)
     // swap_src_dst_mac(data);
 
   //return bpf_redirect(*ifindex, BPF_F_INGRESS); // __bpf_rx_skb
+
+  /* WARNING: we do not touch the src and dst MAC addresses, so this can
+   * potentially mess up with switch learning tables. */
   return bpf_redirect(*ifindex, 0); // __bpf_tx_skb / __dev_xmit_skb
 }
 
