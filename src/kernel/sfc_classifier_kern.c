@@ -78,7 +78,8 @@ int classify_tc(struct __sk_buff *skb)
 
 	cls = bpf_map_lookup_elem(&cls_table,&key);
 	if(cls == NULL){
-        cb_debug("[CLSFY] No rule for packet.\n");
+    cb_debug("[CLSFY] No rule for packet.\n");
+    if(set_src_mac(eth)) return cb_retother(TC_ACT_SHOT);
 		return cb_retother(TC_ACT_OK);
 	}
 
