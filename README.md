@@ -89,6 +89,15 @@ cat /sys/kernel/debug/tracing/trace_pipe
 
 ### Running the tests
 
+#### Setup DPDK
+
+The following scripts were hardcoded with the values used durings tests.
+They (almost certainly) need to be adapted for your setup before running them.
+
+  $ cd ~/chaining-box/scripts
+  # ./configure-dpdk.sh do
+  # ./configure-netronome.sh do
+
 #### With Linux bridge
 Add the physical interfaces to the Docker bridge
 
@@ -96,6 +105,10 @@ Add the physical interfaces to the Docker bridge
   # brctl addif docker0 enp1s0f1
 
 #### With OVS
+Remember to disable NetworkManager when running BPF on an interface attached to an OVS bridge
+
+  # service NetworkManager stop
+
 Destroy the OVS bridge if it already exists:
 
   # ovs-vsctl del-br cbox-br
@@ -116,4 +129,16 @@ Start the traffic generator:
   # /usr/src/pktgen-19.12.0/app/x86_64-native-linuxapp-gcc/pktgen -l 0-3 \
     -n 4 -- -P -T -m 2.0,3.1 \
     -s 0:/home/mscastanho/chaining-box/scripts/nsh-traffic-1500.pcap
+
+#### Latency tests
+
+Instead of DPDK, we will use plain old ping use two interfaces in isolated namespaces.
+
+  $ cd ~/chaining-box/scripts
+  # ./create-namespaces do
+  
+When all is done, just run the magic script:
+
+  # cd ~/chaining-box/tests
+  # ./test-lat.sh
 
