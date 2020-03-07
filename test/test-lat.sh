@@ -29,32 +29,11 @@ ping_iface="enp2s0np0"
 count=100
 interval="0.5"
 
-echo "Deleting old resources..."
-sudo ovs-vsctl del-br cbox-br
-sudo ip netns exec ns0 tc filter del dev $ping_iface egress
-pkill cb_manager
-for c in $(list_sfs); do
-{
-  docker kill $c && docker rm $c
-} > /dev/null 2>&1
-done
+# TODO Remove this as the cls will be on a separate container now
+#sudo ip netns exec ns0 tc filter del dev $ping_iface egress
 
-echo "Creating containers..."
-sudo ${objdir}/cb_docker -c $chainscfg -d ../ -n ovs > $dockerlog 2>&1 || fail_exit
-
-echo "Adding physical ifaces to OVS bridge..."
-sudo ovs-vsctl add-port cbox-br $phys0
-sudo ovs-vsctl add-port cbox-br $phys1
-
-echo "Starting manager..."
-${objdir}/cb_manager $chainscfg > $managerlog 2>&1 &
-
-echo "Priming OVS' learning switch table..."
-for c in $(list_sfs); do
-  docker exec -it $c ping -q -c 1 -i 0.1 192.168.100.250 > /dev/null 2>&1
-done
-
-sleep 3
+# Setup environment
+cbox_deploy_ovs
 
 # Write CSV headers to results file
 echo "chainlen;tx;rx;loss;rtt_min;rtt_avg;rtt_max;rtt_mdev" > $outfile

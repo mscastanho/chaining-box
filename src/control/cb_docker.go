@@ -294,6 +294,9 @@ func CreateNewContainer(name string, srcdir string, entrypoint []string) (string
 	cli.ContainerStart(context.Background(), cont.ID,
     types.ContainerStartOptions{})
 
+  /* Add extra interfaces for the dataplane type being used */
+  attachExtraInterfaces(name)
+
   return cont.ID, nil
 }
 
@@ -481,6 +484,12 @@ func main() {
 
   createNetworkInfra()
 
+  /* Create classifier container */
+  _, err = CreateNewContainer("cls", source_dir, default_entrypoint)
+  if err != nil {
+    panic(fmt.Sprintf("Failed to create classifier container:", err))
+  }
+
   /* Start containers for all functions declared */
   for i := 0 ; i < len(cfg.Functions) ; i++ {
     sf := &cfg.Functions[i]
@@ -496,8 +505,6 @@ func main() {
       fmt.Println("Failed to start container!")
       panic(err)
     }
-
-    attachExtraInterfaces(sf.Tag)
 
     clist = append(clist,id)
     sf.Id = id
