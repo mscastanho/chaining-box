@@ -48,7 +48,7 @@ int classify_tc(struct __sk_buff *skb)
 
 	void *data_end = (void *)(long)skb->data_end;
 	void *data = (void *)(long)skb->data;
-	struct nshhdr *nsh;
+	struct nshhdr_md1 *nsh;
 	struct cls_entry *cls;
 	struct ethhdr *eth,*ieth,*oeth;
 	struct iphdr *ip;
@@ -92,7 +92,7 @@ int classify_tc(struct __sk_buff *skb)
     cb_debug("[CLSFY] Size before: %d\n",data_end-data);
 
     // Add outer encapsulation
-    ret = bpf_skb_adjust_room(skb,sizeof(struct ethhdr) + sizeof(struct nshhdr),BPF_ADJ_ROOM_MAC,0);
+    ret = bpf_skb_adjust_room(skb,sizeof(struct ethhdr) + sizeof(struct nshhdr_md1),BPF_ADJ_ROOM_MAC,0);
 
     if (ret < 0) {
         cb_debug("[CLSFY]: Failed to add extra room: %d\n", ret);
@@ -105,14 +105,14 @@ int classify_tc(struct __sk_buff *skb)
     cb_debug("[CLSFY] Size after: %d\n",data_end-data);
 
 	// Bounds check to please the verifier
-    if(data + 2*sizeof(struct ethhdr) + sizeof(struct nshhdr) > data_end){
+    if(data + 2*sizeof(struct ethhdr) + sizeof(struct nshhdr_md1) > data_end){
         cb_debug("[CLSFY] Bounds check #2 failed.\n");
 		return cb_retother(TC_ACT_OK);
 	}
 
 	oeth = data;
 	nsh = (void*) oeth + sizeof(struct ethhdr);
-	extra_bytes = (void*) nsh + sizeof(struct nshhdr);
+	extra_bytes = (void*) nsh + sizeof(struct nshhdr_md1);
 	ieth = (void*) extra_bytes;
 	ip = (void*) ieth + sizeof(struct ethhdr);
 
@@ -132,6 +132,7 @@ int classify_tc(struct __sk_buff *skb)
 						         NSH_BASE_LENGHT_MD_TYPE_2);
 	nsh->md_type 	= NSH_MD_TYPE_2;
 	nsh->next_proto = NSH_NEXT_PROTO_ETHER;
+  /* TODO: Fill metadata fields? */
 
     // No need for htonl. We add the entry in the map
     // using big endian notation.

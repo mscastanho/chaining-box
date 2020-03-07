@@ -64,7 +64,7 @@ function cbox_deploy_ovs {
   # Steer all incoming traffic to the classifier container
   cls_int_ifindex=$(docker exec -it cls ip -o link show eth1 | cut -d':' -f1)
   cls_ext_name=$(ip link show | grep -o "[a-z0-9_]*@if${cls_int_ifindex}" | cut -d'@' -f1)
-  sudo ovs-ofctl add-flow cbox-br in_port=${phys0},actions=output:${cls_ext_name}
+  sudo ovs-ofctl add-flow cbox-br in_port=${phys0},"actions=encap(nsh(md_type=2,tlv(0x1000,10,0x12345678))),set_field:0x64->nsh_spi,encap(ethernet),set_field:11:22:33:44:55:66->eth_dst,output:${cls_ext_name}"
 
   echo "Starting manager..."
   ${objdir}/cb_manager $chainscfg > $managerlog 2>&1 &

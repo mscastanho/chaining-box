@@ -24,7 +24,7 @@ SRCMACMAP();
 
 /* Table to temporarily store NSH data */
 MAP(nsh_data, BPF_MAP_TYPE_HASH, sizeof(struct ip_5tuple),
-    sizeof(struct nshhdr), 2048, PIN_GLOBAL_NS);
+    sizeof(struct nshhdr_md1), 2048, PIN_GLOBAL_NS);
 
 /* Table with SFC forwarding rules */
 MAP(fwd_table, BPF_MAP_TYPE_HASH, sizeof(__u32),
@@ -62,7 +62,7 @@ int decap_nsh(struct xdp_md *ctx)
 	void *data = (void *)(long)ctx->data;
 	struct ethhdr *eth;
 	struct vlanhdr *vlan;
-	struct nshhdr *nsh;
+	struct nshhdr_md1 *nsh;
 	struct iphdr *ip;
 	struct ip_5tuple key = { }; // Verifier does not allow uninitialized keys
 	int offset = 0;
@@ -125,10 +125,10 @@ int decap_nsh(struct xdp_md *ctx)
 		return cb_retother(XDP_PASS);
 
 	nsh = data + offset;
-    offset += sizeof(struct nshhdr);
+    offset += sizeof(struct nshhdr_md1);
 
 	// Check if we can access NSH
-	if ((void*) nsh + sizeof(struct nshhdr) > data_end)
+	if ((void*) nsh + sizeof(struct nshhdr_md1) > data_end)
 		return cb_retother(XDP_DROP);
 
 	cb_debug("[DECAP] SPH: 0x%x\n",bpf_ntohl(nsh->serv_path));
@@ -138,13 +138,13 @@ int decap_nsh(struct xdp_md *ctx)
 		return cb_retother(XDP_DROP);
 
 	// Single check for Inner Ether + IP
-	if((void*)nsh + sizeof(struct nshhdr) + sizeof(struct ethhdr) +
+	if((void*)nsh + sizeof(struct nshhdr_md1) + sizeof(struct ethhdr) +
       sizeof(struct iphdr) > data_end)
 		return cb_retother(XDP_DROP);
 
 	// cb_debug("[DECAP] \n");
 
-	ip = (void*)nsh + sizeof(struct nshhdr) + sizeof(struct ethhdr);
+	ip = (void*)nsh + sizeof(struct nshhdr_md1) + sizeof(struct ethhdr);
 
 	// Retrieve IP 5-tuple
 	ret = get_tuple(ip,data_end,&key);
@@ -179,7 +179,7 @@ int encap_nsh(struct __sk_buff *skb)
 	void *data = (void *)(long)skb->data;
 	int ret = 0;
 	struct ip_5tuple key = { }; // Verifier does not allow uninitialized keys
-	struct nshhdr *prev_nsh, *nsh;
+	struct nshhdr_md1 *prev_nsh, *nsh;
 	struct ethhdr *ieth, *oeth;
 	struct iphdr *ip;
 	__u16 prev_proto;
@@ -256,7 +256,7 @@ int encap_nsh(struct __sk_buff *skb)
 	prev_proto = ieth->h_proto;
 
   // Add outer encapsulation
-  ret = bpf_skb_adjust_room(skb,sizeof(struct ethhdr) + sizeof(struct nshhdr),
+  ret = bpf_skb_adjust_room(skb,sizeof(struct ethhdr) + sizeof(struct nshhdr_md1),
             BPF_ADJ_ROOM_MAC,0);
 
   if (ret < 0) {
@@ -268,14 +268,14 @@ int encap_nsh(struct __sk_buff *skb)
 	data_end = (void *)(long)skb->data_end;
 
 	// Bounds check to please the verifier
-	if(data + 2*sizeof(struct ethhdr) + sizeof(struct nshhdr) > data_end){
+	if(data + 2*sizeof(struct ethhdr) + sizeof(struct nshhdr_md1) > data_end){
 		cb_debug("[ENCAP]: Bounds check failed.\n");
 		return cb_retother(TC_ACT_SHOT);
 	}
 
 	oeth = data;
 	nsh = (void*) oeth + sizeof(struct ethhdr);
-	ieth = (void*) nsh + sizeof(struct nshhdr);
+	ieth = (void*) nsh + sizeof(struct nshhdr_md1);
 	ip = (void*) ieth + sizeof(struct ethhdr);
 
 	// Original Ethernet is outside, let's copy it to the inside
@@ -286,7 +286,7 @@ int encap_nsh(struct __sk_buff *skb)
 	// oeth->h_dest and oeth->h_src will be set by fwd stage
 
 	// Re-add NSH
-	__builtin_memcpy(nsh,prev_nsh,sizeof(struct nshhdr));
+	__builtin_memcpy(nsh,prev_nsh,sizeof(struct nshhdr_md1));
 	nsh->serv_path = bpf_htonl(sph);
 	cb_debug("[ENCAP] Re-added NSH header!\n");
 
@@ -303,7 +303,7 @@ int sfc_forwarding(struct __sk_buff *skb)
   void *data;
 	void *data_end;
 	struct ethhdr *eth;
-	struct nshhdr *nsh;
+	struct nshhdr_md1 *nsh;
 	struct fwd_entry *next_hop;
 
 	// We can only make these attributions here since

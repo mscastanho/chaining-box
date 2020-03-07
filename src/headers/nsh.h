@@ -42,6 +42,15 @@ struct nshhdr {
     __u32 serv_path;
 } __attribute__((__packed__));
 
+/* NSH MD Type 1*/
+struct nshhdr_md1 {
+    __u16 basic_info; /* Ver, OAM bit, Unused and TTL */
+    __u8 md_type;
+    __u8 next_proto;
+    __u32 serv_path;
+    __u32 context[4];
+} __attribute__((__packed__));
+
 struct nsh_spi {
     __u8 spi_bytes[NSH_SPI_LEN];
 } __attribute__((__packed__));
