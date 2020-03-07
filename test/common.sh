@@ -61,10 +61,28 @@ function cbox_deploy_ovs {
   sudo ovs-vsctl add-port cbox-br $phys1
 
   echo "Setting up OVS flows..."
-  # Steer all incoming traffic to the classifier container
-  cls_int_ifindex=$(docker exec -it cls ip -o link show eth1 | cut -d':' -f1)
-  cls_ext_name=$(ip link show | grep -o "[a-z0-9_]*@if${cls_int_ifindex}" | cut -d'@' -f1)
-  sudo ovs-ofctl add-flow cbox-br in_port=${phys0},"actions=encap(nsh(md_type=2,tlv(0x1000,10,0x12345678))),set_field:0x64->nsh_spi,encap(ethernet),set_field:11:22:33:44:55:66->eth_dst,output:${cls_ext_name}"
+
+  # Flush all flows
+  sudo ovs-ofctl del-flows cbox-br
+
+  # Classify incoming traffic
+  sf1_int_ifindex=$(docker exec -it sf1 ip -o link show eth1 | cut -d':' -f1)
+  sf1_ext_name=$(ip link show | grep -o "[a-z0-9_]*@if${sf1_int_ifindex}" | cut -d'@' -f1)
+  sf1_mac=$(docker exec -it sf1 ip link show eth1 | grep ether | awk '{print $2}')
+  flows=(
+    "icmp,nw_src=10.10.0.1,nw_dst=10.10.0.2"
+    "udp,nw_src=10.10.0.1,nw_dst=10.10.0.2,tp_src=1000,tp_dst=2000"
+  )
+  for f in "${flows[@]}"; do
+    sudo ovs-ofctl -Oopenflow13 add-flow cbox-br \
+"priority=1,in_port=${phys0},${f},\
+actions=encap(nsh(md_type=1)),set_field:0x64->nsh_spi,\
+encap(ethernet),set_field:11:22:33:44:55:66->eth_src,set_field:${sf1_mac}->eth_dst,\
+resubmit:0"
+  done
+
+  # Enable L2 learning behavior
+  sudo ovs-ofctl add-flow cbox-br priority=0,actions=NORMAL
 
   echo "Starting manager..."
   ${objdir}/cb_manager $chainscfg > $managerlog 2>&1 &
