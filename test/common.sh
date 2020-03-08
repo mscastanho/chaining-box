@@ -47,7 +47,7 @@ function cbox_deploy_ovs {
   echo "Deleting old resources..."
   sudo ovs-vsctl del-br cbox-br
   pkill cb_manager
-  for c in "cls $(list_sfs)"; do
+  for c in "$(list_sfs)"; do
   {
     docker kill $c && docker rm $c
   } > /dev/null 2>&1

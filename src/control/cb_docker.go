@@ -484,12 +484,6 @@ func main() {
 
   createNetworkInfra()
 
-  /* Create classifier container */
-  _, err = CreateNewContainer("cls", source_dir, default_entrypoint)
-  if err != nil {
-    panic(fmt.Sprintf("Failed to create classifier container:", err))
-  }
-
   /* Start containers for all functions declared */
   for i := 0 ; i < len(cfg.Functions) ; i++ {
     sf := &cfg.Functions[i]
