@@ -4,7 +4,7 @@ package.path = package.path .. string.format(";%s/?.lua;%s/test/?.lua",pktgenpat
 require "Pktgen";
 
 -- define packet sizes to test
-local pkt_sizes		= { 64, 128, 256, 512, 1024, 1280, 1500 };
+local pkt_sizes		= { 64, 128, 256, 512, 1024, 1280, 1460 };
 
 -- time in seconds to transmit for (ms)
 local duration		= 10000
@@ -17,8 +17,28 @@ local recvport		= "1"
 -- number of repetitions
 local repetitions       = 1
 
+-- For some reason, on pktgen-19.12.0 pktgen.clr() is only resetting
+-- the port stats on the screen, but not the values returned by pktgen.portStats
+-- (used to work on pktgen-3.5.9), so successive calls to runThroughputTests
+-- have cumulative stats. We'll have to keep track of that and subtract the
+-- previous values to overcome this.
+local num_rx_old = 0
+local num_tx_old = 0
+
 local function setupTraffic()
-	pktgen.set_proto(sendport..","..recvport, "udp")
+  local both = sendport..","..recvport
+  local sendip = "10.10.0.1"
+  local recvip = "10.10.0.2"
+
+  -- Setup flow to match classification rule
+  pktgen.set_ipaddr(sendport, "dst", recvip)
+  pktgen.set_ipaddr(sendport, "src", sendip.."/24")
+  pktgen.set_ipaddr(recvport, "dst", sendip)
+  pktgen.set_ipaddr(recvport, "src", recvip.."/24")
+  pktgen.set(both, "sport", 1000)
+  pktgen.set(both, "dport", 2000)
+  pktgen.set_proto(both, "udp")
+
   -- set Pktgen to send continuous stream of traffic
   pktgen.set(sendport, "count", 0)
   -- send at maximum rate
@@ -30,7 +50,6 @@ local function setupTraffic()
 end
 
 local function runThroughputTest(pkt_size)
-	local num_dropped, max_rate, min_rate, trial_rate
   local results
 
   for count=1, repetitions, 1
@@ -52,14 +71,19 @@ local function runThroughputTest(pkt_size)
 
     statTx = pktgen.portStats(sendport, "port")[tonumber(sendport)]
     statRx = pktgen.portStats(recvport, "port")[tonumber(recvport)]
-    num_tx = statTx.opackets
-    num_rx = statRx.ipackets
+    num_tx_raw = statTx.opackets
+    num_rx_raw = statRx.ipackets
+    num_tx = num_tx_raw - num_tx_old
+    num_rx = num_rx_raw - num_rx_old
     num_dropped = num_tx - num_rx
 
     results = string.format("%d;%d;%d;%d;%d;%d",pkt_size,count,num_tx,num_rx,num_dropped,duration)
-
     printf("Results: %s\n",results)
     file:write(results .. "\n")
+
+    num_tx_old = num_tx_raw
+    num_rx_old = num_rx_raw
+
     pktgen.delay(pauseTime)
 	end
 
