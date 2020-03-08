@@ -3,6 +3,9 @@ package.path = package.path .. string.format(";%s/?.lua;%s/test/?.lua",pktgenpat
 
 require "Pktgen";
 
+-- define packet sizes to test
+local pkt_sizes		= { 64, 128, 256, 512, 1024, 1280, 1500 };
+
 -- time in seconds to transmit for (ms)
 local duration		= 10000
 local pauseTime		= 2000
@@ -26,7 +29,7 @@ local function setupTraffic()
   pktgen.start(recvport)
 end
 
-local function runThroughputTest()
+local function runThroughputTest(pkt_size)
 	local num_dropped, max_rate, min_rate, trial_rate
   local results
 
@@ -34,8 +37,14 @@ local function runThroughputTest()
 	do
     pktgen.clr()
 
+    -- We have to add 4 to the size because pktgen sets
+    -- the size on the wire, which accounts for the L2 checksum.
+    -- So to have a packet which is 64 bytes wide (of protocols and
+    -- payload) we actually have to add other 4 bytes.
+    pktgen.set(sendport, "size", pkt_size + 4)
+
     pktgen.start(sendport)
-    printf("Starting trial %d/%d\n",count,repetitions)
+    printf("Starting trial %d/%d for size %dB\n",count, repetitions, pkt_size)
     pktgen.delay(duration)
     pktgen.stop(sendport)
 
@@ -47,7 +56,7 @@ local function runThroughputTest()
     num_rx = statRx.ipackets
     num_dropped = num_tx - num_rx
 
-    results = string.format("%d;%d;%d;%d;%d",count,num_tx,num_rx,num_dropped,duration)
+    results = string.format("%d;%d;%d;%d;%d;%d",pkt_size,count,num_tx,num_rx,num_dropped,duration)
 
     printf("Results: %s\n",results)
     file:write(results .. "\n")
@@ -57,14 +66,17 @@ local function runThroughputTest()
 end
 
 function run()
-  file = io.open("/tmp/cb/tput.res", "w")
-  file:write("trial number;tx packets;rx packets;dropped packets;duration(ms)\n")
+  file = io.open("/tmp/cb/throughput.csv", "w")
+  file:write("pkt size;trial number;tx packets;rx packets;dropped packets;duration(ms)\n")
 
   setupTraffic()
-  runThroughputTest()
+  for _,size in pairs(pkt_sizes)
+  do
+    runThroughputTest(size)
+  end
 
   file:close()
   pktgen.quit()
 end
 
-run();
+run()
