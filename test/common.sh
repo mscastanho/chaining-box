@@ -5,11 +5,6 @@ phys0="enp1s0f0"
 phys1="enp1s0f1"
 pktgen_args="-l 0-2 -n 4 -- -P -T -m 1.0,2.1"
 
-if [ -z "$chainscfg" ]; then
-  echo "Please set 'chainscfg' env var before calling the test scripts."
-  exit 1
-fi
-
 # Var definitions
 scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 cbdir="${scriptdir}/.."
@@ -43,17 +38,29 @@ function list_sfs {
   cat $chainscfg | grep -o -e 'sf[0-9]*' | sort | uniq
 }
 
-function cbox_deploy_ovs {
+function cleanup {
   echo "Deleting old resources..."
-  sudo ovs-vsctl del-br cbox-br
+  sudo ovs-vsctl del-br cbox-br > /dev/null 2>&1
   pkill cb_manager
   for c in "$(list_sfs)"; do
   {
     docker kill $c && docker rm $c
   } > /dev/null 2>&1
   done
+}
 
-  echo "Creating containers..."
+function cbox_deploy_ovs {
+  chainscfg="$1"
+
+  if [ -z "$chainscfg" ]; then
+    echo "Please set 'chainscfg' env var before calling the test scripts."
+    exit 1
+  fi
+
+  # Destroy any lingering resources from previous deployments
+  cleanup
+
+  echo "Creating containers based on '$chainscfg'..."
   sudo ${objdir}/cb_docker -c $chainscfg -d ../ -n ovs > $dockerlog 2>&1 || fail_exit
 
   echo "Adding physical ifaces to OVS bridge..."
