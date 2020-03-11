@@ -15,7 +15,7 @@ provided by the cb-build container. To patch it yourself:
 
 Generate 10 random firewall rules:
 
-  $ ./generate-firewall-rules.sh 10 > rules.json
+  $ ./generate-rules.sh 10 > rules.json
 
 ## BPF program generation
 
@@ -34,4 +34,4 @@ Load the firewall:
 This last command implicitly fills the map with the created rules, which
 can be done separately by:
 
-  # ./fill_map rules.json
+  # ./fill-map rules.json

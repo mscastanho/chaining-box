@@ -1,8 +1,6 @@
 # SPDX-License-Identifier: BSD-2-Clause
 # Copyright (c) 2019 Netronome Systems, Inc.
 
-EXAMPLES = generate-firewall fill_map
-
 # LIBKEFIR_DIR	= ..
 LIBKEFIR_OBJECT	= /usr/local/lib/libkefir.a
 LIBBPF_ROOT	= ../../libbpf
@@ -31,44 +29,50 @@ EXTRA_WARNINGS += -Wformat
 
 EXTRA_WARNINGS += -Wno-switch-enum
 
-CFLAGS ?= -g -Wall -Wextra -Wpedantic $(EXTRA_WARNINGS)
-CFLAGS += -I$(HDR_DIR)
+LKCFLAGS ?= -g -Wall -Wextra -Wpedantic $(EXTRA_WARNINGS)
+LKCFLAGS += -I$(HDR_DIR)
+
+# Number of rules to use in the firewall
+NRULES ?= 50
 
 include ../../user/Makefile.in
 
-all: $(EXAMPLES)
+TARGETS += firewall_kern
 
-# $(HDR_DIR)/kefir/libkefir.h:
-	# $(Q)DESTDIR=$(HDR_INSTALL_DIR) PREFIX=$(HDR_PREFIX) \
-		# $(MAKE) -C $(LIBKEFIR_DIR) install_headers
+AUX = generate-firewall fill-map
+
+BUILD_DIR := ../../build
+
+BPF_PROG = firewall_kern.o
+
+LOAD_SCRIPT = load-firewall.sh
+
+RULES = firewall-rules.json
+
+all: copy
 
 $(addsuffix .o,$(EXAMPLES)): $(HDR_DIR)/kefir/libkefir.h
-
-# tcflower2json: tcflower2json.o $(LIBKEFIR_OBJECT) $(LIBBPF_OBJECT)
-	# $(CC) $(CFLAGS) -o $@ $^ -lelf
-
-# json2c: json2c.o $(LIBKEFIR_OBJECT) $(LIBBPF_OBJECT)
-	# $(CC) $(CFLAGS) -o $@ $^ -lelf
-
-generate-firewall: generate-firewall.c $(LIBKEFIR_OBJECT) $(OBJECT_LIBBPF)
-	$(CC) $(CFLAGS) -o $@ $^ -lelf
-
-fill_map: fill_map.c $(LIBKEFIR_OBJECT) $(OBJECT_LIBBPF)
-	$(CC) $(CFLAGS) -o $@ $^ -lelf
-## Build with shared library (.so) instead of static one (.a)
-## Requires installing the libraries first
-##
-#LDFLAGS ?= -L$(LIBKEFIR_DIR)/build -L$(LIBBPF_DIR)
-#simple_filter_test: simple_filter_test.c cl_options.c
-#	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $< -lkefir -lbpf -lelf
 
 $(LIBBPF_OBJECT): $(LIBKEFIR_OBJECT)
 
 $(LIBKEFIR_OBJECT):
 	$(MAKE) -C $(LIBKEFIR_DIR)
 
-clean:
-	$(RM) -- *.o
-	$(RM) -- $(EXAMPLES)
+$(AUX): %: %.c $(LIBKEFIR_OBJECT) $(OBJECT_LIBBPF)
+	$(CC) $(LKCFLAGS) -o $@ $^ -lelf
 
-.PHONY: all clean
+$(BPF_PROG): $(AUX)
+	./generate-rules.sh ${NRULES} > $(RULES)
+	./generate-firewall $(RULES)
+	sed -i 's/RET_PASS TC_ACT_OK/RET_PASS TC_ACT_UNSPEC/g' $@
+
+copy: $(BPF_PROG) $(LOAD_SCRIPT)
+	@cp $(LOAD_SCRIPT) $(BUILD_DIR)
+	@mv $(BPF_PROG) $(AUX) $(RULES) $(BUILD_DIR)
+
+clean:
+	$(RM) -- *.o *.ll
+	$(RM) -- firewall_kern.*
+	$(RM) -- $(AUX)
+
+.PHONY: all clean copy
