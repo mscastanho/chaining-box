@@ -117,7 +117,7 @@ static int tc_ingress_attach_bpf(const char* dev, const char* bpf_obj)
 	memset(&cmd, 0, CMD_MAX);
 	snprintf(cmd, CMD_MAX,
 		 "%s filter add dev %s "
-		 "ingress prio 1 handle 1 bpf da obj %s sec ingress_redirect",
+		 "ingress prio 2 handle 1 bpf da obj %s sec ingress_redirect",
 		 tc_cmd, dev, bpf_obj);
 	if (verbose) printf(" - Run: %s\n", cmd);
 	ret = system(cmd);
