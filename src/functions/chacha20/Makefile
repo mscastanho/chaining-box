@@ -7,3 +7,6 @@ CFLAGS := -I../../headers \
 	-Wno-unused-parameter
 
 include ../../kernel/Makefile.in
+
+chacha20.o:
+	@cp ./load-chacha.sh $(BUILD_DIR)

@@ -13,6 +13,7 @@
 #include <linux/in.h>
 #include <linux/ip.h>
 #include <linux/tcp.h>
+#include <linux/pkt_cls.h>
 #include <linux/udp.h>
 #include "bpf_endian.h"
 #include "bpf_helpers.h"
@@ -239,7 +240,7 @@ static __inline void init_ctx(chacha_ctx *ctx, uint8_t rounds)
 }
 
 /*
-static __inline int parse_tcp(struct xdp_md *ctx, __u64 nf_off) {
+static __inline int parse_tcp(struct __sk_buff *ctx, __u64 nf_off) {
 	void *data_end = (void*)(long)ctx->data_end;
 	void *data = (void*)(long)ctx->data;
 	chacha_ctx cha_ctx;
@@ -251,10 +252,10 @@ static __inline int parse_tcp(struct xdp_md *ctx, __u64 nf_off) {
 	tcp_off = sizeof(struct tcphdr);
 	nf_off += tcp_off;
 	if (data + nf_off > data_end) {
-		return XDP_DROP;
+		return TC_ACT_SHOT;
 	}
 	pkt_data = data + nf_off;
-    return XDP_PASS;
+    return TC_ACT_OK;
 }*/
 
 static __always_inline bool parse_transport(void *data, __u64 off, void *data_end) {
@@ -269,7 +270,7 @@ static __always_inline bool parse_transport(void *data, __u64 off, void *data_en
 }
 
 
-static __inline int parse_ip(struct xdp_md *ctx, __u64 nf_off) {
+static __inline int parse_ip(struct __sk_buff *ctx, __u64 nf_off) {
 	void *data_end = (void*)(long)ctx->data_end;
 	void *data = (void*)(long)ctx->data;
 	struct iphdr *iph;
@@ -278,22 +279,22 @@ static __inline int parse_ip(struct xdp_md *ctx, __u64 nf_off) {
 
 	iph = data + nf_off;
 	if (iph + 1 > data_end) {
-		return XDP_DROP;
+		return TC_ACT_SHOT;
 	}
 	if (iph->ihl != 5) {
-		return XDP_DROP;
+		return TC_ACT_SHOT;
 	}
 	ip_protocol = iph->protocol;
 	ip_off = sizeof(struct iphdr);
 	nf_off += ip_off;
 
 	if (iph->frag_off & IP_FRAGMENTED) {
-		return XDP_DROP;
+		return TC_ACT_SHOT;
 	}
 
 	if (ip_protocol == IPPROTO_TCP) {
 		if (!parse_transport(data, nf_off, data_end)) {
-			return XDP_DROP;
+			return TC_ACT_SHOT;
 		}
 		else {
 			nf_off += sizeof(struct tcphdr);
@@ -301,14 +302,14 @@ static __inline int parse_ip(struct xdp_md *ctx, __u64 nf_off) {
 	}
 	else if (ip_protocol == IPPROTO_UDP) {
 		if (!parse_transport(data, nf_off, data_end)) {
-			return XDP_DROP;
+			return TC_ACT_SHOT;
 		}
 		else {
 			nf_off += sizeof(struct udphdr);
 		}
 	}
 	else {
-		return XDP_PASS;
+		return TC_ACT_OK;
 	}
 
 	chacha_ctx cha_ctx;
@@ -344,12 +345,12 @@ static __inline int parse_ip(struct xdp_md *ctx, __u64 nf_off) {
       //memcpy(pkt_data, t_result, sizeof(t_result));
       pkt_data += (__u64)64;
     }
-	return XDP_TX;
+	return TC_ACT_UNSPEC;
 }
 
 
 SEC("chacha")
-int cha(struct xdp_md *ctx){
+int cha(struct __sk_buff *ctx){
     void *data_end = (void *)(long)ctx->data_end;
     void *data = (void *)(long)ctx->data;
     struct ethhdr *eth = data;
@@ -357,7 +358,7 @@ int cha(struct xdp_md *ctx){
     __u32 nh_off;
     nh_off = sizeof(struct ethhdr);
     if (data + nh_off > data_end)
-        return XDP_PASS;
+        return TC_ACT_OK;
     eth_proto = eth->h_proto;
 
     // the demo program only accepts IPv4 packets.
@@ -365,7 +366,7 @@ int cha(struct xdp_md *ctx){
       return parse_ip(ctx, nh_off);
     }
     else {
-      return XDP_PASS;
+      return TC_ACT_OK;
     }
 }
 
