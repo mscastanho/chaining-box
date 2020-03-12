@@ -36,7 +36,7 @@ function get_if_addr {
 }
 
 function list_sfs {
-  cat $chainscfg | grep -o -e 'sf[0-9]*' | sort | uniq
+  docker ps --all | grep -o -e 'sf[0-9]*'
 }
 
 function cleanup {
