@@ -23,6 +23,12 @@ function measure_latency {
   rttmdev=$(echo $stats | cut -d'/' -f4)
   # Write results to output file
   echo "$name;$tx;$rx;$rttmin;$rttavg;$rttmax;$rttmedian;$rttmdev" >> $outfile
+
+  if [ $rx != $tx ]; then
+    return 1
+  else
+    return 0
+  fi
 }
 
 source common.sh
@@ -62,6 +68,13 @@ for t in ${tests[@]}; do
   # strip dir path and extension
   simple_name="$(bname=$(basename $t); echo ${bname%.*})"
   measure_latency ${simple_name}
+
+  if [ $? -ne 0 ]; then
+    echo "Something went wrong, trying again..."
+    cbox_deploy_ovs $t
+    measure_latency ${simple_name}
+  fi
+
 done
 
 
