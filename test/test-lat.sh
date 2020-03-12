@@ -8,19 +8,21 @@ function measure_latency {
   sudo ip netns exec ns1 ping -q -c 1 10.10.0.1 > /dev/null 2>&1
 
   echo "Starting measurement for case '$name'..."
-  sudo ip netns exec ns0 ping -q -i $interval -c $count 10.10.0.2 | tee $tmpfile
+  sudo ip netns exec ns0 ping -i $interval -c $count 10.10.0.2 | tee $tmpfile
 
+  results=($(cat $tmpfile | grep -o -e 'time=[0-9]*\.[0-9]*' | cut -d'=' -f2 | sort -n))
+  med_idx=$(echo "${#results[@]} / 2" | bc )
+  rttmedian="${results[$med_idx]}"
   tx="$(grep -o -e '[0-9]* packets transmitted' $tmpfile | awk '{print $1}')"
   rx="$(grep -o -e '[0-9]* received' $tmpfile | awk '{print $1}')"
-  loss="$(grep -o -e '[0-9]*% packet loss' $tmpfile | awk '{print $1}')"
+  #loss="$(grep -o -e '[0-9]*% packet loss' $tmpfile | awk '{print $1}')"
   stats="$(grep rtt $tmpfile | awk '{print $4}')"
   rttmin=$(echo $stats | cut -d'/' -f1)
   rttavg=$(echo $stats | cut -d'/' -f2)
   rttmax=$(echo $stats | cut -d'/' -f3)
   rttmdev=$(echo $stats | cut -d'/' -f4)
-
   # Write results to output file
-  echo "$name;$tx;$rx;$loss;$rttmin;$rttavg;$rttmax;$rttmdev" >> $outfile
+  echo "$name;$tx;$rx;$rttmin;$rttavg;$rttmax;$rttmedian;$rttmdev" >> $outfile
 }
 
 source common.sh
@@ -34,7 +36,7 @@ count=100
 interval="0.5"
 
 # Write CSV headers to results file
-echo "name;tx;rx;loss;rtt_min;rtt_avg;rtt_max;rtt_mdev" > $outfile
+echo "name;tx;rx;rtt_min;rtt_avg;rtt_max;rtt_median;rtt_mdev" > $outfile
 
 tests=(
   "${cfgdir}/len-2-noveth.json"
