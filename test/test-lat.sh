@@ -41,6 +41,9 @@ cfgdir="chains-config"
 count=100
 interval="0.5"
 
+# Experiment type
+experiment="$1"
+
 # Write CSV headers to results file
 echo "name;tx;rx;rtt_min;rtt_avg;rtt_max;rtt_median;rtt_mdev" > $outfile
 
@@ -49,17 +52,32 @@ tests=(
 #  "${cfgdir}/len-2-veth.json"
 )
 
-# Generate config files for different lengths
-for len in `seq 2 2 20`; do
-  noveth="$tmpcfgdir/len-${len}-noveth.json"
-  ${cfgdir}/gen-len-tests.sh $len 100 true > $noveth
-  tests+=($noveth)
+# Generate test cases based on the experiment we want
+if [ "$experiment" == "lengths" ]; then
+  # Generate config files for different lengths
+  for len in `seq 2 2 20`; do
+    noveth="$tmpcfgdir/len-${len}-noveth.json"
+    ${cfgdir}/gen-len-tests.sh $len 100 true > $noveth
+    tests+=($noveth)
 
-  veth="$tmpcfgdir/len-${len}-veth.json"
-  ${cfgdir}/gen-len-tests.sh $len 100 false > $veth
-  tests+=($veth)
-done
+    veth="$tmpcfgdir/len-${len}-veth.json"
+    ${cfgdir}/gen-len-tests.sh $len 100 false > $veth
+    tests+=($veth)
+  done
+elif [ "$experiment" == "star" ]; then
+  # Generate config files for different lengths in a start topology
+  for len in `seq 1 1 10`; do
+    star="$tmpcfgdir/len-${len}-star.json"
+    ${cfgdir}/gen-star-tests.sh $len 100 true > $star
+    tests+=($star)
 
+    linear="$tmpcfgdir/len-${len}-linear.json"
+    ${cfgdir}/gen-len-tests.sh $len 100 true > $linear
+    tests+=($linear)
+  done
+else
+  echo "Unknown experiment type: '$experiment'" && exit 1
+fi
 
 for t in ${tests[@]}; do
   # Setup environment
