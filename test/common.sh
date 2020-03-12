@@ -12,11 +12,12 @@ objdir="${cbdir}/src/build"
 scriptsdir="${cbdir}/scripts"
 pktgen="/usr/src/pktgen-19.12.0/app/x86_64-native-linuxapp-gcc/pktgen"
 logdir="/tmp/cb"
+tmpcfgdir="$logdir/cfgs"
 pcapdir="$logdir/pcap"
 testdir="$cbdir/test"
 
 [ -d $logdir ] && rm -rdf $logdir
-mkdir -p $logdir $pcapdir
+mkdir -p $logdir $pcapdir $tmpcfgdir
 
 # Log files
 dockerlog="${logdir}/docker.log"

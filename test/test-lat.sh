@@ -8,7 +8,7 @@ function measure_latency {
   sudo ip netns exec ns1 ping -q -c 1 10.10.0.1 > /dev/null 2>&1
 
   echo "Starting measurement for case '$name'..."
-  sudo ip netns exec ns0 ping -i $interval -c $count 10.10.0.2 | tee $tmpfile
+  sudo ip netns exec ns0 ping -i $interval -c $count 10.10.0.2 > $tmpfile
 
   results=($(cat $tmpfile | grep -o -e 'time=[0-9]*\.[0-9]*' | cut -d'=' -f2 | sort -n))
   med_idx=$(echo "${#results[@]} / 2" | bc )
@@ -39,9 +39,21 @@ interval="0.5"
 echo "name;tx;rx;rtt_min;rtt_avg;rtt_max;rtt_median;rtt_mdev" > $outfile
 
 tests=(
-  "${cfgdir}/len-2-noveth.json"
-  "${cfgdir}/len-2-veth.json"
+#  "${cfgdir}/len-2-noveth.json"
+#  "${cfgdir}/len-2-veth.json"
 )
+
+# Generate config files for different lengths
+for len in `seq 2 2 20`; do
+  noveth="$tmpcfgdir/len-${len}-noveth.json"
+  ${cfgdir}/gen-len-tests.sh $len 100 true > $noveth
+  tests+=($noveth)
+
+  veth="$tmpcfgdir/len-${len}-veth.json"
+  ${cfgdir}/gen-len-tests.sh $len 100 false > $veth
+  tests+=($veth)
+done
+
 
 for t in ${tests[@]}; do
   # Setup environment
