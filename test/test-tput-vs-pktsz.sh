@@ -6,4 +6,4 @@ source common.sh
 cbox_deploy_ovs
 
 echo "Starting pktgen..."
-sudo $pktgen $pktgen_args -f throughput.lua
+sudo $pktgen $pktgen_args -f tput-vs-pktsz.lua
