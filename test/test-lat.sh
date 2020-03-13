@@ -3,12 +3,20 @@
 function measure_latency {
   name="$1"
 
+  # We need to generate a slightly smaller packet thant the MTU
+  # to guarantee we have space for the extra encapsulation. Subtracting
+  # the bytes needed for that, our effective MTU is of 1462. The packet
+  # size given to ping is the size of the *data*, that value will be added
+  # to ethernet (14B) + ip (20B) + icmp (8B) = 42B. So we need to set the
+  # size to 1462 - 42 = 1420 to create a packet of size 1462 in the end.
+  datasz=1420
+
   # echo "Priming OVS' learning switch table..."
   sudo ip netns exec ns0 ping -q -c 1 10.10.0.2 > /dev/null 2>&1
   sudo ip netns exec ns1 ping -q -c 1 10.10.0.1 > /dev/null 2>&1
 
   echo "Starting measurement for case '$name'..."
-  sudo ip netns exec ns0 ping -i $interval -c $count 10.10.0.2 > $tmpfile
+  sudo ip netns exec ns0 ping -s $datasz -i $interval -c $count 10.10.0.2 > $tmpfile
 
   results=$(cat $tmpfile | grep -o -e 'time=[0-9]*\.[0-9]*' | cut -d'=' -f2 | tr '\n' ' ' | head -c-2)
   # results=($(cat $tmpfile | grep -o -e 'time=[0-9]*\.[0-9]*' | cut -d'=' -f2 | sort -n))
