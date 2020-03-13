@@ -9,15 +9,6 @@ import fnmatch
 import operator
 from matplotlib.patches import Patch
 
-# Our defaults to plot stuff. Ex: colors, progs...
-
-# ====== Script params ======
-max_speed_gbps = 10 # Gbps
-#  results_dir = os.path.dirname(os.path.abspath(__file__)) + '/results-old'
-
-# Infer tests from .csv files in this directory
-#  tests = [f.split('.')[0] for f in fnmatch.filter(os.listdir(results_dir), '*.csv')]
-# ===========================
 
 def process_raw_data(filename):
     lines = None
@@ -38,22 +29,27 @@ def process_raw_data(filename):
                 key = 'veth' if '-veth' in name else 'noveth'
                 length = name.split('-')[1]
 
+            rtts=list(map(float,line['rtts'].split(' ')))
+            rtts.sort()
+
+            # Remove some outliers
+            rtts = rtts[5:-5]
+
             results[key].append({
                 'len':          int(length),
                 'rx':           int(line['rx']),
                 'tx':           int(line['tx']),
-                'rtt_min':      float(line['rtt_min']),
-                'rtt_avg':      float(line['rtt_avg']),
-                'rtt_max':      float(line['rtt_max']),
-                'rtt_mdev':     float(line['rtt_mdev']),
-                'rtt_median':   float(line['rtt_median']),
+                'rtt_min':      np.min(rtts),
+                'rtt_avg':      np.average(rtts),
+                'rtt_max':      np.max(rtts),
+                'rtt_mdev':     np.std(rtts),
+                'rtt_median':   np.median(rtts),
             })
 
-        print("Results for >> {} <<:".format(filename))
-        for k,v in results.items():
-            print("{}: {}".format(k,v))
-
-        print()
+        #  print("Results for >> {} <<:".format(filename))
+        #  for k,v in results.items():
+            #  print("{}: {}".format(k,v))
+        #  print()
 
     return results
 
@@ -97,9 +93,6 @@ def plot_stacked(results, outfile):
 
     diff1 = [y - ybaseline for y in yveth]
     diff2 = list(map(operator.sub, ynoveth, yveth))
-    #  print('baseline: ' + str(ybaseline))
-    #  print('diff1: ' + str(len(diff1)))
-    #  print('diff2: ' + str(len(diff2)))
 
     # The x locations for the bars
     ind = np.arange(len(xveth))
@@ -128,12 +121,15 @@ def plot_sidebyside(results, outfile):
     # Latency with veth pairs
     xveth = [v['len'] for v in results['veth']]
     yveth = [v['rtt_median'] for v in results['veth']]
+    yvetherr = [v['rtt_mdev'] for v in results['veth']]
 
     # Latency without veth pairs
     ynoveth = [v['rtt_median'] for v in results['noveth']]
+    ynovetherr = [v['rtt_mdev'] for v in results['noveth']]
 
     # Baseline latency
     ybaseline = results['baseline'][0]['rtt_median']
+    ybaselineerr = results['baseline'][0]['rtt_mdev']
 
     # The x locations for the bars
     ind = np.arange(len(xveth))
@@ -141,9 +137,9 @@ def plot_sidebyside(results, outfile):
 
     plt.grid(alpha=0.3, linestyle='--')
 
-    plt.bar(ind - 1.5*width, ybaseline, width, edgecolor='k' ,hatch='/')
-    plt.bar(ind - 0.5*width, yveth, width, edgecolor='k', hatch='o')
-    plt.bar(ind + 0.5*width, ynoveth, width, edgecolor='k', hatch='x')
+    plt.bar(ind - 1.5*width, ybaseline, width, yerr=ybaselineerr, edgecolor='k' ,hatch='/')
+    plt.bar(ind - 0.5*width, yveth, width, yerr=yvetherr, edgecolor='k', hatch='o')
+    plt.bar(ind + 0.5*width, ynoveth, width, yerr=ynovetherr, edgecolor='k', hatch='x')
 
     plt.xticks(ind, xveth, fontsize=14)
     plt.yticks(fontsize=14)
@@ -165,8 +161,4 @@ if __name__ == '__main__':
         exit(1)
 
     res = process_raw_data(sys.argv[1])
-    #  pktsizes.update(list(res.keys()))
-    #  pktsizes = list(pktsizes)
-    #  pktsizes.sort()
-
     plot_sidebyside(res, 'latency.pdf')
