@@ -37,7 +37,7 @@ def process_raw_data(filename):
             else:
                 key = 'veth' if '-veth' in name else 'noveth'
                 length = name.split('-')[1]
-            
+
             results[key].append({
                 'len':          int(length),
                 'rx':           int(line['rx']),
@@ -57,9 +57,9 @@ def process_raw_data(filename):
 
     return results
 
-def plot_lines(results,outfile,ymax):
+def plot_lines(results,outfile):
     plt.close()
-    
+
     # Latency without veth pairs
     x1 = [v['len'] for v in results['noveth']]
     y1 = [v['rtt_median'] for v in results['noveth']]
@@ -84,14 +84,14 @@ def plot_lines(results,outfile,ymax):
 
 def plot_stacked(results, outfile):
     plt.close()
-   
+
     # Latency with veth pairs
     xveth = [v['len'] for v in results['veth']]
     yveth = [v['rtt_median'] for v in results['veth']]
 
     # Latency without veth pairs
     ynoveth = [v['rtt_median'] for v in results['noveth']]
-    
+
     # Baseline latency
     ybaseline = results['baseline'][0]['rtt_median']
 
@@ -122,6 +122,41 @@ def plot_stacked(results, outfile):
 
     return
 
+def plot_sidebyside(results, outfile):
+    plt.close()
+
+    # Latency with veth pairs
+    xveth = [v['len'] for v in results['veth']]
+    yveth = [v['rtt_median'] for v in results['veth']]
+
+    # Latency without veth pairs
+    ynoveth = [v['rtt_median'] for v in results['noveth']]
+
+    # Baseline latency
+    ybaseline = results['baseline'][0]['rtt_median']
+
+    # The x locations for the bars
+    ind = np.arange(len(xveth))
+    width = 0.25
+
+    plt.grid(alpha=0.3, linestyle='--')
+
+    plt.bar(ind - 1.5*width, ybaseline, width, edgecolor='k' ,hatch='/')
+    plt.bar(ind - 0.5*width, yveth, width, edgecolor='k', hatch='o')
+    plt.bar(ind + 0.5*width, ynoveth, width, edgecolor='k', hatch='x')
+
+    plt.xticks(ind, xveth, fontsize=14)
+    plt.yticks(fontsize=14)
+    #  plt.title('Latency: Direct Links vs No Direct Links', fontsize=14)
+    plt.legend(['Baseline', 'w/ direct links', 'w/o direct links'], fontsize=14)
+    plt.ylabel('Latency (ms)',  fontsize=18)
+    plt.xlabel('Chain Length (# SFs)', fontsize=18)
+    plt.tight_layout()
+    #  plt.savefig(outfile)
+    plt.show()
+
+    return
+
 if __name__ == '__main__':
     pktsizes = set()
 
@@ -134,4 +169,4 @@ if __name__ == '__main__':
     #  pktsizes = list(pktsizes)
     #  pktsizes.sort()
 
-    plot_stacked(res, 'latency.pdf')
+    plot_sidebyside(res, 'latency.pdf')
