@@ -185,74 +185,76 @@ void dump_fwd_table(int fd){
   }
 }
 
+int dump_prog_stats(int stats_fd, bool zero_stats){
+  uint8_t key = 0;
+  struct stats stats;
+
+  if(stats_fd < 0)
+    return 0;
+
+  if(bpf_map_lookup_elem(stats_fd,&key,&stats))
+    printf("No stats to retrieve!\n");
+  else{
+    printf("==== Program statistics ====\n");
+    printf("rx: %u\n",stats.rx);
+    printf("tx: %u\n",stats.tx);
+    printf("tx_other: %u\n",stats.tx_other);
+
+    if(stats.tx)
+      printf("Average latency: %.3f\n", ((float)stats.lat_avg_sum) / stats.tx);
+  }
+
+  if(zero_stats){
+    stats.rx = 0;
+    stats.tx = 0;
+    stats.tx_other = 0;
+    stats.lat_avg_sum = 0;
+    //stats.init_ts // No need to zero it
+    bpf_map_update_elem(stats_fd, &key, &stats, BPF_ANY);
+  }
+}
+
 int main(int argc, char **argv)
 {
-    unsigned stats_id = 0;
-    int opt, longindex;
+  unsigned stats_id = 0;
+  int stats_fd = -1;
+  int opt, longindex;
 
-    bool zero_stats = false;
+  bool zero_stats = false;
 
-    while ((opt = getopt_long(argc, argv, "s:z",
-              long_options, &longindex)) != -1) {
-        switch (opt) {
-            case 's':
-                stats_id = strtoul(optarg,NULL,10);
-                break;
-            case 'z':
-                zero_stats = true;
-                break;
+  while ((opt = getopt_long(argc, argv, "s:z",
+            long_options, &longindex)) != -1) {
+    switch (opt) {
+      case 's':
+        stats_id = strtoul(optarg,NULL,10);
+        if(stats_id == 0){
+          fprintf(stderr,"No id for stats map provided!\n");
+          return 1;
         }
+
+        stats_fd = bpf_map_get_fd_by_id(stats_id);
+        if(stats_fd < 0) {
+          fprintf(stderr,"Could not get fd for stats map!\n");
+          return 1;
+        }
+        break;
+      case 'z':
+        zero_stats = true;
+        break;
     }
+  }
 
-    int cls_table = bpf_obj_get(bpf_files.cls_table);
-    int fwd_table = bpf_obj_get(bpf_files.fwd_table);
-    int nsh_data = bpf_obj_get(bpf_files.nsh_data);
-    int src_mac = bpf_obj_get(bpf_files.src_mac);
+  int cls_table = bpf_obj_get(bpf_files.cls_table);
+  int fwd_table = bpf_obj_get(bpf_files.fwd_table);
+  int nsh_data = bpf_obj_get(bpf_files.nsh_data);
+  int src_mac = bpf_obj_get(bpf_files.src_mac);
 
-    //printf("nsh_data = %d\nfwd_table = %d\nsrc_mac = %d\n",nsh_data,fwd_table,src_mac);
+  //printf("nsh_data = %d\nfwd_table = %d\nsrc_mac = %d\n",nsh_data,fwd_table,src_mac);
 
-    dump_cls_table(cls_table);
-    dump_nsh_data(nsh_data);
-    dump_fwd_table(fwd_table);
+  dump_cls_table(cls_table);
+  dump_nsh_data(nsh_data);
+  dump_fwd_table(fwd_table);
+  dump_prog_stats(stats_fd, zero_stats);
 
-#ifdef ENABLE_STATS
-    int stats_fd = -1;
-    uint8_t key = 0;
-    struct stats stats;
-
-    if(stats_id == 0){
-        fprintf(stderr,"No id for stats map provided!\n");
-        return 1;
-    }
-
-    stats_fd = bpf_map_get_fd_by_id(stats_id);
-    if(stats_fd < 0) {
-        fprintf(stderr,"Could not get fd for stats map!\n");
-        return 1;
-    }
-
-    if(bpf_map_lookup_elem(stats_fd,&key,&stats))
-        printf("No stats to retrieve!\n");
-    else{
-        printf("Program stats:\n");
-        printf("rx: %u\n",stats.rx);
-        printf("tx: %u\n",stats.tx);
-        printf("tx_other: %u\n",stats.tx_other);
-
-        if(stats.tx)
-          printf("Average latency: %.3f\n", ((float)stats.lat_avg_sum) / stats.tx);
-    }
-
-    if(zero_stats){
-        stats.rx = 0;
-        stats.tx = 0;
-        stats.tx_other = 0;
-        stats.lat_avg_sum = 0;
-        //stats.init_ts // No need to zero it
-        bpf_map_update_elem(stats_fd, &key, &stats, BPF_ANY);
-    }
-
-#endif /* ENABLE_STATS */
-
-    return 0;
+  return 0;
 }

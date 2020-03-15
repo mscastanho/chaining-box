@@ -5,6 +5,6 @@ BUILD_DIR=../build
 
 LIBBPF_ROOT = ../libbpf
 
-CFLAGS += -I../utils -I../headers
+CFLAGS += -I../utils -I../headers -DENABLE_STATS
 
 include Makefile.in
