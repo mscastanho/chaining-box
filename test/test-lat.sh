@@ -18,7 +18,7 @@ function measure_latency {
   echo "Starting measurement for case '$name'..."
   sudo ip netns exec ns0 ping -s $datasz -i $interval -c $count 10.10.0.2 > $tmpfile
 
-  results=$(cat $tmpfile | grep -o -e 'time=[0-9]*\.[0-9]*' | cut -d'=' -f2 | tr '\n' ' ' | head -c-2)
+  results=$(cat $tmpfile | grep -o -e 'time=[0-9]*\.[0-9]*' | cut -d'=' -f2 | tr '\n' ' ' | head -c-1)
   # results=($(cat $tmpfile | grep -o -e 'time=[0-9]*\.[0-9]*' | cut -d'=' -f2 | sort -n))
   # med_idx=$(echo "${#results[@]} / 2" | bc )
   # rttmedian="${results[$med_idx]}"
