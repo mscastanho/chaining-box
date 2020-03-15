@@ -105,6 +105,15 @@ int _ingress_redirect(struct __sk_buff *skb)
 	if (!ifindex)
 		return TC_ACT_OK;
 
+  /* Simulate some processing by just wasting some cycles here.
+   * 
+   * volatile used to avoid clang removing this loop. */
+  #define ITERATIONS 10000
+  volatile count = 0;
+  for(int i = 0 ; i < ITERATIONS; i++){
+   count++;
+  }
+
   cb_debug("ifi OK. Checking sip...\n");
 
   struct iphdr *ip = (struct iphdr*)(data + sizeof(struct ethhdr));
