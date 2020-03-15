@@ -47,8 +47,8 @@ tmpfile="${logdir}/lat.res"
 cfgdir="chains-config"
 
 # Ping parameters
-count=100
-interval="0.5"
+count=120
+interval="0.1"
 
 # Experiment type
 experiment="$1"
