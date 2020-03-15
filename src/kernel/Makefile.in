@@ -29,6 +29,9 @@ all: llvm-check kdir-check bdir-check $(KERN_OBJECTS)
 debug: CFLAGS += -DDEBUG
 debug: all
 
+mapdef: CFLAGS += -DBPFMAPDEF -DDEBUG
+mapdef: all
+
 jited-out:
 	# TODO: Add statement to check if it is root
 	sudo mkdir -p ${BPFTMPDIR}

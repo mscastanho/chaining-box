@@ -1,4 +1,4 @@
-USER_TARGETS = sfc_agent
+USER_TARGETS = stages_test
 USER_TARGETS += map_inspector
 
 BUILD_DIR=../build
