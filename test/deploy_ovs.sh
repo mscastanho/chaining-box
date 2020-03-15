@@ -3,4 +3,4 @@
 source common.sh
 
 # Setup environment
-cbox_deploy_ovs
+cbox_deploy_ovs "$1"
