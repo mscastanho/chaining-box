@@ -14,8 +14,7 @@ function chain2json {
 
   nlist="["
 
-  for n in `seq 1 $#`; do
-    sf="$(eval echo \$$n)"
+  for sf in $@; do
     nlist="$nlist\"sf1\",\"${sf}\","
   done
 
