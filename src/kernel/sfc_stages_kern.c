@@ -291,7 +291,7 @@ int encap_nsh(struct __sk_buff *skb)
 	cb_debug("[ENCAP] Re-added NSH header!\n");
 
   /* Execute next program on TC, which will be Fwd stage */
-  return TC_ACT_UNSPEC;
+  return cb_retok(TC_ACT_UNSPEC);
 }
 
 SEC("action/forward")
