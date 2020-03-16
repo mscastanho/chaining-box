@@ -33,7 +33,8 @@ def process_raw_data(filename):
             rtts.sort()
 
             # Remove some outliers
-            rtts = rtts[5:-5]
+            rtts = rtts[10:-10]
+            print(rtts)
 
             results[key].append({
                 'len':          int(length),
@@ -46,12 +47,20 @@ def process_raw_data(filename):
                 'rtt_median':   np.median(rtts),
             })
 
-        #  print("Results for >> {} <<:".format(filename))
-        #  for k,v in results.items():
-            #  print("{}: {}".format(k,v))
-        #  print()
+        print("Results for >> {} <<:".format(filename))
+        for k,v in results.items():
+            print("{}: {}".format(k,v))
+        print()
 
     return results
+
+def reglin(x,y):
+    xa = np.array(x)
+    ya = np.array(y)
+    A = np.vstack([xa, np.ones(len(xa))]).T
+    m,c = np.linalg.lstsq(A, y, rcond=None)[0]
+
+    return xa, m*xa + c
 
 def plot_lines(results,outfile):
     plt.close()
@@ -134,17 +143,28 @@ def plot_sidebyside(results, outfile):
     # The x locations for the bars
     ind = np.arange(len(xveth))
     width = 0.25
+    print(ind)
 
     plt.grid(alpha=0.3, linestyle='--')
 
-    plt.bar(ind - 1.5*width, ybaseline, width, yerr=ybaselineerr, edgecolor='k' ,hatch='/')
     plt.bar(ind - 0.5*width, yveth, width, yerr=yvetherr, edgecolor='k', hatch='o')
     plt.bar(ind + 0.5*width, ynoveth, width, yerr=ynovetherr, edgecolor='k', hatch='x')
+
+    # Plot horizontal line with baseline
+    left, right = plt.xlim()
+    plt.hlines(ybaseline, left, right, color='r', linestyle='--') # ybaseline, width, yerr=ybaselineerr, edgecolor='k' ,hatch='/')
 
     plt.xticks(ind, xveth, fontsize=14)
     plt.yticks(fontsize=14)
     #  plt.title('Latency: Direct Links vs No Direct Links', fontsize=14)
-    plt.legend(['Baseline', 'w/ direct links', 'w/o direct links'], fontsize=14)
+    plt.legend(['Baseline', 'w/ direct links', 'w/o direct links', ''], fontsize=14)
+
+    # Plot linear regressions
+    xnovrl, ynovrl = reglin(xveth,ynoveth)
+    xvrl, yvrl = reglin(xveth,yveth)
+    plt.plot(ind - 0.5*width, yvrl, 'blue', marker='o', ms=7, linestyle='--')
+    plt.plot(ind + 0.5*width, ynovrl, 'orange', marker='x', ms=7, linestyle='--')
+
     plt.ylabel('Latency (ms)',  fontsize=18)
     plt.xlabel('Chain Length (# SFs)', fontsize=18)
     plt.tight_layout()

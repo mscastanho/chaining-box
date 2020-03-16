@@ -11,7 +11,7 @@ from matplotlib.patches import Patch
 
 def process_raw_data(filename):
     lines = None
-    results = { 'baseline': [], 'veth': [], 'noveth': [] }
+    results = { 'baseline': [], 'star': [], 'linear': [] }
 
     #print(filename)
     with open(filename) as csvin:
@@ -25,7 +25,7 @@ def process_raw_data(filename):
             if name == 'baseline':
                 key = 'baseline'
             else:
-                key = 'veth' if '-veth' in name else 'noveth'
+                key = 'star' if '-star' in name else 'linear'
                 length = name.split('-')[1]
 
             rtts=list(map(float,line['rtts'].split(' ')))
@@ -51,6 +51,13 @@ def process_raw_data(filename):
         #  print()
 
     return results
+
+def reglin(x,y):
+    xa = np.array(x)
+    ya = np.array(y)
+    A = np.vstack([xa, np.ones(len(xa))]).T
+    m,c = np.linalg.lstsq(A, y, rcond=None)[0]
+    return xa, m*xa + c
 
 def plot_stacked(results, outfile):
     plt.close()
@@ -92,6 +99,55 @@ def plot_stacked(results, outfile):
 
     return
 
+def plot_sidebyside(results, outfile):
+    plt.close()
+
+    # Latency with linear pairs
+    xlinear = [v['len'] for v in results['linear']]
+    ylinear = [v['rtt_median'] for v in results['linear']]
+    ylinearerr = [v['rtt_mdev'] for v in results['linear']]
+
+    # Latency without linear pairs
+    ystar = [v['rtt_median'] for v in results['star']]
+    ystarerr = [v['rtt_mdev'] for v in results['star']]
+
+    # Baseline latency
+    ybaseline = results['baseline'][0]['rtt_median']
+    ybaselineerr = results['baseline'][0]['rtt_mdev']
+
+    # The x locations for the bars
+    ind = np.arange(len(xlinear))
+    width = 0.25
+    print(ind)
+
+    plt.grid(alpha=0.3, linestyle='--')
+
+    plt.bar(ind + 0.5*width, ystar, width, yerr=ystarerr, edgecolor='k', hatch='o', label='Star')
+    plt.bar(ind - 0.5*width, ylinear, width, yerr=ylinearerr, edgecolor='k', hatch='x', label='Chaining-Box')
+
+    # Plot horizontal line with baseline
+    left, right = plt.xlim()
+    plt.hlines(ybaseline, left, right, color='r', linestyle='--', label='Baseline') # ybaseline, width, yerr=ybaselineerr, edgecolor='k' ,hatch='/')
+
+    plt.xticks(ind, xlinear, fontsize=14)
+    plt.yticks(fontsize=14)
+    #  plt.title('Latency: Direct Links vs No Direct Links', fontsize=14)
+    plt.legend(fontsize=14)
+
+    # Plot linear regressions
+    xlinrl, ylinrl = reglin(xlinear,ylinear)
+    xstarrl, ystarrl = reglin(xlinear,ystar)
+    plt.plot(ind + 0.5*width, ystarrl, 'blue', marker='o', ms=7, linestyle='-.')
+    plt.plot(ind - 0.5*width, ylinrl, 'orange', marker='x', ms=7, linestyle='-.')
+
+    plt.ylabel('Latency (ms)',  fontsize=18)
+    plt.xlabel('Chain Length (# SFs)', fontsize=18)
+    plt.tight_layout()
+    #  plt.savefig(outfile)
+    plt.show()
+
+    return
+
 if __name__ == '__main__':
     pktsizes = set()
 
@@ -104,4 +160,4 @@ if __name__ == '__main__':
     #  pktsizes = list(pktsizes)
     #  pktsizes.sort()
 
-    plot_stacked(res, 'latency.pdf')
+    plot_sidebyside(res, 'latency.pdf')
