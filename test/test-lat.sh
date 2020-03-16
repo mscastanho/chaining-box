@@ -84,6 +84,10 @@ elif [ "$experiment" == "star" ]; then
     ${cfgdir}/gen-len-tests.sh $len 100 true > $linear
     tests+=($linear)
   done
+elif [ "$experiment" == "single" ]; then
+    single="$tmpcfgdir/len-2-len.json"
+    ${cfgdir}/gen-len-tests.sh 2 100 true > $single
+    tests+=($single)
 else
   echo "Unknown experiment type: '$experiment'" && exit 1
 fi
