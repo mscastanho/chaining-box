@@ -132,7 +132,7 @@ elif [ "$experiment" == "star" ]; then
   for t in ${tests[@]}; do
     # Setup environment
     cbox_deploy_ovs $t
-    run_test $sz
+    run_test
   done
 
   setup_baseline
