@@ -4,7 +4,7 @@ package.path = package.path .. string.format(";%s/?.lua;%s/test/?.lua",pktgenpat
 require "Pktgen";
 
 -- define packet sizes to test
-local pkt_sizes		= { 64, 128, 256, 512, 1024, 1280, 1460 };
+local pkt_sizes		= { 64, 128, 256, 512, 1024, 1280, 1462 };
 
 -- time in seconds to transmit for (ms)
 local duration		= 10000
@@ -90,7 +90,7 @@ local function runThroughputTest(pkt_size)
 end
 
 function run()
-  file = io.open("/tmp/cb/throughput.csv", "w")
+  file = io.open("/tmp/cb/tput.res", "w")
   file:write("pkt size;trial number;tx packets;rx packets;dropped packets;duration(ms)\n")
 
   setupTraffic()
