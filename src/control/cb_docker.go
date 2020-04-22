@@ -173,14 +173,11 @@ func attachExtraInterfaces(cname string) {
       /* This is a simple function to return a VF matching the name scheme used
        * by Netronome SmartNICs (used on the tests) */
       get_vfname := func (i *int) (name string) {
-        si := (*i/8) + 8
-        fi := *i % 8
-        if fi == 0 {
-          name = fmt.Sprintf("enp2s%d", si)
-        } else {
-          name = fmt.Sprintf("enp2s%df%d", si, fi)
-        }
+        si := 0
+        fi := *i + 2
+        name = fmt.Sprintf("enp1s%df%d", si, fi)
         *i += 1
+        fmt.Printf("VF being used: %s\n", name)
         return name
       }
 
