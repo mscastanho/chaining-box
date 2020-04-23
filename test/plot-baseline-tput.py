@@ -9,28 +9,30 @@ from matplotlib.patches import Patch
 import tput_parse as tp
 import plot_defaults as defs
 
-def plot_gbps(results,outfile,ymax):
+def plot(results,outfile):
     plt.close()
-    
-    # We will use results without veth pairs and pkt size = 1462
-    cases = list(filter(lambda x : x['pktsz'] == 1462, results['noveth']))
-  
-    print(cases)
-    x = [v['len'] for v in cases]
-    y = [v['rate_gbps'] for v in cases]
-    print(x)
-    print(y)
+
+    # Get set of lenghts
+    x = list(set([x['pktsz'] for x in results['baseline']]))
+
     #  x = results.keys()
     index = np.arange(len(x)) # the x locations for the groups
-    width = 0.35               # the width of each bar cluster
     #  y = [results[sz]['rate_gbps'] for sz in x]
     plt.grid(alpha=0.3, linestyle='--')
-    plt.bar(index,y,width=width,edgecolor='k')
+
+    width=0.35
+    y = [v['rate_gbps'] for v in sorted(results['baseline'],key=lambda x : x['pktsz'])]
+
+    print(x)
+    print(y)
+    plt.bar(index, y, width, edgecolor='k', label='Baseline')
+
     plt.xticks(index,x, fontsize=defs.ftsz['ticks'])
     plt.yticks(fontsize=defs.ftsz['ticks'])
-    #  plt.title('Throughput vs packet size', fontsize=14)
+    plt.legend(ncol=5,fontsize=defs.ftsz['legend'])
+    #  plt.ylim(0,1.5)
     plt.ylabel('Throughput (Gbps)',  fontsize=defs.ftsz['axes'])
-    plt.xlabel('Chain length (# SFs)', fontsize=defs.ftsz['axes'])
+    plt.xlabel('Packet size (B)', fontsize=defs.ftsz['axes'])
     plt.tight_layout()
     plt.savefig(outfile)
     plt.show()
@@ -43,5 +45,4 @@ if __name__ == '__main__':
         exit(1)
 
     res = tp.process_data(sys.argv[1])
-
-    plot_gbps(res,'chainlen-tput.pdf',10.5)
+    plot(res,'baseline-tput.pdf')

@@ -9,6 +9,8 @@ import fnmatch
 import operator
 from matplotlib.patches import Patch
 
+import plot_defaults as defs
+
 def process_raw_data(filename):
     lines = None
     results = { 'baseline': [], 'star': [], 'linear': [] }
@@ -57,47 +59,9 @@ def reglin(x,y):
     ya = np.array(y)
     A = np.vstack([xa, np.ones(len(xa))]).T
     m,c = np.linalg.lstsq(A, y, rcond=None)[0]
+    print("Derivative: {} // Linear coef.: {}".format(m,c))
+
     return xa, m*xa + c
-
-def plot_stacked(results, outfile):
-    plt.close()
-
-    # Latency with linear topo
-    xlin = [v['len'] for v in results['linear']]
-    ylin = [v['rtt_median'] for v in results['linear']]
-
-    # Latency with start topology
-    ystar = [v['rtt_median'] for v in results['star']]
-
-    # Baseline latency
-    ybaseline = results['baseline'][0]['rtt_median']
-
-    diff1 = [y - ybaseline for y in ylin]
-    diff2 = list(map(operator.sub, ystar, ylin))
-    #  print('baseline: ' + str(ybaseline))
-    #  print('diff1: ' + str(len(diff1)))
-    #  print('diff2: ' + str(len(diff2)))
-
-    # The x locations for the bars
-    ind = np.arange(len(xlin))
-    width = 0.35
-
-    plt.grid(alpha=0.3, linestyle='--')
-
-    plt.bar(ind, ybaseline, width)
-    plt.bar(ind, diff1, width, bottom=ybaseline)
-    plt.bar(ind, diff2, width, bottom=ylin)
-
-    plt.xticks(ind,xlin)
-    plt.title('Latency: linear vs start topology', fontsize=14)
-    plt.legend(['Network Overhead', 'Chaining-Box', 'RFC 7665'])
-    plt.ylabel('Latency (ms)',  fontsize=13)
-    plt.xlabel('Chain Length (# SFs)', fontsize=13)
-    plt.tight_layout()
-    #  plt.savefig(outfile)
-    plt.show()
-
-    return
 
 def plot_sidebyside(results, outfile):
     plt.close()
@@ -122,17 +86,16 @@ def plot_sidebyside(results, outfile):
 
     plt.grid(alpha=0.3, linestyle='--')
 
-    plt.bar(ind + 0.5*width, ystar, width, yerr=ystarerr, edgecolor='k', hatch='o', label='Star')
-    plt.bar(ind - 0.5*width, ylinear, width, yerr=ylinearerr, edgecolor='k', hatch='x', label='Chaining-Box')
+    plt.bar(ind + 0.5*width, ystar, width, yerr=ystarerr, edgecolor='k', label='PhantomSFC-like')
+    plt.bar(ind - 0.5*width, ylinear, width, yerr=ylinearerr, edgecolor='k', label='Chaining-Box')
 
     # Plot horizontal line with baseline
     left, right = plt.xlim()
     plt.hlines(ybaseline, left, right, color='r', linestyle='--', label='Baseline') # ybaseline, width, yerr=ybaselineerr, edgecolor='k' ,hatch='/')
 
-    plt.xticks(ind, xlinear, fontsize=14)
-    plt.yticks(fontsize=14)
-    #  plt.title('Latency: Direct Links vs No Direct Links', fontsize=14)
-    plt.legend(fontsize=14)
+    plt.xticks(ind, xlinear, fontsize=defs.ftsz['ticks'])
+    plt.yticks(fontsize=defs.ftsz['ticks'])
+    plt.legend(fontsize=defs.ftsz['legend'])
 
     # Plot linear regressions
     xlinrl, ylinrl = reglin(xlinear,ylinear)
@@ -140,10 +103,10 @@ def plot_sidebyside(results, outfile):
     plt.plot(ind + 0.5*width, ystarrl, 'blue', marker='o', ms=7, linestyle='-.')
     plt.plot(ind - 0.5*width, ylinrl, 'orange', marker='x', ms=7, linestyle='-.')
 
-    plt.ylabel('Latency (ms)',  fontsize=18)
-    plt.xlabel('Chain Length (# SFs)', fontsize=18)
+    plt.ylabel('Latency (ms)',  fontsize=defs.ftsz['axes'])
+    plt.xlabel('Chain Length (# SFs)', fontsize=defs.ftsz['axes'])
     plt.tight_layout()
-    #  plt.savefig(outfile)
+    plt.savefig(outfile)
     plt.show()
 
     return
@@ -160,4 +123,4 @@ if __name__ == '__main__':
     #  pktsizes = list(pktsizes)
     #  pktsizes.sort()
 
-    plot_sidebyside(res, 'latency.pdf')
+    plot_sidebyside(res, 'archcomp-lat.pdf')

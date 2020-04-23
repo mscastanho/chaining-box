@@ -25,7 +25,7 @@ def process_data(filename):
 
             # Remove some outliers
             rtts = rtts[10:-10]
-            print(rtts)
+            #  print(rtts)
 
             results[key].append({
                 'len':          int(length),

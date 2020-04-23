@@ -9,13 +9,14 @@ import operator
 from matplotlib.patches import Patch
 
 import lat_parse as lp
-
+import plot_defaults as defs
 
 def reglin(x,y):
     xa = np.array(x)
     ya = np.array(y)
     A = np.vstack([xa, np.ones(len(xa))]).T
     m,c = np.linalg.lstsq(A, y, rcond=None)[0]
+    print("Derivative: {} // Linear coef.: {}".format(m,c))
 
     return xa, m*xa + c
 
@@ -45,27 +46,28 @@ def plot_sidebyside(results, outfile):
 
     plt.grid(alpha=0.3, linestyle='--')
 
-    plt.bar(ind - 0.5*width, yveth, width, yerr=yvetherr, edgecolor='k', hatch='o')
-    plt.bar(ind + 0.5*width, ynoveth, width, yerr=ynovetherr, edgecolor='k', hatch='x')
+    plt.bar(ind + 0.5*width, ynoveth, width, yerr=ynovetherr, edgecolor='k', label='w/o direct links')
+    plt.bar(ind - 0.5*width, yveth, width, yerr=yvetherr, edgecolor='k', label='w/ direct links')
 
     # Plot horizontal line with baseline
     left, right = plt.xlim()
-    plt.hlines(ybaseline, left, right, color='r', linestyle='--') # ybaseline, width, yerr=ybaselineerr, edgecolor='k' ,hatch='/')
+    plt.hlines(ybaseline, left, right, color='r', linestyle='--', label='Baseline') # ybaseline, width, yerr=ybaselineerr, edgecolor='k' ,hatch='/')
 
-    plt.xticks(ind, xveth, fontsize=14)
-    plt.yticks(fontsize=14)
+    plt.xticks(ind, xveth, fontsize=defs.ftsz['ticks'])
+    plt.yticks(fontsize=defs.ftsz['ticks'])
     #  plt.title('Latency: Direct Links vs No Direct Links', fontsize=14)
-    plt.legend(['Baseline', 'w/ direct links', 'w/o direct links', ''], fontsize=14)
+    plt.legend(framealpha=1, fontsize=defs.ftsz['legend'], loc='upper left')
 
     # Plot linear regressions
     xnovrl, ynovrl = reglin(xveth,ynoveth)
     xvrl, yvrl = reglin(xveth,yveth)
-    plt.plot(ind - 0.5*width, yvrl, 'blue', marker='o', ms=7, linestyle='--')
-    plt.plot(ind + 0.5*width, ynovrl, 'orange', marker='x', ms=7, linestyle='--')
+    plt.plot(ind + 0.5*width, ynovrl, 'blue', marker='x', ms=7, linestyle='--')
+    plt.plot(ind - 0.5*width, yvrl, 'orange', marker='o', ms=7, linestyle='--')
 
-    plt.ylabel('Latency (ms)',  fontsize=18)
-    plt.xlabel('Chain Length (# SFs)', fontsize=18)
+    plt.ylabel('Latency (ms)',  fontsize=defs.ftsz['axes'])
+    plt.xlabel('Chain Length (# SFs)', fontsize=defs.ftsz['axes'])
     plt.tight_layout()
+    plt.ylim(0.3,1.2*max(yveth + ynoveth))
     plt.savefig(outfile)
     plt.show()
 

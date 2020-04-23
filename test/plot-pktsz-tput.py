@@ -87,7 +87,7 @@ def plot_both(results,outfile,ymax):
 
     # Get set of lenghts
     # REALLY HACKY, CAREFUL NOT TO GET INFECTED!!!
-    lens = list(set([x['len'] for x in results['noveth'] ]))
+    lens = list(set([x['len'] for x in results['noveth'] if x['len'] <= 8]))
     x = list(set([x['pktsz'] for x in results['noveth']]))
 
     #  x = results.keys()
