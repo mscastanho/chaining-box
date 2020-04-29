@@ -23,11 +23,16 @@ static const char *__doc__=
 
 static int verbose = 1;
 static const char *mapfile = "/sys/fs/bpf/tc/globals/egress_ifindex";
-static const char *srcipmapfile = "/sys/fs/bpf/tc/globals/srcip";
+static const char *infomapfile = "/sys/fs/bpf/tc/globals/infomap";
 
 #define CMD_MAX 	2048
 #define CMD_MAX_TC	256
 static char tc_cmd[CMD_MAX_TC] = "tc";
+
+struct info {
+  uint32_t srcip;
+  uint8_t swap; 
+}__attribute__((packed));
 
 static const struct option long_options[] = {
 	{"help",	no_argument,		NULL, 'h' },
@@ -41,6 +46,7 @@ static const struct option long_options[] = {
 	{"list",	optional_argument,	NULL, 'l' },
 	{"remove",	optional_argument,	NULL, 'r' },
 	{"quiet",	no_argument,		NULL, 'q' },
+	{"swap",	no_argument,		NULL, 'w' },
 	{0, 0, NULL,  0 }
 };
 
@@ -208,7 +214,7 @@ int main(int argc, char **argv)
 	int egress_ifindex = -1;
 	int ingress_ifindex = 0;
 	int ret = EXIT_SUCCESS;
-  int srcip = 0;
+  struct info info = {0,0};
   bool has_srcip = false;
 	int key = 0;
 	size_t len;
@@ -219,7 +225,7 @@ int main(int argc, char **argv)
 	memset(ingress_ifname, 0, IF_NAMESIZE); /* Can be used uninitialized */
 
 	/* Parse commands line args */
-	while ((opt = getopt_long(argc, argv, "hqi:e:x:t:l::r::s:",
+	while ((opt = getopt_long(argc, argv, "hqi:e:x:t:l::r::s:w",
 				  long_options, &longindex)) != -1) {
 		switch (opt) {
 		case 'x':
@@ -291,11 +297,14 @@ int main(int argc, char **argv)
 			verbose = 0;
 			break;
     case 's':
-      if(inet_pton(AF_INET, optarg, &srcip) == -1){
+      if(inet_pton(AF_INET, optarg, &info.srcip) == -1){
         fprintf(stderr, "Failed to parse src ip. Given: %s\n", optarg);
         return EXIT_FAILURE;
       }
       has_srcip = true;
+      break;
+    case 'w':
+      info.swap = 1;
       break;
 		case 'h':
 		default:
@@ -331,15 +340,15 @@ int main(int argc, char **argv)
 
   /* Fill srcip map */
   if (has_srcip) {
-    fd = bpf_obj_get(srcipmapfile);
+    fd = bpf_obj_get(infomapfile);
     if (fd < 0) {
       fprintf(stderr, "ERROR: cannot open bpf_obj_get(%s): %s(%d)\n",
-        srcipmapfile, strerror(errno), errno);
+        infomapfile, strerror(errno), errno);
       usage(argv);
       ret = EXIT_FAILURE;
       goto out;
     } else {
-      ret = bpf_map_update_elem(fd, &key, &srcip, 0);
+      ret = bpf_map_update_elem(fd, &key, &info, 0);
       if (ret) {
         perror("ERROR: bpf_map_update_elem on srcip");
         ret = EXIT_FAILURE;

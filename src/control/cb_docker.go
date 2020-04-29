@@ -364,6 +364,9 @@ func getTypeExecString(sfType, ingress, egress string) []string{
     case "tc-redirect":
       return []string{"--", basedir + "tc_bench01_redirect", "--ingress", ingress,
                         "--egress", egress, "--srcip", "10.10.0.1"}
+    case "tc-redirect-swap":
+      return []string{"--", basedir + "tc_bench01_redirect", "--ingress", ingress,
+                        "--egress", egress, "--srcip", "10.10.0.1", "--swap"}
     case "flow-monitor":
       return []string{"--", basedir + "flow_monitor", "--ingress", ingress,
                         "--egress", egress, "--srcip", "10.10.0.1"}

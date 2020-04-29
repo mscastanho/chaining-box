@@ -47,10 +47,15 @@ struct bpf_elf_map SEC("maps") egress_ifindex = {
 	.max_elem = 1,
 };
 
-struct bpf_elf_map SEC("maps") srcip = {
+struct info {
+  uint32_t srcip;
+  uint8_t swap; 
+}__attribute__((packed));
+
+struct bpf_elf_map SEC("maps") infomap = {
 	.type = BPF_MAP_TYPE_ARRAY,
 	.size_key = sizeof(int),
-	.size_value = sizeof(int),
+	.size_value = sizeof(struct info),
 	.pinning = PIN_GLOBAL_NS,
 	.max_elem = 1,
 };
@@ -69,6 +74,13 @@ static void swap_src_dst_mac(void *data)
 	p[3] = dst[0];
 	p[4] = dst[1];
 	p[5] = dst[2];
+}
+
+static void swap_src_dst_ip(struct iphdr *ip){
+  unsigned int aux;
+  aux = ip->saddr;
+  ip->saddr = ip->daddr;
+  ip->daddr = aux;
 }
 
 /* Notice this section name is used when attaching TC filter
@@ -90,8 +102,9 @@ int _ingress_redirect(struct __sk_buff *skb)
 	void *data     = (void *)(long)skb->data;
 	void *data_end = (void *)(long)skb->data_end;
 	struct ethhdr *eth = data;
-	int key = 0, *ifindex;
-    __u32 *sip;
+	struct info *info;
+  int key = 0, *ifindex;
+  uint32_t sip;
 
 	if (data + sizeof(*eth) > data_end)
 		return TC_ACT_OK;
@@ -109,7 +122,7 @@ int _ingress_redirect(struct __sk_buff *skb)
    * 
    * volatile used to avoid clang removing this loop. */
   #define ITERATIONS 10000
-  volatile count = 0;
+  volatile int count = 0;
   for(int i = 0 ; i < ITERATIONS; i++){
    count++;
   }
@@ -120,48 +133,40 @@ int _ingress_redirect(struct __sk_buff *skb)
   if((void*)ip + sizeof(struct iphdr) > data_end)
     return TC_ACT_OK;
 
-  sip = bpf_map_lookup_elem(&srcip, &key);
-  if (!sip) /* check required by verifier */
+  
+  info = bpf_map_lookup_elem(&infomap, &key);
+  if (!info) /* check required by verifier */
     return TC_ACT_OK;
+
+  sip = info->srcip;
  
   /* If srcip is not set (== 0) then the program will not impose any restrictions
    * and just forward *all* traffic to the egress port.
    *
    * Otherwise, only packets with src IP matching srcip will be redirected, the
    * rest will be passed along the stack. */ 
-  if (*sip) {
+  if (sip) {
     if(ip->protocol == 1){
       cb_debug("IT'S A PING!!!\n");
     }
 
-    if(*sip != ip->saddr){
-      cb_debug("sip check failed. Passing along... %x != %x\n",*sip,ip->saddr);
+    if(sip != ip->saddr){
+      cb_debug("sip check failed. Passing along... %x != %x\n",sip,ip->saddr);
       return TC_ACT_OK;
     }else{
       cb_debug("IT'S A MATCH!!!\n");
     }
   }
 
-  /* Swap src and dst mac-addr if ingress==egress
-   * --------------------------------------------
-   * If bouncing packet out ingress device, we need to update
-   * MAC-addr, as some NIC HW will drop such bounced frames
-   * silently (e.g mlx5).
-   *
-   * Note on eBPF translations:
-   *  __sk_buff->ingress_ifindex == skb->skb_iif
-   *   (which is set to skb->dev->ifindex, before sch_handle_ingress)
-   *  __sk_buff->ifindex == skb->dev->ifindex
-   *   (which is translated into BPF insns that deref dev->ifindex)
-   */
-  // if (*ifindex == skb->ingress_ifindex)
-    // swap_src_dst_mac(data);
+  if (info->swap) {
+    /* Swap MAC addresses */
+    swap_src_dst_mac(data);
+    
+    /* Swap IPs*/
+    swap_src_dst_ip(ip);
+  }
 
-  //return bpf_redirect(*ifindex, BPF_F_INGRESS); // __bpf_rx_skb
-
-  /* WARNING: we do not touch the src and dst MAC addresses, so this can
-   * potentially mess up with switch learning tables. */
-  return bpf_redirect(*ifindex, 0); // __bpf_tx_skb / __dev_xmit_skb
+  return bpf_redirect(*ifindex, 0);
 }
 
 char _license[] SEC("license") = "GPL";
