@@ -25,6 +25,19 @@ SRCMACMAP();
 STATSMAP();
 #endif /* ENABLE_STATS */
 
+/* Allow choosing between XDP or TC program */
+#ifdef XDP
+# define METADATA struct xdp_md
+# define RET_OK XDP_PASS
+# define RET_TX XDP_TX
+# define RET_DROP XDP_DROP
+#else /* TC */
+# define METADATA struct __sk_buff
+# define RET_OK TC_ACT_OK
+# define RET_TX TC_ACT_OK /* TC does not have something similar to XDP_TX */
+# define RET_DROP TC_ACT_SHOT
+#endif
+
 static inline int set_src_mac(struct ethhdr *eth){
 	void* smac;
 	__u32 idx = 1;
@@ -40,8 +53,8 @@ static inline int set_src_mac(struct ethhdr *eth){
 	return 0;
 }
 
-SEC("action/classify")
-int classify_tc(struct __sk_buff *skb)
+SEC("classify")
+int classify_tc(METADATA *skb)
 {
   /* Start timestamps for statistics (if enabled) */
   cb_mark_init();
@@ -59,7 +72,7 @@ int classify_tc(struct __sk_buff *skb)
 
 	if(data + sizeof(struct ethhdr) + sizeof(struct iphdr) > data_end){
         cb_debug("[CLSFY] Bounds check #1 failed.\n");
-		return cb_retother(TC_ACT_OK);
+		return cb_retother(RET_OK);
 	}
 
 	eth = data;
@@ -67,20 +80,20 @@ int classify_tc(struct __sk_buff *skb)
 
 	if(bpf_ntohs(eth->h_proto) != ETH_P_IP){
         cb_debug("[CLSFY] Not an IPv4 packet, passing along.\n");
-		return cb_retother(TC_ACT_OK);
+		return cb_retother(RET_OK);
 	}
 
 	ret = get_tuple(ip,data_end,&key);
 	if (ret < 0){
         cb_debug("[CLSFY] get_tuple() failed: %d\n",ret);
-		return cb_retother(TC_ACT_OK);
+		return cb_retother(RET_OK);
 	}
 
 	cls = bpf_map_lookup_elem(&cls_table,&key);
 	if(cls == NULL){
     cb_debug("[CLSFY] No rule for packet.\n");
-    if(set_src_mac(eth)) return cb_retother(TC_ACT_SHOT);
-		return cb_retother(TC_ACT_OK);
+    if(set_src_mac(eth)) return cb_retother(RET_DROP);
+		return cb_retother(RET_OK);
 	}
 
     cb_debug("[CLSFY] Matched packet flow.\n");
@@ -92,11 +105,17 @@ int classify_tc(struct __sk_buff *skb)
     cb_debug("[CLSFY] Size before: %d\n",data_end-data);
 
     // Add outer encapsulation
-    ret = bpf_skb_adjust_room(skb,sizeof(struct ethhdr) + sizeof(struct nshhdr_md1),BPF_ADJ_ROOM_MAC,0);
+    int encapsz = sizeof(struct ethhdr) + sizeof(struct nshhdr_md1);
+
+    #ifdef XDP
+    ret = bpf_xdp_adjust_head(skb,-encapsz);
+    #else
+    ret = bpf_skb_adjust_room(skb,encapsz,BPF_ADJ_ROOM_MAC,0);
+    #endif
 
     if (ret < 0) {
         cb_debug("[CLSFY]: Failed to add extra room: %d\n", ret);
-        return cb_retother(TC_ACT_SHOT);
+        return cb_retother(RET_DROP);
     }
     
     data = (void *)(long)skb->data;
@@ -107,7 +126,7 @@ int classify_tc(struct __sk_buff *skb)
 	// Bounds check to please the verifier
     if(data + 2*sizeof(struct ethhdr) + sizeof(struct nshhdr_md1) > data_end){
         cb_debug("[CLSFY] Bounds check #2 failed.\n");
-		return cb_retother(TC_ACT_OK);
+		return cb_retother(RET_OK);
 	}
 
 	oeth = data;
@@ -116,15 +135,18 @@ int classify_tc(struct __sk_buff *skb)
 	ieth = (void*) extra_bytes;
 	ip = (void*) ieth + sizeof(struct ethhdr);
 
+  /* On XDP the extra bytes are added to the beginning of the packet, while
+   * on TC they get added right after the Ethernet header. So we need to handle
+   * these two cases to correctly fill both Ethenet headers here. */
+  #ifndef XDP
 	// Original Ethernet is outside, let's copy it to the inside
 	__builtin_memcpy(ieth,oeth,sizeof(struct ethhdr));
 	// __builtin_memset(oeth,0,sizeof(struct ethhdr));
-
+  #endif
 	oeth->h_proto = bpf_ntohs(ETH_P_NSH);
 	ieth->h_proto = prev_proto;
-	// oeth->h_dest and oeth->h_src will be set by fwd stage
 
-	if(set_src_mac(oeth)) return cb_retother(TC_ACT_SHOT);
+	if(set_src_mac(oeth)) return cb_retother(RET_DROP);
 	__builtin_memmove(oeth->h_dest,cls->next_hop,ETH_ALEN);
 
 	nsh->basic_info = bpf_htons( ((uint16_t) 0)     |
@@ -142,6 +164,6 @@ int classify_tc(struct __sk_buff *skb)
 
 	// TODO: This should be bpf_redirect_map(), to allow
 	// redirecting the packet to another interface
-	return cb_retok(TC_ACT_OK);
+	return cb_retok(RET_TX);
 }
 char _license[] SEC("license") = "GPL";

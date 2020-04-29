@@ -57,12 +57,12 @@ function load_classifier {
     [ -z $DIR ] && DIR="egress"
     # Load decap XDP code
     #ip -force link set dev $DEV xdp \
-    #    obj $BPFOBJ sec action/classify
+    #    obj $BPFOBJ sec classify
 
     tc qdisc add dev $DEV clsact 2> /dev/null
     tc filter del dev $DEV $DIR 2> /dev/null
     tc filter add dev $DEV $DIR bpf da obj $BPFOBJ \
-        sec action/classify
+        sec classify
 
 }
 
