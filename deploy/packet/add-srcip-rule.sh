@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 
-source map-common.sh
+scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+source $scriptdir/map-common.sh
 
 if [ -z "$1" ]; then
   echo "Usage: $0 <srcip> [swap]"
+  exit 0
 fi
 
 srcip="$1"
