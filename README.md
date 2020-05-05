@@ -11,6 +11,7 @@
   - Docker 18.09.7
   - openvswitch 2.9.5
   - Ubuntu 18.04
+  - DPDK 19.10
 
 ## Getting the source code
 
