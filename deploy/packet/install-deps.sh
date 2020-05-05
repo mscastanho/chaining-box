@@ -2,9 +2,9 @@
 
 # Install stuff
 apt update
-apt install build-essential git iperf3 docker.io meson ninja-build jq ethtool \
-  pciutils libnuma-dev libpcap-dev python3 liblua5.3-dev linux-image-5.3.0-46-generic -y
-apt install libbfd-dev libcap-dev libmnl-dev libelf-dev bison flex -y
+apt install build-essential git iperf3 docker.io meson ninja-build jq ethtool hping3 \
+  pciutils libnuma-dev libpcap-dev python3 liblua5.3-dev linux-image-5.3.0-46-generic \
+  linux-headers-5.3.0-46-generic libbfd-dev libcap-dev libmnl-dev libelf-dev bison flex -y
 
 # Script to update kernel
 # wget https://raw.githubusercontent.com/pimlie/ubuntu-mainline-kernel.sh/master/ubuntu-mainline-kernel.sh
@@ -21,10 +21,25 @@ cd chaining-box/src
 ./build.sh
 cd
 
-# Download DPDK
-dpdk="dpdk-19.11.1"
-get https://fast.dpdk.org/rel/$dpdk.tar.xz
-tar -xf $dpdk.tar.xz
+# Install DPDK
+dpdk_tar="dpdk-19.11.1.tar.xz"
+wget -O /usr/src/$dpdk_tar https://fast.dpdk.org/rel/$dpdk_tar
+cd /usr/src
+tar -xf $dpdk_tar
+mv "dpdk-stable-19.11.1" "dpdk-19.11"
+cd dpdk-19.11
+export RTE_SDK=$(pwd)
+export RTE_TARGET=x86_64-native-linuxapp-gcc
+make install "T=${RTE_TARGET}" -j$(nproc)
+cd
+
+# Install pktgen DPDK
+wget -O /usr/src/pktgen.tar.xz https://git.dpdk.org/apps/pktgen-dpdk/snapshot/pktgen-19.12.0.tar.xz
+cd /usr/src
+tar -xf pktgen.tar.xz
+cd pktgen-19.12.0
+make
+cd
 
 # Script to handle ifaces and containers
 wget -O /usr/local/bin/pipework https://raw.githubusercontent.com/jpetazzo/pipework/master/pipework
@@ -42,6 +57,9 @@ git clone --depth 1 --branch $kversion --single-branch https://github.com/torval
 cd ~/linux-$kversion/tools/bpf/bpftool
 make && make install
 cd -
+
+# Reboot to load new kernel
+# reboot
 
 # Configure SR-IOV
 # echo 6 > /sys/class/net/enp1s0f0/device/sriov_numvfs
