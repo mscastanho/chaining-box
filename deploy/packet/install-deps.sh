@@ -22,15 +22,19 @@ cd chaining-box/src
 cd
 
 # Install DPDK
+# TODO: Currently the DPDK compilation fails because the server won't have
+# the kernel headers installed. We are installed the headers for a newer
+# kernel which will not have been loaded at this point.
+# I should just convert this to an Ansible script
 dpdk_tar="dpdk-19.11.1.tar.xz"
 wget -O /usr/src/$dpdk_tar https://fast.dpdk.org/rel/$dpdk_tar
 cd /usr/src
 tar -xf $dpdk_tar
 mv "dpdk-stable-19.11.1" "dpdk-19.11"
 cd dpdk-19.11
-export RTE_SDK=$(pwd)
-export RTE_TARGET=x86_64-native-linuxapp-gcc
-make install "T=${RTE_TARGET}" -j$(nproc)
+echo "export RTE_SDK=$(pwd)" >> ~/.bashrc
+echo "export RTE_TARGET=x86_64-native-linuxapp-gcc" >> ~/.bashrc
+#make install "T=${RTE_TARGET}" -j$(nproc)
 cd
 
 # Install pktgen DPDK
@@ -38,7 +42,7 @@ wget -O /usr/src/pktgen.tar.xz https://git.dpdk.org/apps/pktgen-dpdk/snapshot/pk
 cd /usr/src
 tar -xf pktgen.tar.xz
 cd pktgen-19.12.0
-make
+#make
 cd
 
 # Script to handle ifaces and containers
