@@ -49,8 +49,13 @@ struct bpf_elf_map SEC("maps") egress_ifindex = {
 
 struct info {
   uint32_t srcip;
-  uint8_t swap; 
+  uint8_t dstmac[6];
+  uint8_t ops; 
 }__attribute__((packed));
+
+#define SET_DST_MAC 0x1
+#define SWAP_IP     0x2
+#define SWAP_MAC    0x4
 
 struct bpf_elf_map SEC("maps") infomap = {
 	.type = BPF_MAP_TYPE_ARRAY,
@@ -74,6 +79,16 @@ static void swap_src_dst_mac(void *data)
 	p[3] = dst[0];
 	p[4] = dst[1];
 	p[5] = dst[2];
+}
+
+static void set_dst_mac(void *data, void *mac)
+{
+	unsigned short *dst = data;
+	unsigned short *p = mac;
+
+	dst[0] = p[0];
+	dst[1] = p[1];
+	dst[2] = p[2];
 }
 
 static void swap_src_dst_ip(struct iphdr *ip){
@@ -158,13 +173,14 @@ int _ingress_redirect(struct __sk_buff *skb)
     }
   }
 
-  if (info->swap) {
-    /* Swap MAC addresses */
+  if (info->ops & SWAP_IP)
+    swap_src_dst_ip(ip);
+
+  if (info->ops & SWAP_MAC)
     swap_src_dst_mac(data);
     
-    /* Swap IPs*/
-    swap_src_dst_ip(ip);
-  }
+  if (info->ops & SET_DST_MAC)
+    set_dst_mac(data, &info->dstmac);
 
   return bpf_redirect(*ifindex, 0);
 }

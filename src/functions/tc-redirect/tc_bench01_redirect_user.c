@@ -304,7 +304,7 @@ int main(int argc, char **argv)
       has_srcip = true;
       break;
     case 'w':
-      info.swap = 1;
+      //info.swap = 1;
       break;
 		case 'h':
 		default:
