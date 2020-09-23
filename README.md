@@ -80,6 +80,10 @@ bpftool under the hood. The output will be on `jited-output/`
 It generates logs with the output from all the startup processes on each SF
 under `/tmp/<sfname>.out`.
 
+### Container with cb_node image
+
+  cname="sf0"; docker run -d --rm --hostname $cname --name $cname -v $(pwd):/cb  mscastanho/chaining-box:cb-node tail -f /dev/null
+
 ### Quick commands
 /cb/test/config-cls-docker.sh
 ping 172.17.0.3
