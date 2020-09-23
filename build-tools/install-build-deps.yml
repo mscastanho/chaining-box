@@ -8,8 +8,10 @@
     - name: Install dependencies
       package:
         name:
+           - patch
            - make
            - gcc
+           - git
            - libssl-dev
            - bc
            - libelf-dev
@@ -18,7 +20,6 @@
            - gcc-multilib
            - llvm
            - libncurses5-dev
-           - git
            - pkg-config
            - libmnl-dev
            - bison
@@ -75,4 +76,25 @@
     - name: Install golang
       shell: tar -C /usr/local -xf golang.tar.gz && echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.profile
       args:
-        chdir: /tmp 
+        chdir: /tmp
+
+    - name: Clone libkefir
+      git:
+        repo: https://github.com/Netronome/libkefir.git
+        dest: "{{ home }}/libkefir"
+      tags: libkefir
+
+    - name: Patch libkefir
+      shell: wget -O {{ patch }} {{ url }} && patch -p1 < {{ patch }}
+      args:
+        chdir: "{{ home }}/libkefir"
+      vars:
+        url: 'https://raw.githubusercontent.com/mscastanho/chaining-box/94107a5000e6de62febe7253ef5e289d3f0b30dd/build-tools/0001-Add-function-to-fill-pinned-map.patch'
+        patch: '/tmp/libkefir.patch'
+      tags: libkefir
+
+    - name: Install libkefir
+      shell: make && make install install_headers
+      args:
+        chdir: "{{ home }}/libkefir"
+      tags: libkefir
