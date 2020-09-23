@@ -1,0 +1,123 @@
+From fc09b4671ebc890e96c203ccbf80749912e90e56 Mon Sep 17 00:00:00 2001
+From: Matheus Castanho <mscastanho@gmail.com>
+Date: Fri, 6 Mar 2020 00:23:48 -0300
+Subject: [PATCH] Add function to fill pinned map
+
+In order to be able to load a TC program using iproute2 but still
+fill the map using libkefir's API, this commit adds a new function
+to fill the 'rules' map pinned to a given path.
+
+In addition, it also forces the rules map of generated programs to
+be pinned to global namespace.
+---
+ src/libkefir.c         |  6 ++++++
+ src/libkefir.h         | 11 +++++++++++
+ src/libkefir_compile.c | 24 ++++++++++++++++++++++++
+ src/libkefir_compile.h |  2 ++
+ src/libkefir_proggen.c |  3 ++-
+ 5 files changed, 45 insertions(+), 1 deletion(-)
+
+diff --git a/src/libkefir.c b/src/libkefir.c
+index 69e4973..c684af6 100644
+--- a/src/libkefir.c
++++ b/src/libkefir.c
+@@ -589,6 +589,12 @@ int kefir_cprog_fill_map(const struct kefir_cprog *cprog,
+ 	return compile_fill_map(cprog, bpf_obj);
+ }
+ 
++int kefir_cprog_fill_pinned_map(const struct kefir_cprog *cprog,
++			 const char* rule_map_path)
++{
++	return compile_fill_pinned_map(cprog, rule_map_path);
++}
++
+ int kefir_cprog_map_update_cmd(const struct kefir_cprog *cprog,
+ 			       const struct bpf_object *bpf_obj, char **buf,
+ 			       unsigned int *buf_len)
+diff --git a/src/libkefir.h b/src/libkefir.h
+index c36bb40..dadf7df 100644
+--- a/src/libkefir.h
++++ b/src/libkefir.h
+@@ -543,6 +543,17 @@ LIBKEFIR_API
+ int kefir_cprog_fill_map(const struct kefir_cprog *cprog,
+ 			 const struct bpf_object *bpf_obj);
+ 
++/**
++ * Fill the map pinned to the path given. It is expected that this map if
++ * of the same type as used by libkefir's programs.
++ * @cprog: cprog used to generate the BPF program loaded on the system
++ * @rule_map_path: path to the pinned map resulting of loading the BPF program
++ * @return 0 on success, error code otherwise
++ */
++LIBKEFIR_API
++int kefir_cprog_fill_pinned_map(const struct kefir_cprog *cprog,
++			 const char* rule_map_path);
++
+ /**
+  * Dump the commands (bpftool format) that can be used to fill the rules
+  * associated with a cprog object (loaded or not).
+diff --git a/src/libkefir_compile.c b/src/libkefir_compile.c
+index 8ef5a63..a2128f6 100644
+--- a/src/libkefir_compile.c
++++ b/src/libkefir_compile.c
+@@ -359,6 +359,30 @@ int compile_fill_map(const struct kefir_cprog *cprog,
+ 	return 0;
+ }
+ 
++int compile_fill_pinned_map(const struct kefir_cprog *cprog,
++		     const char* rule_map_path)
++{
++	int rule_map_fd;
++	int index = 0;
++
++	if (!cprog) {
++		err_fail("C prog object is NULL, cannot fill BPF map");
++		return -1;
++	}
++
++	rule_map_fd = bpf_obj_get(rule_map_path);
++	if (rule_map_fd < 0) {
++		err_fail("failed to retrieve file descriptor for the pinned map");
++		return -1;
++	}
++	if (list_for_each((struct list *)cprog->filter->rules, fill_one_rule,
++			  rule_map_fd, &index, cprog->options.nb_matches,
++			  cprog->options.flags))
++		return -1;
++
++	return 0;
++}
++
+ /*
+  * Variadic list should contain:
+  *     char **buf
+diff --git a/src/libkefir_compile.h b/src/libkefir_compile.h
+index 56f89a3..13ca7f5 100644
+--- a/src/libkefir_compile.h
++++ b/src/libkefir_compile.h
+@@ -16,6 +16,8 @@ int compile_load_from_objfile(const struct kefir_cprog *cprog,
+ 			      const struct kefir_load_attr *attr);
+ int compile_fill_map(const struct kefir_cprog *cprog,
+ 		     const struct bpf_object *bpf_obj);
++int compile_fill_pinned_map(const struct kefir_cprog *cprog,
++		     const char *rule_map_path);
+ int dump_fillmap_cmd(const struct kefir_cprog *cprog,
+ 		     const struct bpf_object *bpf_obj, char **buf,
+ 		     unsigned int *buf_len);
+diff --git a/src/libkefir_proggen.c b/src/libkefir_proggen.c
+index e4e3381..00e80e2 100644
+--- a/src/libkefir_proggen.c
++++ b/src/libkefir_proggen.c
+@@ -571,7 +571,8 @@ make_rule_table_decl(const struct kefir_cprog *prog, char **buf,
+ 	    "	.type		= BPF_MAP_TYPE_ARRAY,\n"
+ 	    "	.size_key	= sizeof(__u32),\n"
+ 	    "	.size_value	= sizeof(struct filter_rule),\n"
+-	    "	.max_elem	= %zd\n"
++	    "	.max_elem	= %zd,\n"
++	    "	.pinning = 2 // PIN_GLOBAL_NS\n"
+ 	    "};\n"
+ 	    "BPF_ANNOTATE_KV_PAIR(rules, __u32, struct filter_rule);\n"
+ 	    "\n"
+-- 
+2.17.1
+
