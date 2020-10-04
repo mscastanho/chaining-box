@@ -4,6 +4,7 @@ funcs += tc-redirect
 funcs += user-redirect
 funcs += xdp-redirect
 funcs += flow-monitor
+funcs += vpn
 
 all: ${funcs}
 

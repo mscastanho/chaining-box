@@ -370,6 +370,9 @@ func getTypeExecString(sfType, ingress, egress string) []string{
     case "flow-monitor":
       return []string{"--", basedir + "flow_monitor", "--ingress", ingress,
                         "--egress", egress, "--srcip", "10.10.0.1"}
+    case "vpn":
+      return []string{"--", basedir + "vpn", ingress, egress,
+                        "10.10.0.1", "10.10.0.2", "10.10.0.1", "10.10.0.2"}
   }
 
   return nil
