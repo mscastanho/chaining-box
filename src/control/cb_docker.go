@@ -446,6 +446,7 @@ func main() {
   var cfgfile string
   var srcdir string
   var nettype string
+  var create_srcdst bool
   using_direct_links := false
   ingress_ifaces := make(map[string]string)
   egress_ifaces := make(map[string]string)
@@ -453,6 +454,7 @@ func main() {
   flag.StringVar(&cfgfile, "c", "", "path to the chains configuration file.")
   flag.StringVar(&srcdir, "d", "", "path to the chaining-box source dir.")
   flag.StringVar(&nettype, "n", "bridge", "type of network to use.")
+  flag.BoolVar(&create_srcdst, "t", false, "create src and dest containers for testing.")
   flag.Parse()
 
   if cfgfile == "" {
@@ -486,6 +488,20 @@ func main() {
   cfg := ParseChainsConfig(cfgfile)
 
   createNetworkInfra()
+
+  /* Create src and dest to test chaining (if needed) */
+  if create_srcdst {
+    newBareContainer := func (name string) {
+      _, err := CreateNewContainer(name, source_dir, default_entrypoint)
+      if err != nil {
+        panic(fmt.Sprintf("Failed to create source container:", err))
+      }
+      fmt.Printf("Created container: %s\n", name)
+    }
+
+    newBareContainer("src")
+    newBareContainer("dst")
+  }
 
   /* Start containers for all functions declared */
   for i := 0 ; i < len(cfg.Functions) ; i++ {
