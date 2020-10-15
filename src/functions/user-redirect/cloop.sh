@@ -28,7 +28,7 @@ function install {
 function uninstall {
     for p in $(ps aux | grep "$PROG" | awk '{print $2}'); do
        kill -9 $p &> /dev/null
-    done 
+    done
 }
 
 # Register cleanup tasks on exit
@@ -45,9 +45,9 @@ ACTION="$1"
 if [ "$ACTION" == "do" ]; then
     # Compile prog if needed
     if [ ! -f "$PROG" ]; then
-        gcc -o c-loopback loopback.c     
+        gcc -o c-loopback loopback.c
     fi
-   
+
     # Run in daemon mode
     if [ "$2" == "daemon" ]; then
         shift 2
