@@ -1,4 +1,4 @@
-funcs := chacha20
+funcs := chacha
 funcs += l4lb
 funcs += tc-redirect
 funcs += user-redirect
