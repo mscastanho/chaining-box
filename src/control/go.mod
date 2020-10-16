@@ -5,6 +5,7 @@ go 1.13
 require (
 	github.com/Microsoft/go-winio v0.4.14 // indirect
 	github.com/containernetworking/plugins v0.0.0-20180803153142-19f2f28178aa
+	github.com/digitalocean/go-openvswitch v0.0.0-20201009202154-71913f46b345 // indirect
 	github.com/docker/distribution v2.7.1+incompatible // indirect
 	github.com/docker/docker v1.13.1
 	github.com/docker/go-connections v0.4.0 // indirect

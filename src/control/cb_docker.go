@@ -150,6 +150,15 @@ func createNetworkInfra() {
 
 func attachExtraInterfaces(cname string) {
   var err0, err1 error
+  var subnet_prefix string
+
+  /* Facilitate using containers to debug code and match the IP used in most
+     test scripts for source and destination. */
+  if cname == "src" || cname == "dst" {
+	  subnet_prefix = "10.10"
+  } else {
+	  subnet_prefix = "192.168"
+  }
 
   switch dataplane_type {
     case BRIDGE:
@@ -164,9 +173,9 @@ func attachExtraInterfaces(cname string) {
       /* Add interface attached to OVS bridge */
       ipac += 1
       err0 = exec.Command("ovs-docker", "add-port", bridge_name, "eth1", cname,
-              fmt.Sprintf("--ipaddress=192.168.100.%d/24", ipac)).Run()
+              fmt.Sprintf("--ipaddress=%s.0.%d/24", subnet_prefix, ipac)).Run()
       err1 = exec.Command("ovs-docker", "add-port", bridge_name, "eth2", cname,
-              fmt.Sprintf("--ipaddress=192.168.200.%d/24", ipac)).Run()
+              fmt.Sprintf("--ipaddress=%s.1.%d/24", subnet_prefix, ipac)).Run()
     case SRIOV:
       /* Add 2 VFs to each container */
 
@@ -373,6 +382,8 @@ func getTypeExecString(sfType, ingress, egress string) []string{
     case "vpn":
       return []string{"--", basedir + "vpn", ingress, egress,
                         "10.10.0.1", "10.10.0.2", "10.10.0.1", "10.10.0.2"}
+    case "l4lb":
+      return []string{"--", basedir + "l4lb", ingress, egress}
   }
 
   return nil
