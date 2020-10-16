@@ -2,28 +2,29 @@
   "chains": [
     {
       "id": 100,
-      "nodes": ["sf2","sf3"]
-    },
-    {
-      "id": 200,
-      "nodes": ["sf1","sf3"]
+      "nodes": ["sf1","sf2","sf3","sf4"]
     }
   ],
   "functions": [
     {
       "tag": "sf1",
-      "type": "tc-redirect",
-      "host": "server1"
+      "type": "firewall",
+      "remote": true
     },
     {
       "tag": "sf2",
       "type": "tc-redirect",
-      "host": "server1"
+      "remote": true
     },
     {
       "tag": "sf3",
-      "type": "tc-redirect",
-      "host": "server2"
+      "type": "flow-monitor",
+      "remote": true
+    },
+    {
+      "tag": "sf4",
+      "type": "l4lb",
+      "remote": true
     }
   ]
 }
