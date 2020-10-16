@@ -1,5 +1,5 @@
 # This is intended to be imported by other Makefiles
-# which in turn will set their respective TARGETS and 
+# which in turn will set their respective TARGETS and
 # BUILD_DIR vars.
 
 # Generate file name-scheme based on TARGETS
@@ -11,6 +11,8 @@ CLANG ?= clang
 
 BPFTMPDIR=/sys/fs/bpf/tmp
 JITEDOUTDIR=jited-output
+
+BUILD_DIR=$(SRCDIR)build
 
 # Add libs from kernel source. This is needed since
 # we might use features not available on the standard

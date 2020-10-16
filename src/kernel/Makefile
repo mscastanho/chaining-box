@@ -1,9 +1,6 @@
 TARGETS = sfc_stages_kern
 TARGETS += sfc_classifier_kern
 
-# Build dir
-BUILD_DIR = ../build
-
-CFLAGS := -I../headers -DXDP
+CFLAGS := -I$(SRCDIR)headers -DXDP
 
 include Makefile.in

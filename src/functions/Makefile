@@ -11,7 +11,7 @@ all: ${funcs}
 .PHONY: ${funcs}
 
 ${funcs}: %:
-	make -C $@
+	make -C $@ SRCDIR=$(SRCDIR)
 
 clean: %:
 	@for f in ${clean} ; do \

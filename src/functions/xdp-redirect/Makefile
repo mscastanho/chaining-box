@@ -1,14 +1,9 @@
 TARGETS := xdp_redirect_map_kern
 
-BUILD_DIR := ../../build
+CFLAGS := -Wno-unused-variable
 
-CFLAGS := -I../../headers \
-	-Wno-unused-variable
-
-include ../../kernel/Makefile.in
+include $(SRCDIR)kernel/Makefile.in
 
 USER_TARGETS := xdp_redirect_map
 
-LIBBPF_ROOT := ../../libbpf
-
-include ../../user/Makefile.in
+include $(SRCDIR)user/Makefile.in

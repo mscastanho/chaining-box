@@ -35,13 +35,11 @@ LKCFLAGS += -I$(HDR_DIR)
 # Number of rules to use in the firewall
 NRULES ?= 50
 
-include ../../user/Makefile.in
+include $(SRCDIR)user/Makefile.in
 
 TARGETS += firewall_kern
 
 AUX = generate-firewall fill-map
-
-BUILD_DIR := ../../build
 
 BPF_PROG = firewall_kern.o
 

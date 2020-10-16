@@ -1,9 +1,11 @@
 # === Variables ===
 
 # Directory definitions
-UTILS_DIR = ./utils
-BUILD_DIR = ./build
-LIBBPF_DIR = libbpf/src
+makefile_path := $(abspath $(lastword $(MAKEFILE_LIST))) # This dir
+SRCDIR = $(dir $(makefile_path))
+UTILS_DIR = $(SRCDIR)utils
+BUILD_DIR = $(SRCDIR)build
+LIBBPF_DIR = $(SRCDIR)libbpf/src
 
 # === Targets ===
 all: build-dir kernel utils libbpf control user functions chown
@@ -11,7 +13,7 @@ all: build-dir kernel utils libbpf control user functions chown
 .PHONY: all chown clean control functions libbpf kernel kdir-check user utils
 
 user: build-dir libbpf utils
-	make -C user
+	make -C user SRCDIR=$(SRCDIR)
 
 build-dir:
 	mkdir -p $(BUILD_DIR)
@@ -28,10 +30,10 @@ chown:
 	fi
 
 control: build-dir
-	make -C control
+	make -C control SRCDIR=$(SRCDIR)
 
 functions:
-	make -C functions
+	make -C functions SRCDIR=$(SRCDIR)
 
 libbpf:
 	@if [ ! -d $(LIBBPF_DIR) ]; then \
@@ -53,13 +55,13 @@ kdir-check:
 	fi
 
 kernel: build-dir kdir-check
-	$(MAKE) -C kernel KDIR=$(KDIR)
+	$(MAKE) -C kernel KDIR=$(KDIR) SRCDIR=$(SRCDIR)
 
 kernel-debug: build-dir kdir-check
-	$(MAKE) -C kernel KDIR=$(KDIR) debug
+	$(MAKE) -C kernel KDIR=$(KDIR) SRCDIR=$(SRCDIR) debug
 
 kernel-stats: build-dir kdir-check
-	$(MAKE) -C kernel KDIR=$(KDIR) stats
+	$(MAKE) -C kernel KDIR=$(KDIR) SRCDIR=$(SRCDIR) stats
 
 utils: build-dir libbpf
-	$(MAKE) -C $(UTILS_DIR)
+	$(MAKE) -C $(UTILS_DIR) SRCDIR=$(SRCDIR)
