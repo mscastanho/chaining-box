@@ -5,6 +5,7 @@ funcs += user-redirect
 funcs += xdp-redirect
 funcs += flow-monitor
 funcs += vpn
+funcs += firewall
 
 all: ${funcs}
 

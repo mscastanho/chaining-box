@@ -33,7 +33,7 @@ LKCFLAGS ?= -g -Wall -Wextra -Wpedantic $(EXTRA_WARNINGS)
 LKCFLAGS += -I$(HDR_DIR)
 
 # Number of rules to use in the firewall
-NRULES ?= 50
+NRULES ?= 2
 
 include $(SRCDIR)user/Makefile.in
 
@@ -65,7 +65,7 @@ $(BPF_PROG): $(AUX)
 	sed -i 's/RET_PASS TC_ACT_OK/RET_PASS TC_ACT_UNSPEC/g' $@
 
 copy: $(BPF_PROG) $(LOAD_SCRIPT)
-	@cp $(LOAD_SCRIPT) $(BUILD_DIR)
+	@cp $(LOAD_SCRIPT) $(BUILD_DIR)/firewall
 	@mv $(BPF_PROG) $(AUX) $(RULES) $(BUILD_DIR)
 
 clean:
