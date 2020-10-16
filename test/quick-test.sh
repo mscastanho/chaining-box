@@ -10,7 +10,9 @@ fi
 cfg="$1"
 
 # Kill previous docker containers
-docker kill src dst sf1 sf2
+{
+  docker kill src dst sf1 sf2 sf3 sf4
+} > /dev/null
 
 # Remove OVS bridge
 sudo ovs-vsctl del-br cbox-br
