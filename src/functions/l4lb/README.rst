@@ -16,6 +16,12 @@ send the packet back out of the network interface to the destination server.
 The map fill and stats scripts are written in python and utilize bpftool to
 showcase how a program can be deployed using iproute2 and bpftool utilities.
 
+Note about authorship
+~~~~~~~~~~~~~~~~~~~~~
+
+All the contents of this directory were adapted from
+https://github.com/Netronome/bpf-samples.git
+
 Minimum Requirements for Demo
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

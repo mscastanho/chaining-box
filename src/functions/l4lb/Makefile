@@ -1,8 +1,9 @@
-TARGETS := l4lb_xdp
+TARGETS := l4lb_kern
 
-BUILD_DIR := ../../build
+CFLAGS := -Wno-compare-distinct-pointer-types
 
-CFLAGS := -I../../headers/ \
-	-Wno-compare-distinct-pointer-types
+include $(SRCDIR)kernel/Makefile.in
 
-include ../../kernel/Makefile.in
+USER_TARGETS := l4lb
+
+include $(SRCDIR)user/Makefile.in
