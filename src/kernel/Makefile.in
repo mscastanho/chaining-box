@@ -28,7 +28,7 @@ all: llvm-check kdir-check bdir-check $(KERN_OBJECTS)
 
 .PHONY: clean $(CLANG) $(LLC) all debug jited-out
 
-debug: CFLAGS += -DDEBUG
+debug: CFLAGS += -DDEBUG -g
 debug: all
 
 stats: CFLAGS += -DENABLE_STATS
@@ -74,8 +74,7 @@ kdir-check:
 	fi
 
 $(KERN_OBJECTS): %.o: %.c
-	($(CLANG) -O2 -g -Wall $(CFLAGS) -target bpf -emit-llvm \
+	($(CLANG) -O2 -Wall $(CFLAGS) -target bpf -emit-llvm \
 		-c $< -o - || echo "clang failed") | \
 	$(LLC) -march=bpf -mcpu=probe  -filetype=obj -o $@
-	#pahole -J $@
 	@mv $@ ${BUILD_DIR}
