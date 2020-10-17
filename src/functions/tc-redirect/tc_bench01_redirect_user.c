@@ -31,7 +31,8 @@ static char tc_cmd[CMD_MAX_TC] = "tc";
 
 struct info {
   uint32_t srcip;
-  uint8_t swap; 
+  uint8_t dstmac[6];
+  uint8_t ops;
 }__attribute__((packed));
 
 static const struct option long_options[] = {
@@ -214,7 +215,7 @@ int main(int argc, char **argv)
 	int egress_ifindex = -1;
 	int ingress_ifindex = 0;
 	int ret = EXIT_SUCCESS;
-  struct info info = {0,0};
+  struct info info = {0,{0,0,0,0,0,0},0};
   bool has_srcip = false;
 	int key = 0;
 	size_t len;
@@ -396,4 +397,3 @@ out:
 		close(fd);
 	return ret;
 }
-
