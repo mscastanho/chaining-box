@@ -5,14 +5,20 @@ CBOXDIR="$SCRIPTDIR/.."
 
 if [ -z "$1" ]; then
   echo "Usage: $0 <chains-config>"
+  exit 1
 fi
 
 cfg="$1"
 
+if [ ! -f "$cfg" ]; then
+  echo "Failed to find file. Does it really exist? File: $cfg"
+  exit 1
+fi
+
 # Kill previous docker containers
 {
-  docker kill src dst sf1 sf2 sf3 sf4
-} > /dev/null
+  docker kill src dst $(grep tag $cfg | awk '{print $2}' | tr '"' '\0' | tr ',' '\0')
+} &> /dev/null
 
 # Remove OVS bridge
 sudo ovs-vsctl del-br cbox-br
