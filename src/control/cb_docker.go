@@ -423,7 +423,7 @@ func startServiceFunction(sf cbox.CBInstance, ingress string, omit_ingress bool,
   if sfCmd := getTypeExecString(sf.Type, ingress, egress) ; sfCmd != nil {
     entrypoint = append(entrypoint, sfCmd...)
   } else {
-    fmt.Printf("ERROR: SF type '%s' unknown, not starting SF '%s'...", sf.Type,
+    fmt.Printf("ERROR: SF type '%s' unknown, not starting SF '%s'...\n", sf.Type,
             sf.Tag)
     return
   }
