@@ -36,6 +36,16 @@ static inline int get_tuple(void* ip_data, void* data_end, struct ip_5tuple *t){
 		return -1;
 	}
 
+	/* If using IP-in-IP encapsulation, skip the first IP header. */
+	if(ip->protocol == IPPROTO_IPIP){
+		ip += 1;
+
+		if((void*)ip + sizeof(*ip) > data_end){
+			cb_debug("get_tuple(): Error accessing second IP header\n");
+			return -1;
+		}
+	}
+
 	t->ip_src = ip->saddr;
 	t->ip_dst = ip->daddr;
 	t->proto = ip->protocol;
