@@ -29,15 +29,12 @@ static inline int get_tuple(void* ip_data, void* data_end, struct ip_5tuple *t){
 	struct iphdr *ip;
 	struct udphdr *udp;
 	struct tcphdr *tcp;
-	__u64 *init;
 
 	ip = ip_data;
 	if((void*) ip + sizeof(*ip) > data_end){
 		cb_debug("get_tuple(): Error accessing IP hdr\n");
 		return -1;
 	}
-
-	init = (__u64*) ip_data;
 
 	t->ip_src = ip->saddr;
 	t->ip_dst = ip->daddr;
