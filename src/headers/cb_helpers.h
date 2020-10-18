@@ -33,10 +33,7 @@ static inline int get_tuple(void* ip_data, void* data_end, struct ip_5tuple *t){
 
 	ip = ip_data;
 	if((void*) ip + sizeof(*ip) > data_end){
-		#ifdef DEBUG
-		bpf_printk("get_tuple(): Error accessing IP hdr\n");
-		#endif /* DEBUG */
-
+		cb_debug("get_tuple(): Error accessing IP hdr\n");
 		return -1;
 	}
 
@@ -50,10 +47,7 @@ static inline int get_tuple(void* ip_data, void* data_end, struct ip_5tuple *t){
 		case IPPROTO_UDP:
 			udp = ip_data + sizeof(*ip);
 			if((void*) udp + sizeof(*udp) > data_end){
-				#ifdef DEBUG
-				bpf_printk("get_tuple(): Error accessing UDP hdr\n");
-				#endif /* DEBUG */
-
+				cb_debug("get_tuple(): Error accessing UDP hdr\n");
 				return -1;
 			}
 
@@ -63,10 +57,7 @@ static inline int get_tuple(void* ip_data, void* data_end, struct ip_5tuple *t){
 		case IPPROTO_TCP:
 			tcp = ip_data + sizeof(*ip);
 			if((void*) tcp + sizeof(*tcp) > data_end){
-				#ifdef DEBUG
-				bpf_printk("get_tuple(): Error accessing TCP hdr\n");
-				#endif /* DEBUG */
-
+				cb_debug("get_tuple(): Error accessing TCP hdr\n");
 				return -1;
 			}
 
@@ -78,9 +69,7 @@ static inline int get_tuple(void* ip_data, void* data_end, struct ip_5tuple *t){
 			t->sport = 0;
 			break;
 		default:
-            #ifdef DEBUG
-            bpf_printk("get_tuple(): Unrecognized L4 protocol: %d\n",ip->protocol);
-            #endif /* DEBUG */
+		        cb_debug("get_tuple(): Unrecognized L4 protocol: %d\n",ip->protocol);
 			return -1;
 	}
 
