@@ -2,27 +2,32 @@
   "chains": [
     {
       "id": 100,
-      "nodes": ["sf1","sf2","sf3","sf4"]
+      "nodes": ["sf-tcredir","sf-flowmon","sf-chacha","sf-firewall","sf-l4lb"]
     }
   ],
   "functions": [
     {
-      "tag": "sf1",
-      "type": "firewall",
-      "remote": true
-    },
-    {
-      "tag": "sf2",
+      "tag": "sf-tcredir",
       "type": "tc-redirect",
       "remote": true
     },
     {
-      "tag": "sf3",
+      "tag": "sf-flowmon",
       "type": "flow-monitor",
       "remote": true
     },
     {
-      "tag": "sf4",
+      "tag": "sf-chacha",
+      "type": "chacha",
+      "remote": true
+    },
+    {
+      "tag": "sf-firewall",
+      "type": "firewall",
+      "remote": true
+    },
+    {
+      "tag": "sf-l4lb",
       "type": "l4lb",
       "remote": true
     }
