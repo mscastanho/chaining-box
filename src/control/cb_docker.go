@@ -385,7 +385,8 @@ func getTypeExecString(sfType, ingress, egress string) []string{
     case "l4lb":
       return []string{"--", basedir + "l4lb", ingress, egress}
     case "firewall":
-      return []string{"--", basedir + "firewall", ingress, egress}
+      return []string{"--", basedir + "firewall", ingress, egress,
+	                basedir + "firewall-rules.txt"}
     case "chacha":
       return []string{"--", basedir + "chacha", ingress, egress}
   }

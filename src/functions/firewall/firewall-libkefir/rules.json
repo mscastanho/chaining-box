@@ -1,0 +1,10 @@
+protocol ip flower src_ip 137.209.248.133/23 dst_ip 252.218.155.128/4 ip_proto tcp dst_port 24348 src_port 60687 action drop
+protocol ip flower src_ip 129.21.208.20/24 dst_ip 125.8.74.114/9 ip_proto tcp dst_port 47476 src_port 13475 action drop
+protocol ip flower src_ip 217.223.170.122/5 dst_ip 148.119.175.195/31 ip_proto tcp dst_port 9525 src_port 38481 action drop
+protocol ip flower src_ip 98.248.79.254/27 dst_ip 103.74.33.16/8 ip_proto tcp dst_port 25115 src_port 39737 action drop
+protocol ip flower src_ip 83.209.48.238/7 dst_ip 219.77.79.77/21 ip_proto tcp dst_port 52653 src_port 40917 action drop
+protocol ip flower src_ip 89.185.220.7/8 dst_ip 33.237.139.201/23 ip_proto tcp dst_port 47043 src_port 48115 action drop
+protocol ip flower src_ip 150.162.209.171/30 dst_ip 12.102.162.44/26 ip_proto udp dst_port 59773 src_port 11952 action drop
+protocol ip flower src_ip 110.105.122.202/3 dst_ip 235.117.164.189/21 ip_proto udp dst_port 52556 src_port 10911 action drop
+protocol ip flower src_ip 245.72.21.4/8 dst_ip 154.162.75.162/20 ip_proto tcp dst_port 44779 src_port 45148 action drop
+protocol ip flower src_ip 142.129.100.218/21 dst_ip 64.92.46.154/11 ip_proto udp dst_port 33628 src_port 52656 action drop
