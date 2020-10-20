@@ -50,7 +50,7 @@ struct bpf_elf_map SEC("maps") egress_ifindex = {
 struct info {
   uint32_t srcip;
   uint8_t dstmac[6];
-  uint8_t ops; 
+  uint8_t ops;
 }__attribute__((packed));
 
 #define SET_DST_MAC 0x1
@@ -134,13 +134,13 @@ int _ingress_redirect(struct __sk_buff *skb)
 		return TC_ACT_OK;
 
   /* Simulate some processing by just wasting some cycles here.
-   * 
+   *
    * volatile used to avoid clang removing this loop. */
-  #define ITERATIONS 10000
-  volatile int count = 0;
-  for(int i = 0 ; i < ITERATIONS; i++){
-   count++;
-  }
+  /* #define ITERATIONS 10000 */
+  /* volatile int count = 0; */
+  /* for(int i = 0 ; i < ITERATIONS; i++){ */
+  /*  count++; */
+  /* } */
 
   cb_debug("ifi OK. Checking sip...\n");
 
@@ -148,18 +148,18 @@ int _ingress_redirect(struct __sk_buff *skb)
   if((void*)ip + sizeof(struct iphdr) > data_end)
     return TC_ACT_OK;
 
-  
+
   info = bpf_map_lookup_elem(&infomap, &key);
   if (!info) /* check required by verifier */
     return TC_ACT_OK;
 
   sip = info->srcip;
- 
+
   /* If srcip is not set (== 0) then the program will not impose any restrictions
    * and just forward *all* traffic to the egress port.
    *
    * Otherwise, only packets with src IP matching srcip will be redirected, the
-   * rest will be passed along the stack. */ 
+   * rest will be passed along the stack. */
   if (sip) {
     if(ip->protocol == 1){
       cb_debug("IT'S A PING!!!\n");
@@ -178,7 +178,7 @@ int _ingress_redirect(struct __sk_buff *skb)
 
   if (info->ops & SWAP_MAC)
     swap_src_dst_mac(data);
-    
+
   if (info->ops & SET_DST_MAC)
     set_dst_mac(data, &info->dstmac);
 
@@ -186,4 +186,3 @@ int _ingress_redirect(struct __sk_buff *skb)
 }
 
 char _license[] SEC("license") = "GPL";
-
