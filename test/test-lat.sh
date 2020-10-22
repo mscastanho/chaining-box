@@ -124,6 +124,12 @@ elif [ "$experiment" == "real-functions" ]; then
   maxlen=4
   pktsz=1440 # Taking into account our encap + the IPIP added by chacha VPN
 
+  # One of our functions adds an IPIP encapsulation, so when our packets exit
+  # the chain with an extra IP header. Install a simple XDP program in the recv
+  # namespace to remove this extra header so ping can work correctly.
+  iface="enp2s0np1" # TODO: This is hardcoded!!
+  sudo ip netns exec ns1 ip -force link set dev ${iface} xdp obj ${objdir}/remove-ipip.o sec xdp/decap
+
   for len in `seq 1 1 $maxlen`; do
       noveth="$tmpcfgdir/realfuncs-${len}-noveth.json"
       ${cfgdir}/gen-real-funcs-tests.sh $len 100 true > $noveth
