@@ -117,6 +117,36 @@ if [ "$experiment" == "lengths" ]; then
     measure_latency "baseline" $pktsz
   done
 
+elif [ "$experiment" == "real-functions" ]; then
+
+  # TODO: Hardcoded value, should be dynamic to match the number of different
+  # functions in the generation script.
+  maxlen=4
+  pktsz=1440 # Taking into account our encap + the IPIP added by chacha VPN
+
+  for len in `seq 1 1 $maxlen`; do
+      noveth="$tmpcfgdir/realfuncs-${len}-noveth.json"
+      ${cfgdir}/gen-real-funcs-tests.sh $len 100 true > $noveth
+      tests+=($noveth)
+
+      veth="$tmpcfgdir/realfuncs-${len}-veth.json"
+      ${cfgdir}/gen-real-funcs-tests.sh $len 100 false > $veth
+      tests+=($veth)
+  done
+
+  for t in ${tests[@]}; do
+    # Setup environment
+    cbox_deploy_ovs $t
+
+    for sz in 64 128 256 512 1024 1280 1462; do
+      run_test $pktsz
+    done
+  done
+
+  # Measure baseline (no functions)
+  setup_baseline
+  measure_latency "baseline" $pktsz
+
 elif [ "$experiment" == "star" ]; then
   # Generate config files for different lengths in a start topology
   for len in `seq 1 1 10`; do
@@ -148,4 +178,3 @@ elif [ "$experiment" == "single" ]; then
 else
   echo "Unknown experiment type: '$experiment'" && exit 1
 fi
-
