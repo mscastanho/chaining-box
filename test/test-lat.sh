@@ -46,7 +46,7 @@ function measure_latency {
 }
 
 function run_test {
-  pktsz=$1
+  pktsz=${1:-64}
 
   # strip dir path and extension
   simple_name="$(bname=$(basename $t); echo ${bname%.*})"
@@ -175,12 +175,15 @@ elif [ "$experiment" == "star" ]; then
   measure_latency "baseline"
 
 elif [ "$experiment" == "single" ]; then
-    single="$tmpcfgdir/len-2-len.json"
-    ${cfgdir}/gen-len-tests.sh 2 100 true > $single
-    tests+=($single)
+    if [ -n "$2" ]; then
+	t="$2"
+    else
+	t="$tmpcfgdir/len-2-len.json}"
+	${cfgdir}/gen-len-tests.sh 2 100 true > $t
+    fi
 
-    run_tests
-    baseline
+    cbox_deploy_ovs $t
+    run_test
 else
   echo "Unknown experiment type: '$experiment'" && exit 1
 fi
