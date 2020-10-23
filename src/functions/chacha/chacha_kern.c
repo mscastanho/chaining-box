@@ -16,6 +16,7 @@
 #include <linux/icmp.h>
 #include <linux/pkt_cls.h>
 #include <linux/udp.h>
+#include <sys/time.h>
 
 #include "bpf_endian.h"
 #include "bpf_helpers.h"
@@ -329,8 +330,21 @@ static __inline int parse_ip(struct __sk_buff *ctx, __u64 nf_off) {
 	else if (ip_protocol == IPPROTO_ICMP) {
 	  if (data + nf_off + sizeof(struct icmphdr)  > data_end)
 	    return TC_ACT_SHOT;
-	  else
-	    nf_off += sizeof(struct icmphdr);
+
+	  struct icmphdr *icmp = data + nf_off;
+	  nf_off += sizeof(struct icmphdr);
+
+	  /* The ping tool adds some bytes representing a struct timeval to the
+	     first bytes of the payload of the ping request packet to help it
+	     calculate the round-trip time. Let's also skip these first bytes to
+	     allow ping to work properly even in the presence of encryption. */
+	  if(icmp->type == ICMP_ECHO) {
+	    if(data + nf_off + sizeof(struct timeval) > data_end){
+	      return TC_ACT_SHOT;
+	    }else{
+	      nf_off += sizeof(struct timeval);
+	    }
+	  }
 	} else {
 		return TC_ACT_OK;
 	}
