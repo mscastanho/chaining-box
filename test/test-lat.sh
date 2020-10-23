@@ -60,8 +60,6 @@ function run_test {
 }
 
 function setup_baseline {
-  pktsz=$1
-
   # Measure latency without the chaining
   # This needs to come last as we need to use the bridge created by a previous test
   sudo ovs-ofctl del-flows cbox-br
@@ -143,10 +141,7 @@ elif [ "$experiment" == "real-functions" ]; then
   for t in ${tests[@]}; do
     # Setup environment
     cbox_deploy_ovs $t
-
-    for sz in 64 128 256 512 1024 1280 1462; do
-      run_test $pktsz
-    done
+    run_test $pktsz
   done
 
   # Measure baseline (no functions)
