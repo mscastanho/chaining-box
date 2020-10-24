@@ -34,14 +34,15 @@ function chain2json {
 
 realfuncs=(chacha flow-monitor firewall l4lb)
 
-if [ $# -ne 3 ]; then
-    echo "Usage: $0 <len: int (max is ${#realfuncs[@]})> <chain-id: int> <remote: true|false>"
+if [ $# -lt 3 ]; then
+    echo "Usage: $0 <len: int (max is ${#realfuncs[@]})> <chain-id: int> <remote: true|false> [star]"
     exit 1
 fi
 
 len="$1"; shift 1
 id="$1"; shift 1
-remote="$1";
+remote="$1"; shift 1
+star="$1"
 
 if [ $len -gt ${#realfuncs[@]} ]; then
     echo "len should not be higher than ${#realfuncs[@]}"
@@ -49,12 +50,22 @@ if [ $len -gt ${#realfuncs[@]} ]; then
 fi
 
 sflist=""
-funcs="["
+
+if [ "$star" == "star" ]; then
+    funcs="[$(sf2json sf1 "tc-redirect" $remote),"
+    extra_hop="sf1"
+    startindex=2
+    sflist="sf1"
+else
+    funcs="["
+    extra_hop=""
+    startindex=1
+fi
 
 for i in `seq 0 $(($len - 1 ))`; do
     func="${realfuncs[$i]}"
-    sfname="sf$(($i+1))"
-    sflist="$sflist ${sfname}"
+    sfname="sf$(($i+$startindex))"
+    sflist="$sflist ${sfname} ${extra_hop}"
     funcs="$funcs$(sf2json ${sfname} "${func}" $remote),"
 done
 

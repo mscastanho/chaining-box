@@ -129,13 +129,13 @@ elif [ "$experiment" == "real-functions" ]; then
   sudo ip netns exec ns1 ip -force link set dev ${iface} xdp obj ${objdir}/remove-ipip.o sec xdp/decap
 
   for len in `seq 1 1 $maxlen`; do
-      noveth="$tmpcfgdir/realfuncs-${len}-noveth.json"
-      ${cfgdir}/gen-real-funcs-tests.sh $len 100 true > $noveth
-      tests+=($noveth)
+      star="$tmpcfgdir/realfuncs-${len}-star.json"
+      ${cfgdir}/gen-real-funcs-tests.sh $len 100 true star > $star
+      tests+=($star)
 
-      veth="$tmpcfgdir/realfuncs-${len}-veth.json"
-      ${cfgdir}/gen-real-funcs-tests.sh $len 100 false > $veth
-      tests+=($veth)
+      linear="$tmpcfgdir/realfuncs-${len}-linear.json"
+      ${cfgdir}/gen-real-funcs-tests.sh $len 100 true > $linear
+      tests+=($linear)
   done
 
   for t in ${tests[@]}; do
