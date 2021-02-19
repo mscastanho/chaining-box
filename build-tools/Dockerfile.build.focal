@@ -3,7 +3,7 @@ FROM ubuntu:20.04
 ARG TARGET_DIR=/usr/src
 ARG KERNEL_VERSION=v5.4
 ARG KERNEL_DIR=$TARGET_DIR/kernel-$KERNEL_VERSION
-ARG ANSIBLE_PLAYBOOK=/tmp/install-build-deps.yml
+ARG ANSIBLE_PLAYBOOK=/tmp/install-build-deps-ubuntu.yml
 
 ENV PATH="${PATH}:/usr/local/go/bin/"
 
@@ -12,7 +12,7 @@ WORKDIR $TARGET_DIR
 # Copy necessary scripts
 COPY ./install-build-deps.yml /tmp/
 COPY ./versions.sh .
- 
+
 # Install ansible to run playbook
 RUN apt update -y && \
     apt install -y --no-install-recommends ansible && \
@@ -24,7 +24,7 @@ RUN apt update -y && \
       $ANSIBLE_PLAYBOOK && \
     apt remove ansible python --purge -y && \
     apt autoremove -y && apt clean && \
-    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* && \ 
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* && \
     rm -rdf $TARGET_DIR/iproute2 && \
     rm -rdf $KERNEL_DIR
 
