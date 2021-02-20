@@ -86,9 +86,9 @@ static inline int get_tuple(void* ip_data, void* data_end, struct ip_5tuple *t){
 /* Mark beginning of program */
 static inline void cb_mark_init(void){
 #ifdef ENABLE_STATS
-  uint8_t zero = 0;
+  __u8 zero = 0;
   struct stats init_stats = {0,0,0,0,0};
-  uint64_t ts = bpf_ktime_get_ns();
+  __u64 ts = bpf_ktime_get_ns();
   struct stats *s = bpf_map_lookup_elem(&prog_stats, &zero);
 
   if(s){
@@ -103,9 +103,9 @@ static inline void cb_mark_init(void){
 /* Return and count as OK */
 static inline int cb_retok(int code){
 #ifdef ENABLE_STATS
-  uint8_t zero = 0;
+  __u8 zero = 0;
   struct stats init_stats = {0,0,0,0,0};
-  uint64_t ts = bpf_ktime_get_ns();
+  __u64 ts = bpf_ktime_get_ns();
   struct stats *s = bpf_map_lookup_elem(&prog_stats, &zero);
 
   if(s){
@@ -122,7 +122,7 @@ static inline int cb_retok(int code){
 /* Return and count as exited for 'other' purpose */
 static inline int cb_retother(int code){
 #ifdef ENABLE_STATS
-  uint8_t zero = 0;
+  __u8 zero = 0;
   struct stats init_stats = {0,0,0,0,0};
   struct stats *s = bpf_map_lookup_elem(&prog_stats, &zero);
   if(s) {

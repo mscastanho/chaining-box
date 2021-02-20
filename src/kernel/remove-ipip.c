@@ -44,7 +44,7 @@ int decap_ipip(struct xdp_md *ctx)
   struct iphdr *ip;
   struct icmphdr *icmp;
   int offset = 0;
-  uint16_t h_proto = 0;
+  __u16 h_proto = 0;
   int ret = 0;
 
   eth = data;

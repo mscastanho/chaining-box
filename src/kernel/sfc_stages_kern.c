@@ -66,7 +66,7 @@ int decap_nsh(struct xdp_md *ctx)
 	struct iphdr *ip;
 	struct ip_5tuple key = { }; // Verifier does not allow uninitialized keys
 	int offset = 0;
-    uint16_t h_proto = 0;
+    __u16 h_proto = 0;
     void *smac;
 	int ret = 0;
 	__u32 idx = INGRESS_MAC;

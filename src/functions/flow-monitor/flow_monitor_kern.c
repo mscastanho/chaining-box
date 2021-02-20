@@ -19,16 +19,16 @@
 #define HISTO_BUCKETS 24
 
 struct flow_stats {
-  uint64_t pkts;
-  uint64_t bytes;
+  __u64 pkts;
+  __u64 bytes;
 };
 
 MAP(stats, BPF_MAP_TYPE_HASH, sizeof(struct ip_5tuple),
   sizeof(struct flow_stats), 2048, PIN_GLOBAL_NS);
 
 /* Histogram of packet size distribution */
-MAP(szhist, BPF_MAP_TYPE_ARRAY, sizeof(uint32_t),
-  sizeof(uint64_t), HISTO_BUCKETS, PIN_GLOBAL_NS);
+MAP(szhist, BPF_MAP_TYPE_ARRAY, sizeof(__u32),
+  sizeof(__u64), HISTO_BUCKETS, PIN_GLOBAL_NS);
 
 MAP(egress_ifindex, BPF_MAP_TYPE_ARRAY, sizeof(int),
   sizeof(int), 1, PIN_GLOBAL_NS);
@@ -43,10 +43,10 @@ int flow_monitor(struct __sk_buff *skb) {
   struct ethhdr *eth;
   struct iphdr *ip;
   struct flow_stats *sentry;
-  uint64_t *hentry;
+  __u64 *hentry;
   struct ip_5tuple key = { };
   struct flow_stats one = { };
-  uint32_t idx;
+  __u32 idx;
   int ret, zero = 0, *ifindex;
   __u32 *sip;
 

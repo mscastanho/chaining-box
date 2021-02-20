@@ -48,9 +48,9 @@ struct bpf_elf_map SEC("maps") egress_ifindex = {
 };
 
 struct info {
-  uint32_t srcip;
-  uint8_t dstmac[6];
-  uint8_t ops;
+  __u32 srcip;
+  __u8 dstmac[6];
+  __u8 ops;
 }__attribute__((packed));
 
 #define SET_DST_MAC 0x1
@@ -119,7 +119,7 @@ int _ingress_redirect(struct __sk_buff *skb)
 	struct ethhdr *eth = data;
 	struct info *info;
   int key = 0, *ifindex;
-  uint32_t sip;
+  __u32 sip;
 
 	if (data + sizeof(*eth) > data_end)
 		return TC_ACT_OK;

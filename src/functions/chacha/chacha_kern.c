@@ -1,11 +1,7 @@
-
-
 //------------------------------------------------------------------
 // Includes.
 //------------------------------------------------------------------
 #include <stdbool.h>
-#include <stdint.h>
-#include <string.h>
 #include <linux/bpf.h>
 #include <linux/icmp.h>
 #include <linux/if_ether.h>
@@ -45,8 +41,8 @@
 // The chacha state context.
 typedef struct
 {
-  uint32_t state[16];
-  uint8_t rounds;
+  __u32 state[16];
+  __u8 rounds;
 } chacha_ctx;
 
 struct bpf_elf_map SEC("maps") chacha_egress = {
@@ -61,14 +57,14 @@ struct bpf_elf_map SEC("maps") chacha_egress = {
 // Macros.
 //------------------------------------------------------------------
 // Basic 32-bit operators.
-#define ROTATE(v,c) ((uint32_t)((v) << (c)) | ((v) >> (32 - (c))))
+#define ROTATE(v,c) ((__u32)((v) << (c)) | ((v) >> (32 - (c))))
 #define XOR(v,w) ((v) ^ (w))
-#define PLUS(v,w) ((uint32_t)((v) + (w)))
+#define PLUS(v,w) ((__u32)((v) + (w)))
 #define PLUSONE(v) (PLUS((v), 1))
 
 // Little endian machine assumed (x86-64).
-#define U32TO8_LITTLE(p, v) (((uint32_t*)(p))[0] = v)
-#define U8TO32_LITTLE(p) (((uint32_t*)(p))[0])
+#define U32TO8_LITTLE(p, v) (((__u32*)(p))[0] = v)
+#define U8TO32_LITTLE(p) (((__u32*)(p))[0])
 
 #define QUARTERROUND(a, b, c, d) \
   x[a] = PLUS(x[a],x[b]); x[d] = ROTATE(XOR(x[d],x[a]),16); \
@@ -80,8 +76,8 @@ struct bpf_elf_map SEC("maps") chacha_egress = {
 //------------------------------------------------------------------
 // Constants.
 //------------------------------------------------------------------
-//static const uint8_t SIGMA[16] = "expand 32-byte k";
-static const uint8_t TAU[16]   = "expand 16-byte k";
+//static const __u8 SIGMA[16] = "expand 32-byte k";
+static const __u8 TAU[16]   = "expand 16-byte k";
 
 
 //------------------------------------------------------------------
@@ -90,10 +86,10 @@ static const uint8_t TAU[16]   = "expand 16-byte k";
 // Perform rounds/2 number of doublerounds.
 // TODO: Change output format to 16 words.
 //------------------------------------------------------------------
-static __inline void doublerounds(uint8_t output[64], const uint32_t input[16], uint8_t rounds)
+static __inline void doublerounds(__u8 output[64], const __u32 input[16], __u8 rounds)
 {
-  uint32_t x[16];
-  int32_t i;
+  __u32 x[16];
+  int i;
 
   #pragma clang loop unroll (full)
   for (i = 0;i < 16;++i) {
@@ -132,7 +128,7 @@ static __inline void doublerounds(uint8_t output[64], const uint32_t input[16], 
 // Initializes the given cipher context with key, iv and constants.
 // This also resets the block counter.
 //------------------------------------------------------------------
-static __inline void init(chacha_ctx *x, uint8_t *key, uint32_t keylen, uint8_t *iv)
+static __inline void init(chacha_ctx *x, __u8 *key, __u32 keylen, __u8 *iv)
 {
   /*
   if (keylen == 256) {
@@ -196,11 +192,11 @@ static __inline void init(chacha_ctx *x, uint8_t *key, uint32_t keylen, uint8_t 
 // use the given context to transform (encrypt/decrypt) the
 // block. The result will be stored in c.
 //------------------------------------------------------------------
-static __inline void next(chacha_ctx *ctx, uint8_t *m, const uint8_t *m_end)
+static __inline void next(chacha_ctx *ctx, __u8 *m, const __u8 *m_end)
 {
   // Temporary internal state x.
-  uint8_t x[64];
-  uint8_t i;
+  __u8 x[64];
+  __u8 i;
 
   // Update the internal state and increase the block counter.
   doublerounds(x, ctx->state, ctx->rounds);
@@ -222,13 +218,13 @@ static __inline void next(chacha_ctx *ctx, uint8_t *m, const uint8_t *m_end)
     m[i] ^= x[i];
   }
   */
-  uint64_t * m_pos;
-  uint64_t * x_pos;
+  __u64 * m_pos;
+  __u64 * x_pos;
   #pragma clang loop unroll (full)
   for (i = 0 ; i < 8 ; ++i) {
     //c[i] = m[i] ^ x[i];
-    m_pos = (uint64_t*)(m) + i;
-    x_pos = (uint64_t*)(x) + i;
+    m_pos = (__u64*)(m) + i;
+    x_pos = (__u64*)(x) + i;
     *m_pos ^= *x_pos;
   }
 }
@@ -240,9 +236,9 @@ static __inline void next(chacha_ctx *ctx, uint8_t *m, const uint8_t *m_end)
 // Init a given ChaCha context by setting state to zero and
 // setting the given number of rounds.
 //------------------------------------------------------------------
-static __inline void init_ctx(chacha_ctx *ctx, uint8_t rounds)
+static __inline void init_ctx(chacha_ctx *ctx, __u8 rounds)
 {
-  uint8_t i;
+  __u8 i;
 
   #pragma clang loop unroll (full)
   for (i = 0 ; i < 16 ; i++) {
@@ -257,7 +253,7 @@ static __inline int parse_tcp(struct __sk_buff *ctx, __u64 nf_off) {
 	void *data = (void*)(long)ctx->data;
 	chacha_ctx cha_ctx;
 	//struct tcphdr *tcph;
-	uint8_t *pkt_data;
+	__u8 *pkt_data;
 	__u32 tcp_off;
 	//tcph = data + nf_off;
 	// pkt_data is the tcp payload
@@ -399,9 +395,9 @@ static __inline int parse_ip(struct __sk_buff *ctx, __u64 nf_off) {
 
 	/* Encrypt using chacha algorithm */
 	chacha_ctx cha_ctx;
-	uint8_t *pkt_data = data + nf_off;
+	__u8 *pkt_data = data + nf_off;
 	/*
-	uint8_t t_result[64] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	__u8 t_result[64] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
                          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
                          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
                          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -410,17 +406,17 @@ static __inline int parse_ip(struct __sk_buff *ctx, __u64 nf_off) {
                          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
                          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
   */
-    uint8_t t_key[32] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    __u8 t_key[32] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
                  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
                  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
                  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
-    uint8_t t_iv[8]   = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    __u8 t_iv[8]   = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
     init_ctx(&cha_ctx, CHACHA_ROUNDS);
     init(&cha_ctx, t_key, 128, t_iv);
 
     // loop here
-    int32_t i;
+    int i;
     #pragma clang loop unroll (full)
     for(i=0; i <= 23; i++) {
       if (pkt_data + 64 > data_end) {

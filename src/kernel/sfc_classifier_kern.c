@@ -149,7 +149,7 @@ int classify_tc(METADATA *skb)
 	if(set_src_mac(oeth)) return cb_retother(RET_DROP);
 	__builtin_memmove(oeth->h_dest,cls->next_hop,ETH_ALEN);
 
-	nsh->basic_info = bpf_htons( ((uint16_t) 0)     |
+	nsh->basic_info = bpf_htons( ((__u16) 0)     |
 						         NSH_TTL_DEFAULT 	|
 						         NSH_BASE_LENGHT_MD_TYPE_2);
 	nsh->md_type 	= NSH_MD_TYPE_2;

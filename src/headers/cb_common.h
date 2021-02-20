@@ -55,11 +55,11 @@ enum srcmac_idx {
     sizeof(struct stats), 1, PIN_NONE);
 
 struct stats {
-  uint32_t rx;
-  uint32_t tx;
-  uint32_t tx_other; /* Exited for another purpose */
-  uint64_t lat_avg_sum;
-  uint64_t init_ts;
+  __u32 rx;
+  __u32 tx;
+  __u32 tx_other; /* Exited for another purpose */
+  __u64 lat_avg_sum;
+  __u64 init_ts;
 };
 
 #endif /* ENABLE_STATS */
