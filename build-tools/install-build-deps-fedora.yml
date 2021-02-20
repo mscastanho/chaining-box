@@ -20,9 +20,12 @@
            - flex
            - gcc
            - git
+           - glibc-devel.i686
            - golang
+           - kernel-headers
            - libbpf
            - libbpf-devel
+           - libbpf-static
            - libcap-devel
            - libmnl-devel
            - llvm

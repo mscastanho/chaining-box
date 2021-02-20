@@ -35,7 +35,7 @@ $DOCKER run --name $NAME \
            --env GOCACHE=/gocache \
            --rm \
            mscastanho/chaining-box:cb-build \
-           -C /cb KDIR=/usr/src/kernel-headers \
+           -C /cb \
            OWNER=$BUILD_USER $@
 # For some reason, all arguments to the entrypoint command
 # must come *after* the image name. So this last line contains

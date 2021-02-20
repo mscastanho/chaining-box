@@ -10,7 +10,7 @@ LIBBPF_DIR = $(SRCDIR)libbpf/src
 # === Targets ===
 all: build-dir kernel utils libbpf control user functions chown
 
-.PHONY: all chown clean control functions libbpf kernel kdir-check user utils
+.PHONY: all chown clean control functions libbpf kernel user utils
 
 user: build-dir libbpf utils
 	make -C user SRCDIR=$(SRCDIR)
@@ -44,24 +44,14 @@ libbpf:
 		cd $(LIBBPF_DIR) && mkdir -p root; BUILD_STATIC_ONLY=y DESTDIR=root $(MAKE) install; \
 	fi
 
-# We need acces to kernel headers. Pass it as KDIR:
-# 	ex: make KDIR=~/devel/kernels/linux-5.1
-# The Makefile under 'kernel/' will look for the headers under
-# this dir.
-kdir-check:
-	@if [ -z $(KDIR) ]; then \
-		echo "Error: KDIR is not set. Check README for more info"; \
-		exit 1; \
-	fi
+kernel: build-dir
+	$(MAKE) -C kernel SRCDIR=$(SRCDIR)
 
-kernel: build-dir kdir-check
-	$(MAKE) -C kernel KDIR=$(KDIR) SRCDIR=$(SRCDIR)
+kernel-debug: build-dir
+	$(MAKE) -C kernel SRCDIR=$(SRCDIR) debug
 
-kernel-debug: build-dir kdir-check
-	$(MAKE) -C kernel KDIR=$(KDIR) SRCDIR=$(SRCDIR) debug
-
-kernel-stats: build-dir kdir-check
-	$(MAKE) -C kernel KDIR=$(KDIR) SRCDIR=$(SRCDIR) stats
+kernel-stats: build-dir
+	$(MAKE) -C kernel SRCDIR=$(SRCDIR) stats
 
 utils: build-dir libbpf
 	$(MAKE) -C $(UTILS_DIR) SRCDIR=$(SRCDIR)

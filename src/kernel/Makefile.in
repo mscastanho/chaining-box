@@ -14,17 +14,7 @@ JITEDOUTDIR=jited-output
 
 BUILD_DIR=$(SRCDIR)build
 
-# Add libs from kernel source. This is needed since
-# we might use features not available on the standard
-# headers present on the current kernel. This is an attempt
-# to avoid installing updated headers system wide.
-#
-# KDIR is checked by kdir-check target on the top-level Makefile,
-# and should be provided when calling `make`.
-# 	ex: make KDIR=~/devel/kernels/linux-5.1
-CFLAGS += -I$(KDIR)/usr/include
-
-all: llvm-check kdir-check bdir-check $(KERN_OBJECTS)
+all: llvm-check bdir-check $(KERN_OBJECTS)
 
 .PHONY: clean $(CLANG) $(LLC) all debug jited-out
 
@@ -65,13 +55,6 @@ llvm-check: $(CLANG) $(LLC)
 			exit 1; \
 		else true; fi; \
 	done
-
-kdir-check:
-	@if [ ! -d $(KDIR)/include ]; then \
-		echo "Error: Directory $(KDIR)/include doesn't exist."; \
-		echo "Maybe run 'make kernel_headers' from $(KDIR)?"; \
-		exit 1; \
-	fi
 
 $(KERN_OBJECTS): %.o: %.c
 	($(CLANG) -O2 -Wall $(CFLAGS) -target bpf -emit-llvm \
