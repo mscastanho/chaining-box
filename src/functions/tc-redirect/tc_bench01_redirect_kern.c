@@ -17,9 +17,10 @@
 
 #include <linux/pkt_cls.h>
 
+#include <bpf/bpf_helpers.h>
+#include <bpf/bpf_endian.h>
+
 #include "cb_helpers.h"
-#include "bpf_endian.h"
-#include "bpf_helpers.h"
 
 /* Notice: TC and iproute2 bpf-loader uses another elf map layout */
 struct bpf_elf_map {

@@ -6,9 +6,10 @@
 #include <linux/ip.h>
 #include <stddef.h>
 
+#include <bpf/bpf_helpers.h>
+#include <bpf/bpf_endian.h>
+
 #include "bpf_elf.h"
-#include "bpf_endian.h"
-#include "bpf_helpers.h"
 
 #include "cb_helpers.h"
 #include "firewall.h"

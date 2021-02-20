@@ -6,10 +6,10 @@
 #include <linux/udp.h>
 #include <linux/pkt_cls.h>
 
+#include <bpf/bpf_helpers.h>
+#include <bpf/bpf_endian.h>
 
-#include "bpf_endian.h"
 #include "cb_helpers.h"
-#include "bpf_helpers.h"
 #include "bpf_elf.h"
 #include "cb_common.h"
 #include "nsh.h"

@@ -14,8 +14,9 @@
 #include <linux/udp.h>
 #include <sys/time.h>
 
-#include "bpf_endian.h"
-#include "bpf_helpers.h"
+#include <bpf/bpf_helpers.h>
+#include <bpf/bpf_endian.h>
+
 #include "bpf_elf.h"
 #include "cb_helpers.h"
 

@@ -18,7 +18,9 @@
 #include <linux/if_vlan.h>
 #include <linux/ip.h>
 #include <linux/ipv6.h>
-#include "bpf_helpers.h"
+
+#include <bpf/bpf_helpers.h>
+#include <bpf/bpf_endian.h>
 
 struct bpf_map_def SEC("maps") tx_port = {
 	.type = BPF_MAP_TYPE_DEVMAP,

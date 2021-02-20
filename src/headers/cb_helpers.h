@@ -6,8 +6,8 @@
 #include <linux/ip.h>
 #include <linux/tcp.h>
 #include <linux/udp.h>
+#include <bpf/bpf_helpers.h>
 
-#include "bpf_helpers.h"
 #include "cb_common.h"
 
 #ifdef BPFMAPDEF
