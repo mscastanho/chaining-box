@@ -43,7 +43,11 @@ contents (or want to build them from scratch for some other reason).
 
 Building `cb-build`:
 
-    docker build -t cb-build -f Dockerfile.build.f33 .
+    docker build -t cb-build:f33 -f Dockerfile.build.f33 .
+
+or:
+
+    docker build -t cb-build:focal -f Dockerfile.build.focal .
 
 Buildinf `cb-node`
 
