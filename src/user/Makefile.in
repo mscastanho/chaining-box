@@ -1,21 +1,15 @@
 # This is intended to be imported by other Makefiles
 # which in turn will set their respective USER_TARGETS
 
-LIBBPF_DIR = $(SRCDIR)libbpf/src
-OBJECT_LIBBPF = $(LIBBPF_DIR)/libbpf.a
 BUILD_DIR = $(SRCDIR)build
 
-CFLAGS += -I$(LIBBPF_DIR)/root/usr/include/
 CFLAGS += -I$(SRCDIR)utils -I$(SRCDIR)headers
 
-LDFLAGS ?= -L$(LIBBPF_DIR) -L$(BUILD_DIR)
+LDFLAGS ?= -L$(BUILD_DIR)
 
 LIBS = -lcbox -lbpf -lelf
 
 all: bdir-check $(USER_TARGETS)
-
-$(OBJECT_LIBBPF):
-	make -C $(LIBBPF_DIR)
 
 bdir-check:
 	@if [ ! -d $(BUILD_DIR) ]; then \
@@ -24,6 +18,6 @@ bdir-check:
 		exit 1; \
 	fi
 
-$(USER_TARGETS): %: %_user.c $(OBJECT_LIBBPF)
+$(USER_TARGETS): %: %_user.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^ $(UTILS) $(LIBS)
 	@mv $@ $(BUILD_DIR)
