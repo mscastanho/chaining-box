@@ -1,3 +1,5 @@
+#include <stddef.h>
+
 #include <linux/bpf.h>
 #include <linux/if_ether.h>
 #include <linux/in.h>
@@ -6,8 +8,6 @@
 #include <linux/udp.h>
 #include <linux/pkt_cls.h>
 
-#include <stdint.h>
-#include <stdlib.h>
 
 #include "bpf_endian.h"
 #include "cb_helpers.h"

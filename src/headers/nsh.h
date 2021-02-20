@@ -1,8 +1,6 @@
 ﻿#ifndef NSH_H_
 #define NSH_H_
 
-// #include <stdint.h>
-
 #define ETH_P_NSH              0x894F
 #define NSH_HLEN_NO_META            8
 #define NSH_BASE_HEADER_LEN         4

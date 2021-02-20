@@ -7,9 +7,6 @@
 #include <linux/tcp.h>
 #include <linux/udp.h>
 
-#include <stdint.h>
-#include <stdlib.h>
-
 #include "bpf_helpers.h"
 #include "cb_common.h"
 

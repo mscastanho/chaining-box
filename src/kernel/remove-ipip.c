@@ -7,8 +7,6 @@
 #include <linux/icmp.h>
 #include <linux/pkt_cls.h>
 
-#include <stdint.h>
-#include <stdlib.h>
 
 #include "bpf_endian.h"
 #include "bpf_helpers.h"
