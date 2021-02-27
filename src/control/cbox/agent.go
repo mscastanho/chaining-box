@@ -1,7 +1,7 @@
 package cbox
 
-// #cgo CFLAGS: -I../../ -I../../headers
-// #cgo LDFLAGS: -L../../build -lcbox -lbpf
+// #cgo CFLAGS: -I../../ -I../../libbpf/src/root/usr/include/ -I../../headers
+// #cgo LDFLAGS: -L../../build -L../../libbpf/src/ -lcbox -lbpf
 // #include "../../utils/cb_agent_helpers.h"
 import "C"
 
