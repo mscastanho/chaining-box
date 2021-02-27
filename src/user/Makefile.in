@@ -10,7 +10,7 @@ CFLAGS += -I$(SRCDIR)utils -I$(SRCDIR)headers
 
 LDFLAGS ?= -L$(LIBBPF_DIR) -L$(BUILD_DIR)
 
-LIBS = -lcbox -lbpf -lelf
+LIBS = -lcbox -lbpf -lelf -lz
 
 all: bdir-check $(USER_TARGETS)
 

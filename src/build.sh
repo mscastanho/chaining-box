@@ -34,7 +34,7 @@ $DOCKER run --name $NAME \
            --entrypoint "/usr/bin/make" \
            --env GOCACHE=/gocache \
            --rm \
-           mscastanho/cb-build:f33 \
+           mscastanho/chaining-box:cb-build \
            -C /cb \
            OWNER=$BUILD_USER $@
 # For some reason, all arguments to the entrypoint command

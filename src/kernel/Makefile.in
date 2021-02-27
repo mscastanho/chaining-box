@@ -14,6 +14,9 @@ JITEDOUTDIR=jited-output
 
 BUILD_DIR=$(SRCDIR)build
 
+# Path to libbpf headers
+CFLAGS += -I$(SRCDIR)libbpf/src/root/usr/include/
+
 all: llvm-check bdir-check $(KERN_OBJECTS)
 
 .PHONY: clean $(CLANG) $(LLC) all debug jited-out
