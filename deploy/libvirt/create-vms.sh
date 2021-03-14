@@ -48,13 +48,8 @@ EOF
     # Copy SSH key into VM for password-less login
     sshkey="${HOME}/.ssh/id_rsa.pub"
     [ -f ${sshkey} ] && {
-        # This is safe because we know the destination file will be empty,
-        # otherwise we would overwrite all other keys in the file.
-        cat ${sshkey} > /tmp/authorized_keys
-        virt-copy-in -a ${base_image} /tmp/authorized_keys /home/cbox/.ssh
+        virt-sysprep -a ${base_image} --ssh-inject cbox:file:${sshkey}
     }
-
-    # TODO: Do the SSH key injection using virt-sysprep --ssh-inject
 
     # TODO: Enable DHCP on enp1s0 by default
 }
