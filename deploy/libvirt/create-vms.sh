@@ -22,8 +22,8 @@ apt install --no-install-recommends -y \
 
 useradd -m -s /bin/bash -G sudo cbox
 bash -c 'echo -e "cbox\ncbox" | passwd cbox'
-mkdir /home/cbox/.ssh /home/cbox/chaining-box
-chown -R cbox:cbox /home/cbox/.ssh /home/cbox/chaining-box
+mkdir /home/cbox/chaining-box
+chown -R cbox:cbox /home/cbox/chaining-box
 EOF
 
 # Create base image if not there yet
