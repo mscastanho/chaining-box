@@ -50,12 +50,15 @@ EOF
     [ -f ${sshkey} ] && {
         virt-sysprep -a ${base_image} --ssh-inject cbox:file:${sshkey}
     }
-
-    # TODO: Enable DHCP on enp1s0 by default
 }
 
 # Connect to the system's QEMU by default
 export LIBVIRT_DEFAULT_URI=qemu:///system
+
+hosts=()
+for i in `seq 1 ${number_sfs}`; do
+    hosts+=("cbox-sf${i}")
+done
 
 mgmt_net="cb-management"
 
@@ -77,8 +80,8 @@ EOF
     virsh net-create ${netxml}
 }
 
-for i in `seq 1 ${number_sfs}`; do
-    name="cbox-sf${i}"
+for (( i = 0 ; i < ${#hosts[@]} ; i++ )) ; do
+    name="${hosts[i]}"
     img="${imgdir}/${name}.qcow2"
 
     # Delete any running VM with the same name
@@ -105,13 +108,31 @@ for i in `seq 1 ${number_sfs}`; do
         exit 1
     }
 
+    # Setup network configuration
+    hostnetcfg="/tmp/cb/01-netcfg.yaml"
+    cat - > ${hostnetcfg} <<EOF
+# Created by script ${0}
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    enp1s0:
+     dhcp4: no
+     addresses: [10.10.10.$(($i + 10))/24]
+     gateway4: 10.10.10.1
+EOF
+
+    virt-copy-in -a ${img} ${hostnetcfg} /etc/netplan
+
+    macaddress="52:54:00:00:00:$(printf '%02x' $(($i + 10)))"
+
     # Start VM
     virt-install \
         --name ${name} \
         --ram 2048 \
         --os-type linux --os-variant ubuntubionic \
         --disk path=${img},format=qcow2 \
-        --network network=${mgmt_net} \
+        --network network=${mgmt_net},mac=${macaddress} \
         --import \
         --noautoconsole
 
