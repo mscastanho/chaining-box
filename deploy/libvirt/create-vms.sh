@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 
+scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 imgdir="/tmp/cb/img"
 setup_script=/tmp/img-setup.sh
 base_image="${imgdir}/cbox-base.qcow2"
@@ -80,6 +81,11 @@ EOF
     virsh net-create ${netxml}
 }
 
+ovs_net="cbox-br"
+
+# Create OVS bridge
+sudo ovs-vsctl add-br ${ovs_net}
+
 for (( i = 0 ; i < ${#hosts[@]} ; i++ )) ; do
     name="${hosts[i]}"
     img="${imgdir}/${name}.qcow2"
@@ -126,15 +132,23 @@ EOF
 
     macaddress="52:54:00:00:00:$(printf '%02x' $(($i + 10)))"
 
+    vmxml="vm.xml"
+
     # Start VM
     virt-install \
         --name ${name} \
         --ram 2048 \
         --os-type linux --os-variant ubuntubionic \
         --disk path=${img},format=qcow2 \
-        --network network=${mgmt_net},mac=${macaddress} \
+        --network network=${mgmt_net} \
         --import \
-        --noautoconsole
+        --noautoconsole \
+        --print-xml > ${vmxml}
 
-    # TODO: Find a way to pre-determine the VM's IP address
+    # Edit XML to add an interface connected to an OVS bridge
+    python3 ${scriptdir}/add-ovs-network.py ${ovs_net} ${macaddress} ${vmxml} ${vmxml}
+
+    virsh create ${vmxml}
+
+    rm ${vmxml}
 done
