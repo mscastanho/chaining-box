@@ -1,10 +1,17 @@
 #!/usr/bin/env bash
 
-# These may need to be changed depending on your the system being used
-OVS_DIR="/usr/src/openvswitch-2.12.0"
+scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
-if [ ! -d $OVS_DIR ]; then
-  echo "Directory $OVS_DIR not found"
+# These may need to be changed depending on your the system being used
+OVSDIR="${scriptdir}/openvswitch-2.13.3"
+OVSRUN="${scriptdir}/ovs-run"
+OVSDB=${OVSDIR}/ovsdb
+
+# Make sure we use the OVS we built
+export PATH=$OVSDIR/utilities:$PATH
+
+if [ ! -d $OVSDIR ]; then
+  echo "Directory $OVSDIR not found"
   exit 1
 fi
 
@@ -26,10 +33,13 @@ echo "Done."
 
 ###################################
 
+set -e
+
 # Create ovs database
 echo "Creating ovs database..."
-ovsdb-tool create /usr/local/etc/openvswitch/conf.db \
-	$OVS_DIR/vswitchd/vswitch.ovsschema
+$OVSDB/ovsdb-tool create /usr/local/etc/openvswitch/conf.db \
+	${OVSDIR}/vswitchd/vswitch.ovsschema
+
 sleep 1
 echo "Done."
 
@@ -38,25 +48,28 @@ echo "Done."
 # Start ovsdb-server
 echo "Starting ovsdb server..."
 DB_SOCK=/usr/local/var/run/openvswitch/db.sock
-ovsdb-server \
-			--remote=punix:$DB_SOCK \
+$OVSDB/ovsdb-server \
+      --remote=punix:${DB_SOCK} \
       --remote=db:Open_vSwitch,Open_vSwitch,manager_options \
-      --pidfile --detach &
+      --pidfile \
+      --detach
+
 sleep 1
 echo "Done."
 
 ###################################
 
 echo "Starting OVS..."
-#ovs-vsctl --no-wait set Open_vSwitch . other_config:dpdk-lcore-mask=0x42
-#ovs-vsctl --no-wait set Open_vSwitch . other_config:dpdk-socket-mem=4096
-#ovs-vsctl --no-wait set Open_vSwitch . other_config:pmd-cpu-mask=0xf
-#ovs-vsctl --no-wait set Open_vSwitch . other_config:dpdk-hugepage-dir=/mnt/huge
-#ovs-vsctl --no-wait set Open_vSwitch . other_config:dpdk-init=true
-ovs-vsctl --no-wait init
 
-#Turn on daemon
-ovs-vswitchd \
+ovs-vsctl --no-wait set Open_vSwitch . other_config:dpdk-lcore-mask=0x3
+ovs-vsctl --no-wait set Open_vSwitch . other_config:dpdk-socket-mem=128
+# ovs-vsctl --no-wait set Open_vSwitch . other_config:pmd-cpu-mask=0xf
+ovs-vsctl --no-wait set Open_vSwitch . other_config:dpdk-hugepage-dir=/mnt/huge
+ovs-vsctl --no-wait set Open_vSwitch . other_config:dpdk-init=true
+ovs-vsctl --no-wait init &
+
+# Turn on daemon
+$OVSDIR/vswitchd/ovs-vswitchd \
      --pidfile \
      --detach \
      --log-file=/usr/local/var/log/openvswitch/ovs-vswitchd.log &
