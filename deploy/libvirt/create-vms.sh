@@ -122,7 +122,7 @@ network:
   version: 2
   renderer: networkd
   ethernets:
-    enp1s0:
+    enp3s0:
      dhcp4: no
      addresses: [10.10.10.$(($i + 10))/24]
      gateway4: 10.10.10.1
