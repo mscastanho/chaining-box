@@ -84,7 +84,7 @@ EOF
 ovs_net="cbox-br"
 
 # Create OVS bridge
-sudo ovs-vsctl add-br ${ovs_net}
+sudo ovs-vsctl --may-exist add-br ${ovs_net}
 
 for (( i = 0 ; i < ${#hosts[@]} ; i++ )) ; do
     name="${hosts[i]}"
