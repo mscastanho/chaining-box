@@ -37,6 +37,7 @@ EOF
                  --size 10G \
                  --hostname cbox \
                  --root-password password:chaining-box \
+                 --firstboot-command "ssh-keygen -A" \
                  --update \
                  --run ${setup_script} \
                  --verbose
