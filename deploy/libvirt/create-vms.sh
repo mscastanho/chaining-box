@@ -4,7 +4,6 @@ scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 imgdir="/tmp/cb/img"
 setup_script=/tmp/img-setup.sh
 base_image="${imgdir}/cbox-base.qcow2"
-number_sfs=2
 
 # Create directory for image files
 mkdir -p ${imgdir}
@@ -57,10 +56,7 @@ EOF
 # Connect to the system's QEMU by default
 export LIBVIRT_DEFAULT_URI=qemu:///system
 
-hosts=()
-for i in `seq 1 ${number_sfs}`; do
-    hosts+=("cbox-sf${i}")
-done
+hosts=($@)
 
 mgmt_net="cb-management"
 
@@ -107,9 +103,9 @@ for (( i = 0 ; i < ${#hosts[@]} ; i++ )) ; do
     # We could save some cycles by copying this only once to the base image, but
     # regenerating that takes some time, and it wouldn't be nice to have to
     # wait for that everytime we make changes to the project...
-    builddir=../../src/build
+    builddir=$(realpath ${CB_DIR:-"${scriptdir}/../.."}/src/build)
     [ -d ${builddir} ] && {
-        virt-copy-in -a ${img} ../../src/build /home/cbox/chaining-box
+        virt-copy-in -a ${img} ${builddir} /home/cbox/chaining-box
     } || {
         echo -e "Couldn't find build directory: ${builddir}.\nAborting..."
         exit 1
