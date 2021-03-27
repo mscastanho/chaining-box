@@ -2,6 +2,7 @@ package main
 
 import (
   "context"
+  "errors"
   "flag"
   "fmt"
   "io/ioutil"
@@ -17,9 +18,6 @@ import (
   "github.com/docker/docker/client"
   "github.com/docker/go-units"
   "github.com/docker/go-connections/nat"
-
-  /* Interaction with Open vSwitch */
-  "github.com/digitalocean/go-openvswitch/ovs"
 
   /* Handling point-to-point links using veth pairs */
   "control/koko"
@@ -146,15 +144,19 @@ func createNetworkInfra() {
         panic("Failed to create network macvlan1")
       }
     case OVS:
-      /* Create OVS bridge for container communication */
-      ovs_client := ovs.New(
-        // Prepend "sudo" to all commands.
-        ovs.Sudo(),
-      )
-
-      if err := ovs_client.VSwitch.AddBridge(bridge_name); err != nil {
-        panic(fmt.Sprintf("Failed to create OVS bridge:", err))
+      /* Simply check that OVS bridge exists. If not, fail out. */
+      err := runAndLog("","ovs-vsctl","br-exists",bridge_name)
+      if err != nil {
+        var exitError *exec.ExitError
+        fmt.Printf("Failed to find OVS bridge %s. Does it exist?\n", bridge_name)
+        if errors.As(err, &exitError) {
+          fmt.Println(exitError.Stderr)
+        } else {
+          fmt.Println(err)
+        }
+        os.Exit(1)
       }
+
     case SRIOV:
       /* Please setup SRIOV VFs before running this. */
 
