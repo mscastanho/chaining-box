@@ -3,10 +3,13 @@
 scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 imgdir="/tmp/cb/img"
 setup_script=/tmp/img-setup.sh
-base_image="${imgdir}/cbox-base.qcow2"
+base_image="/tmp/cb/cbox-base.qcow2"
 
 # Create directory for image files
 mkdir -p ${imgdir}
+
+# Remove old images from previous runs
+rm -f ${imgdir}/*
 
 cat - > ${setup_script} <<EOF
 apt install --no-install-recommends -y \
