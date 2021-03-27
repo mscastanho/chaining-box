@@ -7,7 +7,7 @@ openvswitch-2.13.3:
 	tar -xf $@.tar.gz
 	rm $@.tar.gz
 
-ovs: ovs-src
+ovs: ovs-src dpdk
 	cd $(ovs_dir) && \
 	./configure --with-dpdk=../$(dpdk_dir)/build CFLAGS="-Ofast -msse4.2 -mpopcnt"
 	make -C $(ovs_dir)
