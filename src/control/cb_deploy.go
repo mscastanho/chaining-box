@@ -78,6 +78,27 @@ func usage() {
     fmt.Printf("Usage: %s -c <path> -d <path>\n\nRequired flags:%s\n", os.Args[0], flags_desc)
 }
 
+func runAndLog(filename string, cmdargs ...string) (error) {
+  cmd := exec.Command(cmdargs[0], cmdargs[1:]...)
+
+  if filename != "" {
+    /* Create file to log the output */
+    outfile, err := os.Create("/tmp/" + filename)
+    if err != nil {
+      return err
+    }
+
+    defer outfile.Close()
+    cmd.Stdout = outfile
+  }
+
+  if err := cmd.Start(); err != nil {
+    return err
+  }
+
+  return cmd.Wait()
+}
+
 func getDirectLinkNames() (string,string) {
   /* The name of each interface on a veth pair used for direct linking two
    * containers will follow a simple naming scheme: dl<id>[a|b].
@@ -438,25 +459,10 @@ func startServiceFunction(sf cbox.CBInstance, ingress string, omit_ingress bool,
           sf.Tag, sf.Type, ingress, egress, entrypoint)
 
 
-  args := append([]string{"exec", "-t", sf.Tag}, entrypoint...)
+  cmdargs := append([]string{"docker", "exec", "-t", sf.Tag}, entrypoint...)
 
-    /* TODO: Too hacky. Use proper Docker SDK funcs instead. */
-    cmd := exec.Command("docker", args...)
-
-    /* Create file to log the output */
-    outfile, err := os.Create("/tmp/" + sf.Tag + ".out")
-    if err != nil {
-      panic(err)
-    }
-    defer outfile.Close()
-    cmd.Stdout = outfile
-
-    if err := cmd.Start(); err != nil {
-      panic(err)
-      return
-    }
-
-    go cmd.Wait()
+  /* TODO: Too hacky. Use proper Docker SDK funcs instead. */
+  go runAndLog(sf.Tag + ".out", cmdargs...)
 }
 
 func main() {
