@@ -549,7 +549,7 @@ func main() {
 
     /* Check bogus length */
     if clen < 2 {
-      fmt.Printf("Chaing %d has only %d SFs. Not enough. Skipping...\n",
+      fmt.Printf("Chain %d has only %d SFs. Not enough. Skipping...\n",
           chain.Id, clen)
       continue
     }
