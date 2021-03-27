@@ -58,6 +58,13 @@ export LIBVIRT_DEFAULT_URI=qemu:///system
 
 hosts=($@)
 
+# Check if OVS bridge already exists
+ovs_net="cbox-br"
+sudo ovs-vsctl br-exists ${ovs_net} || {
+    echo "Failed to find OVS bridge ${ovs_net}. Is it created?"
+    exit 1
+}
+
 mgmt_net="cb-management"
 
 # Create network if it doesn't exist yet
@@ -77,11 +84,6 @@ mgmt_net="cb-management"
 EOF
     virsh net-create ${netxml}
 }
-
-ovs_net="cbox-br"
-
-# Create OVS bridge
-sudo ovs-vsctl --may-exist add-br ${ovs_net}
 
 for (( i = 0 ; i < ${#hosts[@]} ; i++ )) ; do
     name="${hosts[i]}"
