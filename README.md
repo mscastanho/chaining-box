@@ -126,7 +126,7 @@ Add the physical interfaces (connected to the generator) to the bridge:
 Start the containers. E.g.:
 
   $ cd ~/chaining-box/src/
-  $ cfg=../test/chains-config/test-all-funcs.json; sudo ./build/cb_deploy -c $cfg \
+  $ cfg=../test/chains-config/test-all-funcs.json; sudo -E ./build/cb_deploy -c $cfg \
     -d ../ -n ovs && ./build/cb_manager $cfg
 
 Start the traffic generator:

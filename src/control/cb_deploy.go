@@ -43,6 +43,9 @@ const bridge_name = "cbox-br"
 var placeholder_entrypoint = []string{"tail","-f","/dev/null"}
 var default_entrypoint = []string{"tail","-f","/dev/null"}
 
+/* Path to Chaining-Box source directory */
+var source_dir string
+
 /* Base chaining-box dir */
 const target_dir = "/cb"
 
@@ -460,15 +463,14 @@ func main() {
   /* Slice containing IDs of all containers created */
   var clist []string
   var cfgfile string
-  var srcdir string
   var nettype string
   var create_srcdst bool
+  var err error
   using_direct_links := false
   ingress_ifaces := make(map[string]string)
   egress_ifaces := make(map[string]string)
 
   flag.StringVar(&cfgfile, "c", "", "path to the chains configuration file.")
-  flag.StringVar(&srcdir, "d", "", "path to the chaining-box source dir.")
   flag.StringVar(&nettype, "n", "bridge", "type of network to use.")
   flag.BoolVar(&create_srcdst, "t", false, "create src and dest containers for testing.")
   flag.Parse()
@@ -481,17 +483,17 @@ func main() {
 
   /* TODO: Avoid this requirement by installing all needed files to a default
    * location like /usr/local/chaining-box */
-  if srcdir == "" {
-    fmt.Println("Please provide the path to chaining-box source code config file.")
-    usage()
+  if srcdir, varset := os.LookupEnv("CB_DIR"); !varset {
+    fmt.Printf("Env vars: %v\n", os.Environ())
+    fmt.Println("Please set CB_DIR env var to the path to chaining-box source code.")
     os.Exit(1)
-  }
-
-  /* Docker requires paths to be absolute */
-  source_dir, err := filepath.Abs(srcdir)
-  if err != nil {
-    fmt.Printf("Error while turning %s into an absolute path.", srcdir)
-    os.Exit(1)
+  } else {
+    /* Docker requires paths to be absolute */
+    source_dir, err = filepath.Abs(srcdir)
+    if err != nil {
+      fmt.Printf("Error while turning %s into an absolute path.", srcdir)
+      os.Exit(1)
+    }
   }
 
   if nettype != string(OVS) && nettype != MACVLAN && nettype != BRIDGE &&
