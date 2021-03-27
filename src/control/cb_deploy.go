@@ -66,6 +66,15 @@ const (
   SRIOV = "sriov"
 )
 
+/* Type of instance deployment */
+
+type DeployType string
+
+const (
+  DOCKER DeployType = "docker"
+  KVM = "kvm"
+)
+
 var dataplane_type NetType
 
 func usage() {
@@ -467,53 +476,11 @@ func startServiceFunction(sf cbox.CBInstance, ingress string, omit_ingress bool,
   go runAndLog(sf.Tag + ".out", cmdargs...)
 }
 
-func main() {
-  /* Slice containing IDs of all containers created */
+func deployWithContainers(cfg *cbox.CBConfig, create_srcdst bool) {
   var clist []string
-  var cfgfile string
-  var nettype string
-  var create_srcdst bool
-  var err error
   using_direct_links := false
   ingress_ifaces := make(map[string]string)
   egress_ifaces := make(map[string]string)
-
-  flag.StringVar(&cfgfile, "c", "", "path to the chains configuration file.")
-  flag.StringVar(&nettype, "n", "bridge", "type of network to use.")
-  flag.BoolVar(&create_srcdst, "t", false, "create src and dest containers for testing.")
-  flag.Parse()
-
-  if cfgfile == "" {
-    fmt.Println("Please provide the path to the chains config file.")
-    usage()
-    os.Exit(1)
-  }
-
-  /* TODO: Avoid this requirement by installing all needed files to a default
-   * location like /usr/local/chaining-box */
-  if srcdir, varset := os.LookupEnv("CB_DIR"); !varset {
-    fmt.Printf("Env vars: %v\n", os.Environ())
-    fmt.Println("Please set CB_DIR env var to the path to chaining-box source code.")
-    os.Exit(1)
-  } else {
-    /* Docker requires paths to be absolute */
-    source_dir, err = filepath.Abs(srcdir)
-    if err != nil {
-      fmt.Printf("Error while turning %s into an absolute path.", srcdir)
-      os.Exit(1)
-    }
-  }
-
-  if nettype != string(OVS) && nettype != MACVLAN && nettype != BRIDGE &&
-      nettype != SRIOV {
-        panic(fmt.Sprintf("Invalid network type: %s", nettype))
-  } else {
-    dataplane_type = NetType(nettype)
-  }
-
-  cfg := ParseChainsConfig(cfgfile)
-
-  createNetworkInfra()
 
   /* Create src and dest to test chaining (if needed) */
   if create_srcdst {
@@ -651,5 +618,80 @@ func main() {
 
     startServiceFunction(sf, ingress, omit_ingress, egress, omit_egress,
       server_address)
+  }
+}
+
+func deployWithVirtualMachines(cfg *cbox.CBConfig) {
+  var vmlist []string
+
+  for i := 0 ; i < len(cfg.Functions) ; i++ {
+    sf := &cfg.Functions[i]
+    vmlist = append(vmlist, sf.Tag)
+  }
+
+  /* Start VMs for all functions declared */
+  cmdargs := append([]string{source_dir + "/deploy/libvirt/create-vms.sh"},
+    vmlist...)
+
+  if err := runAndLog("create-vms.out", cmdargs...); err != nil {
+    panic(err)
+  }
+}
+
+func main() {
+  /* Slice containing IDs of all containers created */
+  var cfgfile string
+  var nettype string
+  var deploytype string
+  var create_srcdst bool
+  var err error
+
+  flag.StringVar(&cfgfile, "c", "", "path to the chains configuration file.")
+  flag.StringVar(&nettype, "n", "bridge", "type of network to use.")
+  flag.StringVar(&deploytype, "p", "docker", "deployment type to use")
+  flag.BoolVar(&create_srcdst, "t", false, "create src and dest containers for testing.")
+  flag.Parse()
+
+  if cfgfile == "" {
+    fmt.Println("Please provide the path to the chains config file.")
+    usage()
+    os.Exit(1)
+  }
+
+  /* TODO: Avoid this requirement by installing all needed files to a default
+   * location like /usr/local/chaining-box */
+  if srcdir, varset := os.LookupEnv("CB_DIR"); !varset {
+    fmt.Println("Please set CB_DIR env var to the path to chaining-box source code.")
+    os.Exit(1)
+  } else {
+    /* Docker requires paths to be absolute */
+    source_dir, err = filepath.Abs(srcdir)
+    if err != nil {
+      fmt.Printf("Error while turning %s into an absolute path.", srcdir)
+      os.Exit(1)
+    }
+  }
+
+  if nettype != string(OVS) && nettype != MACVLAN && nettype != BRIDGE &&
+      nettype != SRIOV {
+        panic(fmt.Sprintf("Invalid network type: %s", nettype))
+  } else {
+    dataplane_type = NetType(nettype)
+  }
+
+  cfg := ParseChainsConfig(cfgfile)
+
+  createNetworkInfra()
+
+  if deploytype == string(KVM) {
+    fmt.Println("Deploying with KVM virtual machines...")
+    deployWithVirtualMachines(cfg)
+  } else if deploytype == string(DOCKER) {
+    fmt.Println("Deploying with Docker containers...")
+    deployWithContainers(cfg, create_srcdst)
+  } else {
+    fmt.Printf("Unknown deployment type: %s\nExiting...", deploytype)
+    deployWithVirtualMachines(cfg)
+    os.Exit(1)
   }
 }
