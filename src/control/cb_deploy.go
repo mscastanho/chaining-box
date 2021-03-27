@@ -155,9 +155,9 @@ func attachExtraInterfaces(cname string) {
   /* Facilitate using containers to debug code and match the IP used in most
      test scripts for source and destination. */
   if cname == "src" || cname == "dst" {
-	  subnet_prefix = "10.10"
+    subnet_prefix = "10.10"
   } else {
-	  subnet_prefix = "192.168"
+    subnet_prefix = "192.168"
   }
 
   switch dataplane_type {
@@ -228,14 +228,14 @@ func CreateNewContainer(name string, srcdir string, entrypoint []string) (string
 
   /* Create instance of client to interact with Docker Engine */
   cli, err := client.NewEnvClient()
-	if err != nil {
-		fmt.Println("Unable to create docker client")
-		panic(err)
-	}
+  if err != nil {
+    fmt.Println("Unable to create docker client")
+    panic(err)
+  }
 
   /* Download image from DockerHub if needed */
   // _, err = cli.ImagePull(ctx, default_image, types.ImagePullOptions{})
-	// if err != nil {
+  // if err != nil {
     // panic(err)
   // }
 
@@ -256,14 +256,14 @@ func CreateNewContainer(name string, srcdir string, entrypoint []string) (string
 
   /* Create container with all custom configuration needed */
   cont, err := cli.ContainerCreate(
-		ctx,
-		&container.Config{
+    ctx,
+    &container.Config{
       Hostname: name,
-			Image: default_image,
+      Image: default_image,
       /* TODO: Should be command to run the corresponding SF */
       Entrypoint: entrypoint,
-		},
-		&container.HostConfig {
+    },
+    &container.HostConfig {
       /* Containers need to run in privileged mode so they can perform
        * sysadmin operations from inside the container.
        *   Ex: loading BPF programs.*/
@@ -292,12 +292,12 @@ func CreateNewContainer(name string, srcdir string, entrypoint []string) (string
     nil, // Networking config
     name)
 
-	if err != nil {
-		panic(err)
-	}
+  if err != nil {
+    panic(err)
+  }
 
   /* Start the container created above */
-	cli.ContainerStart(context.Background(), cont.ID,
+  cli.ContainerStart(context.Background(), cont.ID,
     types.ContainerStartOptions{})
 
   /* Add extra interfaces for the dataplane type being used */
@@ -341,9 +341,9 @@ func ParseChainsConfig(cfgfile string) (cfg *cbox.CBConfig){
 }
 
 func getDockerIP() string {
-	var ip net.IP
+  var ip net.IP
 
-	iface, err := net.InterfaceByName("docker0")
+  iface, err := net.InterfaceByName("docker0")
   if err != nil {
     panic("Could not get reference to docker0")
   }
@@ -353,12 +353,12 @@ func getDockerIP() string {
     panic("Could not get addresses for docker0")
   }
 
-	switch a := addrs[0].(type) {
-		case *net.IPNet:
-			ip = a.IP
-		case *net.IPAddr:
-			ip = a.IP
-	}
+  switch a := addrs[0].(type) {
+    case *net.IPNet:
+      ip = a.IP
+    case *net.IPAddr:
+      ip = a.IP
+  }
 
   return ip.String()
 }
@@ -386,7 +386,7 @@ func getTypeExecString(sfType, ingress, egress string) []string{
       return []string{"--", basedir + "l4lb", ingress, egress}
     case "firewall":
       return []string{"--", basedir + "firewall", ingress, egress,
-	                basedir + "firewall-rules.txt"}
+                        basedir + "firewall-rules.txt"}
     case "chacha":
       return []string{"--", basedir + "chacha", ingress, egress}
   }
