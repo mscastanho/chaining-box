@@ -1,6 +1,6 @@
-all: cb_docker cb_agent cb_manager cb_start
+all: cb_deploy cb_agent cb_manager cb_start
 
-cb_docker: % : %.go
+cb_deploy: % : %.go
 	go build $<
 	mv $@ ../build
 

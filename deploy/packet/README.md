@@ -32,7 +32,7 @@ Setup SRIOV:
 Instantiate Chaining-Box environment
 
     cd chaining-box/src
-    cfg=../test/chains-config/len-2-noveth-swap.json; ./build/cb_docker -c $cfg -d ../ -n sriov && ./build/cb_manager $cfg
+    cfg=../test/chains-config/len-2-noveth-swap.json; ./build/cb_deploy -c $cfg -d ../ -n sriov && ./build/cb_manager $cfg
 
 Configure classifier. *Remember all configuration should be done in terms of enp1s0f0!!*
 

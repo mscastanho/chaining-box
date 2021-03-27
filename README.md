@@ -73,7 +73,7 @@ bpftool under the hood. The output will be on `jited-output/`
 
 ## Running
 
-### cb_docker
+### cb_deploy
 
   docker image pull mscastanho:chaining-box/cb-node
 
@@ -126,7 +126,7 @@ Add the physical interfaces (connected to the generator) to the bridge:
 Start the containers. E.g.:
 
   $ cd ~/chaining-box/src/
-  $ cfg=../test/chains-config/test-all-funcs.json; sudo ./build/cb_docker -c $cfg \
+  $ cfg=../test/chains-config/test-all-funcs.json; sudo ./build/cb_deploy -c $cfg \
     -d ../ -n ovs && ./build/cb_manager $cfg
 
 Start the traffic generator:
@@ -141,9 +141,8 @@ Instead of DPDK, we will use plain old ping use two interfaces in isolated names
 
   $ cd ~/chaining-box/scripts
   # ./create-namespaces do
-  
+
 When all is done, just run the magic script:
 
   # cd ~/chaining-box/tests
   # ./test-lat.sh
-

@@ -132,7 +132,7 @@ func createNetworkInfra() {
         panic(fmt.Sprintf("Failed to create OVS bridge:", err))
       }
     case SRIOV:
-      /* Please setup SRIOV VFs before running cb_docker */
+      /* Please setup SRIOV VFs before running this. */
 
       // pf := "enp2s0np0"
       // err := exec.Command("echo", "16", ">",

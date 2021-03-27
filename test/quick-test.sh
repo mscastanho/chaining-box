@@ -24,4 +24,4 @@ fi
 sudo ovs-vsctl del-br cbox-br
 
 # Start new containers and wait to start the manager
-sudo ${CBOXDIR}/src/build/cb_docker -c $cfg -d ${CBOXDIR} -n ovs -t && ${CBOXDIR}/src/build/cb_manager $cfg
+sudo ${CBOXDIR}/src/build/cb_deploy -c $cfg -d ${CBOXDIR} -n ovs -t && ${CBOXDIR}/src/build/cb_manager $cfg

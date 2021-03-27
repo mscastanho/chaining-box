@@ -62,7 +62,7 @@ function cbox_deploy_ovs {
   cleanup
 
   echo "Creating containers based on '$chainscfg'..."
-  sudo ${objdir}/cb_docker -c $chainscfg -d ../ -n ovs > $dockerlog 2>&1 || fail_exit
+  sudo ${objdir}/cb_deploy -c $chainscfg -d ../ -n ovs > $dockerlog 2>&1 || fail_exit
 
   echo "Adding physical ifaces to OVS bridge..."
   sudo ovs-vsctl add-port cbox-br $phys0
