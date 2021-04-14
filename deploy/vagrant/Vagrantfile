@@ -12,33 +12,15 @@ Vagrant.configure("2") do |config|
   (0..N-1).each do |machine_id|
     hostname = "sfc#{machine_id}"
     config.vm.define hostname do |machine|
-      machine.vm.box = "mscastanho/bpf-sandbox"
-      machine.vm.box_version = "0.4"
+      # See instructions on base-box dir on how to create this box
+      machine.vm.box = "cb-node"
       machine.vm.hostname = hostname
 
       # Machine specs
       machine.vm.provider "libvirt" do |lv|
         lv.default_prefix = ""
         lv.memory = "1024"
-        lv.graphics_type = "vnc"
-        lv.graphics_ip = "0.0.0.0"
       end
-
-      # Private network for inter-vm communication
-      machine.vm.network "private_network",
-          ip: "10.10.10.#{10+machine_id}",
-          mac: "00:00:00:00:00:#{"%02x" % (machine_id+10)}", # Must be lowercase
-          nic_type: "virtio",
-          libvirt__network_name: "sfcnet",
-          libvirt__driver_name: "vhost",
-          libvirt__driver_queues: "8"
-
-      machine.vm.network "forwarded_port",
-          guest: 22,
-          host: "#{2000+machine_id}"
-
-      machine.ssh.insert_key = false
-      machine.ssh.forward_x11 = true
 
       # Configure synced folders
       machine.vm.synced_folder "../../src/", "/home/vagrant/chaining-box/src", type: "rsync", rsync__chown: true
@@ -49,13 +31,12 @@ Vagrant.configure("2") do |config|
       # Re-create machine-id file to allow correct DHCP leasing by dnsmasq
       # A `vagrant reload` is needed after this
       machine.vm.provision "shell",
-        inline: "sudo rm /etc/machine-id; sudo systemd-machine-id-setup; sudo dhclient eth1; sudo dhclient eth0"
+        inline: "rm /etc/machine-id; systemd-machine-id-setup;"
 
-      machine.vm.provision "deps", type: "shell", run: "never", path: "install-deps.sh"
-#      machine.trigger.after :provision do |trigger|
-#            trigger.info = "Flag VM to apply changes..."
-#            trigger.run = {inline: "vagrant reload #{hostname}"}
-#      end
+      # A `vagrant reload` is needed after this
+      machine.trigger.after :up,
+        info: "Rebooting machine to get new IP...",
+        run_remote: {inline: "reboot"}
     end
   end
 end
