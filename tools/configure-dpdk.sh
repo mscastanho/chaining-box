@@ -3,7 +3,10 @@
 scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 ###### Check if DPDK vars are set ######
-[ "$EUID" -ne 0 ] && echo "Sorry, this script must be run as root..."
+[ "$EUID" -ne 0 ] && {
+    echo "Sorry, this script must be run as root..."
+    exit 1
+}
 
 RTE_SDK=${scriptdir}/dpdk-19.11.6
 
