@@ -1,15 +1,21 @@
 #!/usr/bin/env bash
 
 scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-imgdir="/tmp/cb/img"
+imgdir="${scriptdir}/images"
 setup_script=/tmp/img-setup.sh
-base_image="/tmp/cb/cbox-base.qcow2"
+base_image="${imgdir}/base.qcow2"
+tmpdir="/tmp/cb"
+libvirt_imgdir="/var/lib/libvirt/images"
+
+# Create temp directory
+mkdir -p "${tmpdir}"
 
 # Create directory for image files
 mkdir -p ${imgdir}
+chmod a+x ${imgdir}
 
 # Remove old images from previous runs
-rm -f ${imgdir}/*
+rm -f ${imgdir}/cbox-*
 
 cat - > ${setup_script} <<EOF
 apt install --no-install-recommends -y \
@@ -73,7 +79,7 @@ mgmt_net="cb-management"
 # Create network if it doesn't exist yet
 { virsh net-info ${mgmt_net}; } > /dev/null 2>&1
 [ $? -ne 0 ] && {
-    netxml="/tmp/cbmgmt.xml"
+    netxml="${tmpdir}/cbmgmt.xml"
     cat - > ${netxml} <<EOF
 <network>
   <name>cb-management</name>
@@ -90,7 +96,8 @@ EOF
 
 for (( i = 0 ; i < ${#hosts[@]} ; i++ )) ; do
     name="${hosts[i]}"
-    img="${imgdir}/${name}.qcow2"
+    imgbasename="cbox-${name}.qcow2"
+    img="${imgdir}/${imgbasename}"
 
     # Delete any running VM with the same name
     {
@@ -117,30 +124,42 @@ for (( i = 0 ; i < ${#hosts[@]} ; i++ )) ; do
     }
 
     # Setup network configuration
-    hostnetcfg="/tmp/cb/01-netcfg.yaml"
+    # Addresses will start from 10.10.10.11
+    hostnetcfg="${tmpdir}/01-netcfg.yaml"
     cat - > ${hostnetcfg} <<EOF
 # Created by script ${0}
 network:
   version: 2
   renderer: networkd
   ethernets:
-    enp3s0:
+    ens3:
      dhcp4: no
-     addresses: [10.10.10.$(($i + 10))/24]
+     addresses: [10.10.10.$(($i + 11))/24]
      gateway4: 10.10.10.1
 EOF
 
     virt-copy-in -a ${img} ${hostnetcfg} /etc/netplan
 
+    # Setup proper hostname
+    hostnamecfg="${tmpdir}/hostname"
+    cat - > ${hostnamecfg} <<EOF
+${name}
+EOF
+    virt-copy-in -a ${img} ${hostnamecfg} /etc/
+
     macaddress="52:54:00:00:00:$(printf '%02x' $(($i + 10)))"
 
     vmxml="vm.xml"
+
+    # Need to copy the image to a place where libvirt can access it
+    sudo mv ${img} ${libvirt_imgdir}
+    img=${libvirt_imgdir}/${imgbasename}
 
     # Start VM
     virt-install \
         --name ${name} \
         --ram 2048 \
-        --os-type linux --os-variant ubuntubionic \
+        --os-type linux --os-variant generic \
         --disk path=${img},format=qcow2 \
         --network network=${mgmt_net} \
         --import \
