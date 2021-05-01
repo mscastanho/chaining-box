@@ -124,7 +124,7 @@ for (( i = 0 ; i < ${#hosts[@]} ; i++ )) ; do
     }
 
     # Setup network configuration
-    # Addresses will start from 10.10.10.11
+    # Addresses will start from 10.10.*.11
     hostnetcfg="${tmpdir}/01-netcfg.yaml"
     cat - > ${hostnetcfg} <<EOF
 # Created by script ${0}
@@ -136,6 +136,10 @@ network:
      dhcp4: no
      addresses: [10.10.10.$(($i + 11))/24]
      gateway4: 10.10.10.1
+    ens4:
+     dhcp4: no
+     addresses: [10.10.20.$(($i + 11))/24]
+     gateway4: 10.10.20.1
 EOF
 
     virt-copy-in -a ${img} ${hostnetcfg} /etc/netplan
