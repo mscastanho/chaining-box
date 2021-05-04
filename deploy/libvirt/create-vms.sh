@@ -19,15 +19,32 @@ rm -f ${imgdir}/cbox-*
 
 cat - > ${setup_script} <<EOF
 apt install --no-install-recommends -y \
+    binutils-dev \
+    bison \
     dwarves \
+    elfutils \
     ethtool \
+    flex \
+    gcc \
+    gcc-multilib \
     iperf3 \
     iproute2 \
     iputils-ping \
-    linux-image-5.3.0-70-generic \
-    linux-tools-5.3.0-70-generic \
+    libcap-dev \
+    libdw-dev \
+    libelf-dev \
+    libmnl-dev \
+    linux-image-5.4.0-48-generic \
+    linux-tools-5.4.0-48-generic \
+    make \
+    pkg-config \
     tcpdump \
     xxd
+
+# Install iproute2 v5.4.0
+cd /tmp && wget https://git.kernel.org/pub/scm/network/iproute2/iproute2.git/snapshot/iproute2-5.4.0.tar.gz
+tar -xf iproute2-5.4.0.tar.gz
+cd iproute2-5.4.0 && make && make install
 
 useradd -m -s /bin/bash -G sudo cbox
 bash -c 'echo -e "cbox\ncbox" | passwd cbox'
