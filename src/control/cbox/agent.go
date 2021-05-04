@@ -100,10 +100,10 @@ func (cba *CBAgent) ManagerConnect(address string) error {
       break
     }
 
-    if ntries >= 10 {
-      return errors.New(fmt.Sprintf(
-        "Failed to connect to controller", ntries))
-    }
+    // if ntries >= 10 {
+    //   return errors.New(fmt.Sprintf(
+    //     "Failed to connect to controller", ntries))
+    // }
 
     time.Sleep(time.Second)
   }
